@@ -53,14 +53,15 @@ def plot_error_sweep_testing_graph(
         markerstyle: list or None = None,
         linestyles: list or None = None,
         metric: str = 'sumrate',
+        visible_mask: list[bool] | None = None,   # <--- NEU
+        legend_alpha_off: float = 0.15,           # <--- NEU
 ) -> None:
 
     def get_metric_key(data_dict):
-
-        for key_id, key in enumerate(data_dict[1].keys()):
+        for key in data_dict[1].keys():
             if match_string in str(key):
                 return key
-        return ValueError('match string not found')
+        raise ValueError('match string not found')
 
     fig, ax = plt.subplots(figsize=(width, height))
 
@@ -76,6 +77,13 @@ def plot_error_sweep_testing_graph(
         with gzip_open(path, 'rb') as file:
             data.append(pickle_load(file))
 
+    # Wenn nichts angegeben: alles sichtbar
+    if visible_mask is None:
+        visible_mask = [True] * len(data)
+
+    if len(visible_mask) != len(data):
+        raise ValueError("visible_mask muss die gleiche Länge haben wie paths/data.")
+
     out_csv = Path(plots_parent_path) / f"{name}_{metric}.csv"
     export_curves_to_csv(
         data=data,
@@ -83,91 +91,49 @@ def plot_error_sweep_testing_graph(
         out_csv=out_csv,
     )
 
+    lines = []
     for data_id, data_entry in enumerate(data):
-
         metric_key = get_metric_key(data_entry)
 
-        if data_id == 2:
-            ax.plot(np.nan, np.nan, '-', color='none', label=' ')  # add empty entry to sort legend
+        marker = markerstyle[data_id] if markerstyle is not None else None
+        color = colors[data_id] if colors is not None else None
+        linestyle = linestyles[data_id] if linestyles is not None else None
 
-        if markerstyle is not None:
-            marker = markerstyle[data_id]
-        else:
-            marker = None
+        show = bool(visible_mask[data_id])
 
-        if colors is not None:
-            color = colors[data_id]
-        else:
-            color = None
+        # Kurve ausblenden -> alpha=0 (bleibt aber als Handle für Legende vorhanden)
+        line_alpha = 1.0 if show else 0.0
 
-        if linestyles is not None:
-            linestyle = linestyles[data_id]
-        else:
-            linestyle = None
-
-        # ax.errorbar(
-        #     data_entry[0],
-        #     data_entry[1]['sum_rate']['mean'],
-        #     yerr=data_entry[1]['sum_rate']['std'],
-        #     marker=marker,
-        #     color=color,
-        #     linestyle=linestyle,
-        #     label=legend[data_id],
-        #     # solid_capstyle='round',
-        #     # ecolor=change_lightness(color=color, amount=0.3),
-        #     # elinewidth=2,
-        #     # capthick=2,
-        #     # markevery=[0, -1],
-        #     # markeredgecolor='black',
-        #     # fillstyle='none'
-        # )
-
-        ax.plot(
+        (line,) = ax.plot(
             data_entry[0],
             data_entry[1][metric_key]['mean'],
             marker=marker,
             color=color,
             linestyle=linestyle,
-            label=legend[data_id],
+            label=legend[data_id] if legend is not None else None,
             fillstyle='none',
-            markevery= 1,
+            markevery=1,
+            alpha=line_alpha,
         )
-
-        # ax.annotate(
-        #     text=legend[data_id],
-        #     xy=(data_entry[0][-1], data_entry[1]['sum_rate']['mean'][-1]),
-        #     xytext=(10, 0),
-        #     textcoords='offset points',
-        #     ha='left',
-        #     va='center_baseline',
-        #     color=color,
-        #     fontsize=8.33,
-        # )
-
+        lines.append(line)
 
     ax.set_xlabel(xlabel, fontsize=8)
     ax.set_ylabel(ylabel, fontsize=8)
 
     if legend:
-        from matplotlib import container
-        handles, labels = ax.get_legend_handles_labels()
-        handles = [h[0] if isinstance(h, container.ErrorbarContainer) else h for h in handles]  # remove error bars
-        legend = ax.legend(
-            # loc='upper center',
-            # bbox_to_anchor=(0.5, 1.3),
-            # handles, legend,
-            ncols=2,
-            fontsize=8,
-            # loc='lower left',
-        )
-        legend.get_frame().set_linewidth(0.8)
+        leg = ax.legend(ncols=1, fontsize=8)
 
+        # Legende: Einträge für ausgeblendete Reihen transparent machen
+        for i, (legline, legtext) in enumerate(zip(leg.get_lines(), leg.get_texts())):
+            a = 1.0 if visible_mask[i] else legend_alpha_off
+            legline.set_alpha(a)
+            legtext.set_alpha(a)
+
+    # Pfeile/Annotationen wie bei dir
     arr = mpatches.FancyArrowPatch(
-        (0.095, 1), (0.095, 3.9),
+        (0.095, 1), (0.095, 3.5),
         arrowstyle='-|>',
-        # arrowstyle='simple,head_width=0.7',
         mutation_scale=15,
-        # fill='black',
         color='darkgrey',
     )
     ax.add_patch(arr)
@@ -185,14 +151,12 @@ def plot_error_sweep_testing_graph(
     arr2 = mpatches.FancyArrowPatch(
         (0, 0.7), (0.10, 0.7),
         arrowstyle='-|>',
-        # arrowstyle='simple,head_width=0.7',
         mutation_scale=15,
-        # fill='black',
         color='darkgrey',
     )
     ax.add_patch(arr2)
     ax.annotate(
-        'increasing error on CSIT',
+        'increasing error on position',
         (0.5, 1.0),
         xycoords=arr2,
         ha='center',
@@ -201,14 +165,10 @@ def plot_error_sweep_testing_graph(
         color=change_lightness('black', 0.7),
     )
 
-    # ax.set_xlim([-0.01, 0.2])
-    # ax.set_xlabel('X-Beschriftung', fontsize=14)
-    # ax.set_ylabel('Y-Beschriftung', fontsize=14)
-
     generic_styling(ax=ax)
     fig.tight_layout(pad=0)
 
-
+    save_figures(plots_parent_path=plots_parent_path, plot_name=name, padding=0.05)
 
 
 if __name__ == '__main__':
@@ -220,48 +180,48 @@ if __name__ == '__main__':
         Path(cfg.output_metrics_path,
              'ArminFolien', 'error_sweep',
              'testing_mmse_sweep_0.0_0.1.gzip'),
-        Path(cfg.output_metrics_path,
-             'ArminFolien', 'error_sweep',
-             'testing_robust_slnr_sweep_0.0_0.1.gzip'),
+        # Path(cfg.output_metrics_path,
+        #      'ArminFolien', 'error_sweep',
+        #      'testing_robust_slnr_sweep_0.0_0.1.gzip'),
         Path(cfg.output_metrics_path,
              'ArminFolien', 'error_sweep',
              'testing_learned_sweep_0.0_0.1_error_0.gzip'),
-        Path(cfg.output_metrics_path,
-             'ArminFolien', 'error_sweep',
-             'testing_learned_sweep_0.0_0.1_error_0.025.gzip'),
+        # Path(cfg.output_metrics_path,
+        #      'ArminFolien', 'error_sweep',
+        #      'testing_learned_sweep_0.0_0.1_error_0.025.gzip'),
         Path(cfg.output_metrics_path,
              'ArminFolien', 'error_sweep',
              'testing_learned_sweep_0.0_0.1.gzip'),
     ]
 
     plot_width = 0.99 * plot_cfg.textwidth
-    plot_height = plot_width * 17 / 20
+    plot_height = plot_width * 0.64
 
     plot_legend = [
-        'MMSE',
-        'SLNR',
+        'Baseline',
+        # 'SLNR',
         'Learned $\Delta\epsilon=0.0$',
-        'Learned $\Delta\epsilon=0.025$',
+        # 'Learned $\Delta\epsilon=0.025$',
         'Learned $\Delta\epsilon=0.05$',
     ]
 
     plot_markerstyle = [
         'o',
-        'x',
+        # 'x',
         's',
-        'd',
+        # 'd',
         'D',
     ]
     plot_colors = [
         plot_cfg.cp2['black'],
-        plot_cfg.cp2['black'],
+        # plot_cfg.cp3['green1'],
         plot_cfg.cp3['blue2'],
-        plot_cfg.cp3['red3'],
+        # plot_cfg.cp3['red3'],
         plot_cfg.cp3['red2'],
     ]
     plot_linestyles = [
         '-',
-        ':',
+        '-',
         '-',
         '-',
         '-',
@@ -271,14 +231,15 @@ if __name__ == '__main__':
         paths=data_paths,
         name='error_sweep_1sat_1',
         width=plot_width,
-        xlabel='Position Error Bound $\Delta\\varepsilon$',
-        ylabel='Avg. Sum Rate (bits/s/Hz)',
         height=plot_height,
+        xlabel='Error Bound $\Delta\\varepsilon$',
+        ylabel='Achievable Rate (bits/s/Hz)',
         legend=plot_legend,
         colors=plot_colors,
         markerstyle=plot_markerstyle,
         linestyles=plot_linestyles,
         plots_parent_path=plot_cfg.plots_parent_path,
+        visible_mask=[True, False, False],
     )
     plt.show()
 

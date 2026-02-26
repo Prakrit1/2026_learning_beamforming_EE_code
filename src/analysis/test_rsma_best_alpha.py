@@ -11,11 +11,11 @@ from src.analysis.helpers.test_rsma_precoder import test_rsma_precoder_error_swe
 from src.analysis.helpers.test_rsma_precoder import test_rsma_precoder_user_number_sweep
 
 
-sweep_parameter='error_sweep' # available 'error_sweep','user_distance_sweep', 'user_number_sweep'
+sweep_parameter='user_distance_sweep' # available 'error_sweep','user_distance_sweep', 'user_number_sweep'
 
 def test_rsma_best_alpha_user_distance():
 
-    monte_carlo_iterations = 1000
+    monte_carlo_iterations = 5000
 
     rsma_factors = np.arange(0, 1+0.01, step=0.01)  # exclusive interval
     distance_sweep_range = np.arange(500,50500, 500) #np.linspace(500, 50_000, 100)

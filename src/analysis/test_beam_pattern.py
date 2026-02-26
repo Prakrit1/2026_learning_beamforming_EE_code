@@ -34,13 +34,13 @@ angle_sweep_range = np.arange(1.2, 1.9, 0.1 * np.pi / 180)  # arange or None
 
 
 config = Config()
-# config.user_dist_bound = 0  # disable user wiggle
+config.user_dist_bound = 0  # disable user wiggle
 # config.user_dist_bound = 50_000
 
 model_path = Path(  # SAC only
     config.trained_models_path,
-    '02_rsma_journal_error_sweep_with_error',
-    'full_snap_3.874',
+    'Folien',
+    'full_snap_2.570',
 )
 
 if any(value in plot for value in ['learned', 'slnr_adapted_complete']):
@@ -237,5 +237,7 @@ for iter_id in range(1):
         )
 
         print(f'ones: {sum_rate_ones}')
+
+
 
     plt_show()

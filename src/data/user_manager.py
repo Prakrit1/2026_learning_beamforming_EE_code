@@ -76,7 +76,6 @@ class UserManager:
         else:
             raise ValueError(f"Unknown user distribution mode={config.user_distribution_mode}")
 
-        user_dist = np.clip(user_dist, min_user_dist, max_user_dist)
 
         # calculate user_aods_diff_earth_rad
         user_aods_diff_earth_rad = np.zeros(config.user_nr)

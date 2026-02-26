@@ -22,7 +22,7 @@ def test_channel_correlation_user_sweep(
         user_2_id: int,
         disable_wiggle: bool,
         monte_carlo_iterations: int,
-) -> None:
+) -> np.ndarray:
 
     config = Config()
     satellite_manager = SatelliteManager(config)
@@ -70,12 +70,50 @@ def test_channel_correlation_user_sweep(
 
 
     # plot
+    # fig, ax = plt.subplots()
+    #
+    # ax.errorbar(
+    #     distance_sweep_range,
+    #     mean_channel_correlations,
+    #     yerr=std_channel_correlations**2,
+    # )
+    #
+    # ax.set_xlabel('User Distance [m]')
+    # ax.set_ylabel('Channel Correlation')
+    #
+    # fig.tight_layout()
+    #
+    # plt.show()
+
+    return mean_channel_correlations
+
+    # Phasen (unwrap), relativ zu Antenne 0 (damit globaler Phasenoffset weg ist)
+
+    # H = satellite_manager.satellites.
+    # print(H)
+
+if __name__ == '__main__':
+
+    distance_sweep_range = np.linspace(1, 50_000, 100)
+    monte_carlo_iterations = 100
+    user_1_id = 0
+    user_2_id = 1
+    user_3_id = 2
+    disable_wiggle = True
+
+    mean_channel_correlation_1=test_channel_correlation_user_sweep(distance_sweep_range, user_1_id, user_2_id, disable_wiggle, monte_carlo_iterations)
+    mean_channel_correlation_2=test_channel_correlation_user_sweep(distance_sweep_range, user_1_id, user_3_id, disable_wiggle, monte_carlo_iterations)
+    mean_channel_correlation_3=test_channel_correlation_user_sweep(distance_sweep_range, user_2_id, user_3_id, disable_wiggle, monte_carlo_iterations)
+
+    mean_overall = (mean_channel_correlation_1 + mean_channel_correlation_2 + mean_channel_correlation_3)/3
+    print(mean_overall)
+
+    # plot
     fig, ax = plt.subplots()
 
-    ax.errorbar(
+    ax.plot(
         distance_sweep_range,
-        mean_channel_correlations,
-        yerr=std_channel_correlations**2,
+        mean_overall,
     )
 
     ax.set_xlabel('User Distance [m]')
@@ -86,12 +124,3 @@ def test_channel_correlation_user_sweep(
     plt.show()
 
 
-if __name__ == '__main__':
-
-    distance_sweep_range = np.linspace(1, 250_000, 100)
-    monte_carlo_iterations = 1000
-    user_1_id = 0
-    user_2_id = 1
-    disable_wiggle = True
-
-    test_channel_correlation_user_sweep(distance_sweep_range, user_1_id, user_2_id, disable_wiggle, monte_carlo_iterations)
