@@ -54,7 +54,7 @@ def plot_distance_sweep_testing_graph(
     data = []
     for path in paths:
         with gzip.open(path, 'rb') as file:
-            data.append(pickle.load(file))
+             data.append(pickle.load(file))
     for data_id, data_entry in enumerate(data):
         #first_entry = list(data_entry[1]['sum_rate'].keys())[0]
         metric_key = get_metric_key(data_entry)
@@ -113,7 +113,7 @@ def plot_distance_sweep_testing_graph(
         )
 
     if legend:
-        ax.legend(legend, ncols=1)
+        ax.legend(legend, ncols=2,loc='lower right')
 
 
     generic_styling(ax=ax)
@@ -128,12 +128,18 @@ if __name__ == '__main__':
     plot_cfg = PlotConfig()
 
     data_paths = [
+        # Path(cfg.output_metrics_path,
+        #      '01_user_distance_without_error', '01_sumrate',
+        #      'testing_rsma_genie_sweep_500_50000.gzip'),
         Path(cfg.output_metrics_path,
              '01_user_distance_without_error', '01_sumrate',
-             'testing_rsma_genie_sweep_500_50000.gzip'),
+             'testing_mmse_usersweep_500_50000.gzip'),
+        # Path(cfg.output_metrics_path,
+        #      '01_user_distance_without_error','01_sumrate',
+        #      'testing_learned_usersweep_500_50000.gzip'),
         Path(cfg.output_metrics_path,
-             '01_user_distance_without_error','01_sumrate',
-             'testing_learned_usersweep_500_50000_test.gzip'),
+             '01_user_distance_without_error', '01_sumrate',
+             'testing_learned_usersweep_500_50000.gzip'),
         Path(cfg.output_metrics_path,
              '01_user_distance_without_error', '01_sumrate',
              'testing_learned_rsma_full_usersweep_500_50000.gzip'),
@@ -143,7 +149,8 @@ if __name__ == '__main__':
     ]
 
     plot_width = 0.99 * plot_cfg.textwidth
-    plot_height = plot_width * 0.66
+    plot_height = plot_width * 0.6
+    # plot_height = plot_width * 0.4
 
     plot_legend = [
         r'RSMA $\alpha*$',

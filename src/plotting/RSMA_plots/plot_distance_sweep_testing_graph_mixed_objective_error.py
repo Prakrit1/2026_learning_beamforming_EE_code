@@ -113,7 +113,7 @@ def plot_distance_sweep_testing_graph(
         )
 
     if legend:
-        ax.legend(legend, ncols=1)
+        ax.legend(legend, ncols=2)
 
 
     generic_styling(ax=ax)
@@ -151,7 +151,8 @@ if __name__ == '__main__':
     ]
 
     plot_width = 0.99 * plot_cfg.textwidth
-    plot_height = plot_width * 0.66
+    plot_height = plot_width * 0.6
+    # plot_height = plot_width * 0.3
 
     plot_legend = [
         r'RSMA $\alpha*$',
@@ -165,7 +166,7 @@ if __name__ == '__main__':
 
     plot_distance_sweep_testing_graph(
         paths=data_paths,
-        metric='sumrate',
+        metric='fairness',
         name='dist_sweep_test_long',
         width=plot_width,
         height=plot_height,

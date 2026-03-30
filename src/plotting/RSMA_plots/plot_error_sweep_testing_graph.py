@@ -214,7 +214,7 @@ if __name__ == '__main__':
 
     plot_error_sweep_testing_graph(
         paths=data_paths,
-        metric='fairness',
+        metric='sumrate',
         name='error_sweep_test',
         width=plot_width,
         height=plot_height,

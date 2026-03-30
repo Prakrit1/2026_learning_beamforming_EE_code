@@ -61,7 +61,7 @@ def mmse_precoder_no_norm(
 ) -> np.ndarray:
     """TODO: Comment"""
 
-    inversion_constant_lambda = 1e-24 #np.finfo('float32').tiny
+    inversion_constant_lambda = 1e-22 #np.finfo('float32').tiny
     # inversion_constant_lambda = 0
 
     user_nr = channel_matrix.shape[0]

@@ -182,33 +182,61 @@ def get_precoding_learned_rsma_power_and_common_part(
         **config.config_learner.get_state_args
     )
 
-    power_factor_network, power_factors_private_users,common_part_precoding_no_norm = get_learned_rsma_power_and_common_part(
+    # power_factor_network, power_factors_private_users,common_part_precoding_no_norm = get_learned_rsma_power_and_common_part(
+    #     state=state,
+    #     precoder_network=precoder_network,
+    #     user_nr=config.user_nr,
+    # )
+    #
+    power_factors_private_users,common_part_precoding_no_norm = get_learned_rsma_power_and_common_part(
         state=state,
         precoder_network=precoder_network,
         user_nr=config.user_nr,
     )
 
-    power_constraint_private_part = config.power_constraint_watt ** power_factor_network
-    power_constraint_common_part = config.power_constraint_watt - power_constraint_private_part
+    # power_constraint_private_part = config.power_constraint_watt ** power_factor_network
+    # power_constraint_common_part = config.power_constraint_watt - power_constraint_private_part
+    #
+    # common_power = np.linalg.norm(common_part_precoding_no_norm, ord=2) + 1e-12
+    #
+    # if power_constraint_common_part <= 1e-12:
+    #     # no common budget -> common part is zero
+    #     common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
+    # elif common_power <= 1e-9:
+    #     # common_raw is (almost) zero but budget > 0 -> use a stable default direction
+    #     common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
+    # else:
+    #     common_part_precoding = (
+    #             np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_power
+    #     )
+    #
+    # # Ensuring sum of power of all users is within power_constraint_private_part
+    # power_factors_private_users_positive = np.clip(power_factors_private_users, 0, power_constraint_private_part)
+    # sum_power_users = np.sum(power_factors_private_users_positive) + 1e-12
+    # private_power_scale = min(1, power_constraint_private_part / sum_power_users)
+    # power_factors_private_users_normalized = power_factors_private_users_positive * private_power_scale
 
-    common_power = np.linalg.norm(common_part_precoding_no_norm, ord=2) + 1e-12
+    common_part_norm = np.linalg.norm(common_part_precoding_no_norm, ord=2)
+    power_common_part = common_part_norm ** 2
+    # common_part_precoding = np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_power
 
-    if power_constraint_common_part <= 1e-12:
-        # no common budget -> common part is zero
-        common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
-    elif common_power <= 1e-9:
-        # common_raw is (almost) zero but budget > 0 -> use a stable default direction
+    # Ensuring sum of power of all users is within power_constraint_private_part
+    power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
+    sum_power = np.sum(power_factors_private_users_positive) + power_common_part + 1e-12
+
+    power_scale = min(1, config.power_constraint_watt / sum_power)
+    power_factors_private_users_normalized = power_factors_private_users_positive * power_scale
+
+    power_constraint_common_part = power_common_part * power_scale
+
+    if common_part_norm <= 1e-12:
         common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
     else:
         common_part_precoding = (
-                np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_power
+                np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_part_norm
         )
 
-    # Ensuring sum of power of all users is within power_constraint_private_part
-    power_factors_private_users_positive = np.clip(power_factors_private_users, 0, power_constraint_private_part)
-    sum_power_users = np.sum(power_factors_private_users_positive) + 1e-12
-    private_power_scale = min(1, power_constraint_private_part / sum_power_users)
-    power_factors_private_users_normalized = power_factors_private_users_positive * private_power_scale
+    power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
     private_part_precoding = mmse_precoder_user_specific_normalized(
         channel_matrix=satellite_manager.erroneous_channel_state_information,

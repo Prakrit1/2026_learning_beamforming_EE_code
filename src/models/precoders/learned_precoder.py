@@ -67,20 +67,28 @@ def get_learned_rsma_power_and_common_part(
         state: np.ndarray,
         precoder_network: tf.keras.Model,
         user_nr: int,
-) -> tuple[float, np.ndarray, np.ndarray]:
+# ) -> tuple[float, np.ndarray, np.ndarray]:
+) -> tuple[ np.ndarray, np.ndarray]:
 
     network_output, _ = precoder_network.call(state.astype('float32')[np.newaxis])
     network_output = network_output.numpy().flatten()
 
-    power_factor_network = float(np.clip(network_output[0], 0.0, 1.0))
+    # power_factor_network = float(np.clip(network_output[0], 0.0, 1.0))
+    #
+    # power_factors_private_users = network_output[1:user_nr + 1]
+    #
+    # common_part_precoding_no_norm = real_vector_to_half_complex_vector(
+    #     network_output[user_nr + 1:]
+    # )
 
-    power_factors_private_users = network_output[1:user_nr + 1]
+    power_factors_private_users = network_output[0:user_nr]
 
     common_part_precoding_no_norm = real_vector_to_half_complex_vector(
-        network_output[user_nr + 1:]
+        network_output[user_nr:]
     )
 
-    return power_factor_network, power_factors_private_users, common_part_precoding_no_norm
+    # return power_factor_network, power_factors_private_users, common_part_precoding_no_norm
+    return power_factors_private_users, common_part_precoding_no_norm
 
 def get_learned_precoder_decentralized_no_norm(
         states: list[np.ndarray],

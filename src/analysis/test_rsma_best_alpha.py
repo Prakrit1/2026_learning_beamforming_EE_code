@@ -93,7 +93,7 @@ def test_rsma_best_alpha_user_distance():
 
 def test_rsma_best_alpha_error():
 
-    monte_carlo_iterations = 100000
+    monte_carlo_iterations = 10000
 
     rsma_factors = np.arange(0, 1+0.01, step=0.01)  # exclusive interval
     error_sweep_range = np.arange(0,0.11, 0.01)

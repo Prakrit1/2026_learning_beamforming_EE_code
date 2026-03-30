@@ -53,20 +53,25 @@ def test_channel_correlation_user_sweep(
         progress_printer(progress=(distance_id+1)/len(distance_sweep_range), real_time_start=start)
 
         mean_channel_correlations[distance_id] = np.mean(distance_correlations)
-        std_channel_correlations[distance_id] = np.std(distance_correlations)
 
     # save
+    metrics = {
+        'correlation': {
+            'mean': mean_channel_correlations,
+        }
+    }
+
     results_path = Path(
         config.output_metrics_path,
         'channel_correlation',
         'user_distance_sweep',
     )
-    name = f'{config.sat_nr}sat_{config.sat_tot_ant_nr}ant_{format_value(config.sat_dist_average)}_{format_value(distance_sweep_range[0])}-{format_value(distance_sweep_range[-1])}'
+    name = f'{config.sat_nr}sat_{config.sat_tot_ant_nr}ant_{format_value(config.sat_dist_average)}_{format_value(distance_sweep_range[0])}-{format_value(distance_sweep_range[-1])}_{(user_1_id)}_{(user_2_id)}'f'.gzip'
     if not disable_wiggle:
         name += f'_wiggle_{config.user_dist_bound}'
     results_path.mkdir(parents=True, exist_ok=True)
     with gzip.open(Path(results_path, name), 'wb') as file:
-        pickle.dump([mean_channel_correlations, std_channel_correlations], file=file)
+        pickle.dump([distance_sweep_range,metrics], file=file)
 
 
     # plot
@@ -94,8 +99,8 @@ def test_channel_correlation_user_sweep(
 
 if __name__ == '__main__':
 
-    distance_sweep_range = np.linspace(1, 50_000, 100)
-    monte_carlo_iterations = 100
+    distance_sweep_range = np.arange(500, 50500, 500)
+    monte_carlo_iterations = 1000
     user_1_id = 0
     user_2_id = 1
     user_3_id = 2
@@ -106,7 +111,28 @@ if __name__ == '__main__':
     mean_channel_correlation_3=test_channel_correlation_user_sweep(distance_sweep_range, user_2_id, user_3_id, disable_wiggle, monte_carlo_iterations)
 
     mean_overall = (mean_channel_correlation_1 + mean_channel_correlation_2 + mean_channel_correlation_3)/3
-    print(mean_overall)
+
+    # save
+    config = Config()
+
+    metrics = {
+        'correlation': {
+            'mean': mean_overall,
+        }
+    }
+
+    results_path = Path(
+        config.output_metrics_path,
+        'channel_correlation',
+        'user_distance_sweep',
+    )
+    name = f'{config.sat_nr}sat_{config.sat_tot_ant_nr}ant_{format_value(config.sat_dist_average)}_{format_value(distance_sweep_range[0])}-{format_value(distance_sweep_range[-1])}_overall'f'.gzip'
+    if not disable_wiggle:
+        name += f'_wiggle_{config.user_dist_bound}'
+    results_path.mkdir(parents=True, exist_ok=True)
+    with gzip.open(Path(results_path, name), 'wb') as file:
+        pickle.dump([distance_sweep_range, metrics], file=file)
+
 
     # plot
     fig, ax = plt.subplots()

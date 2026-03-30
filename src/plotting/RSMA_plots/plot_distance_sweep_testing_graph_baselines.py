@@ -63,11 +63,11 @@ def plot_distance_sweep_testing_graph(
             2, 1, sharex=True,
             figsize=(width, height),
             gridspec_kw={'height_ratios': [1, 3], 'hspace': 0.05},
-            constrained_layout=False,     # <-- wichtig
+            constrained_layout=False,
         )
         ax_alpha.tick_params(labelbottom=False)
     else:
-        fig, ax = plt.subplots(figsize=(width, height), constrained_layout=False)  # <-- wichtig
+        fig, ax = plt.subplots(figsize=(width, height), constrained_layout=False)
         ax_alpha = None
 
     # --- main metric curves (bottom axis)

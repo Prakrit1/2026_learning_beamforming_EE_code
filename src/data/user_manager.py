@@ -45,6 +45,7 @@ class UserManager:
 
         # calculate average user positions
         user_pos_average = (np.arange(0, config.user_nr, dtype='float128') - (config.user_nr - 1) / 2) * config.user_dist_average
+
         min_user_dist = 0.0
         max_user_dist = 2.0 * config.user_dist_average
 
@@ -60,18 +61,19 @@ class UserManager:
         elif config.user_distribution_mode == "edges":
             # edge-focused: sample absolute distances directly (more mass near min_user_dist and max_user_dist)
             random_beta_factor = self.rng.beta(config.beta_a, config.beta_b, size=config.user_nr)  # in [0,1]
-            user_dist = min_user_dist + (max_user_dist - min_user_dist) * random_beta_factor
+            user_dist = 2 * user_pos_average* random_beta_factor
 
         elif config.user_distribution_mode == "mix":
             # mixture: mostly uniform, sometimes edge-focused
             if self.rng.random() < config.weighting_factor_beta_distribution:
                 random_beta_factor = self.rng.beta(config.beta_a, config.beta_b, size=config.user_nr)
-                user_dist = min_user_dist + (max_user_dist - min_user_dist) * random_beta_factor
+                user_dist = 2 * user_pos_average* random_beta_factor
             else:
                 random_factor = self.rng.uniform(low=-config.user_dist_bound * config.user_dist_average,
                                                  high=config.user_dist_bound * config.user_dist_average,
                                                  size=config.user_nr)
                 user_dist = user_pos_average + random_factor
+
 
         else:
             raise ValueError(f"Unknown user distribution mode={config.user_distribution_mode}")
