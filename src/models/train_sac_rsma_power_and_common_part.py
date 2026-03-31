@@ -42,6 +42,9 @@ from src.data.precoder.mmse_precoder import (
     mmse_precoder_normalized,
     mmse_precoder_user_specific_normalized,
 )
+from src.data.precoder.mrc_precoder import (
+    mrc_precoder_user_specific_normalized,
+)
 from src.data.precoder.rate_splitting import rate_splitting_no_norm
 from src.utils.real_complex_vector_reshaping import (
     real_vector_to_half_complex_vector,
@@ -247,12 +250,24 @@ def train_sac_RSMA_power_and_common_part(
 
             power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
-            private_part_precoding = mmse_precoder_user_specific_normalized(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
-                noise_power_watt=config.noise_power_watt,
-                power_constraint_watt=power_constraint_private_part,
-                power_factors_users=power_factors_private_users_normalized,
-            )
+            if config.private_part_precoding_style == 'MRT':
+
+                private_part_precoding = mrc_precoder_user_specific_normalized(
+                    channel_matrix=satellite_manager.erroneous_channel_state_information,
+                    power_factors_users=power_factors_private_users_normalized,
+                )
+
+            elif config.private_part_precoding_style == 'MMSE':
+
+                private_part_precoding = mmse_precoder_user_specific_normalized(
+                    channel_matrix=satellite_manager.erroneous_channel_state_information,
+                    noise_power_watt=config.noise_power_watt,
+                    power_constraint_watt=power_constraint_private_part,
+                    power_factors_users=power_factors_private_users_normalized,
+                )
+
+            else:
+                raise ValueError(f"Unknown private part precoding mode={config.private_part_precoding_style}")
 
             w_precoder = np.hstack([common_part_precoding[np.newaxis].T, private_part_precoding])
 

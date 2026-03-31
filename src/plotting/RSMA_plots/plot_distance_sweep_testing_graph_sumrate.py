@@ -134,9 +134,6 @@ if __name__ == '__main__':
         Path(cfg.output_metrics_path,
              '01_user_distance_without_error', '01_sumrate',
              'testing_mmse_usersweep_500_50000.gzip'),
-        # Path(cfg.output_metrics_path,
-        #      '01_user_distance_without_error','01_sumrate',
-        #      'testing_learned_usersweep_500_50000.gzip'),
         Path(cfg.output_metrics_path,
              '01_user_distance_without_error', '01_sumrate',
              'testing_learned_usersweep_500_50000.gzip'),
@@ -164,7 +161,7 @@ if __name__ == '__main__':
 
     plot_distance_sweep_testing_graph(
         paths=data_paths,
-        metric='sumrate',
+        metric='fairness',
         name='dist_sweep_test_long',
         width=plot_width,
         height=plot_height,
