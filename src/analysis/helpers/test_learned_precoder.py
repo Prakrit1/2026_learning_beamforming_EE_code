@@ -20,13 +20,14 @@ from src.utils.load_model import (
 )
 from src.utils.get_precoding import (
     get_precoding_learned,
+    get_learned_precoder_reduced,
     get_precoding_learned_decentralized_blind,
     get_precoding_learned_decentralized_limited,
     get_precoding_adapted_slnr_powerscaled,
     get_precoding_adapted_slnr_complete,
     get_precoding_learned_rsma_complete,
     get_precoding_learned_rsma_power_scaling,
-    get_precoding_learned_rsma_power_and_common_part,
+    get_precoding_learned_rsma_power_and_common_part, get_precoding_learned_reduced,
 )
 
 
@@ -145,6 +146,127 @@ def test_sac_user_number_sweep(
         precoder_name='learned_sac',
         monte_carlo_iterations=monte_carlo_iterations,
         get_precoder_func=lambda cfg, usr_man, sat_man: get_precoding_learned(cfg, usr_man, sat_man, norm_factors,
+                                                                                   sac_complete_network),
+        calc_reward_funcs=calc_reward_funcs,
+    )
+
+    return metrics
+
+def test_sac_precoder_reduced_error_sweep(
+        config: 'src.config.config.Config',
+        model_path: Path,
+        error_sweep_parameter: str,
+        error_sweep_range: np.ndarray,
+        monte_carlo_iterations: int,
+        metrics: list = ['sumrate'],  # 'sumrate', 'fairness'
+) -> dict:
+    """Test the learned SAC precoder for a range of error configuration with monte carlo average."""
+
+    calc_reward_funcs = []
+    if 'sumrate' in metrics:
+        calc_reward_funcs.append(calc_sum_rate)
+    if 'fairness' in metrics:
+        calc_reward_funcs.append(calc_jain_fairness)
+
+    precoder_network, norm_factors = load_model(model_path)
+
+    metrics = test_precoder_error_sweep(
+        config=config,
+        error_sweep_parameter=error_sweep_parameter,
+        error_sweep_range=error_sweep_range,
+        precoder_name='learned_reduced',
+        monte_carlo_iterations=monte_carlo_iterations,
+        get_precoder_func=lambda cfg, usr_man, sat_man: get_precoding_learned_reduced(cfg, usr_man, sat_man, norm_factors, precoder_network),
+        calc_reward_funcs=calc_reward_funcs,
+    )
+
+    return metrics
+
+
+def test_sac_precoder_reduced_user_distance_sweep(
+        config: 'src.config.config.Config',
+        distance_sweep_range: np.ndarray,
+        model_path: Path,
+        monte_carlo_iterations: int,
+        metrics: list = ['sumrate'],  # 'sumrate', 'fairness'
+) -> dict:
+    """Test a precoder over a range of distances with zero error."""
+
+    calc_reward_funcs = []
+    if 'sumrate' in metrics:
+        calc_reward_funcs.append(calc_sum_rate)
+    if 'fairness' in metrics:
+        calc_reward_funcs.append(calc_jain_fairness)
+
+    precoder_network, norm_factors = load_model(model_path)
+
+    if norm_factors != {}:
+        config.config_learner.get_state_args['norm_state'] = True
+
+    metrics = test_precoder_user_distance_sweep(
+        config=config,
+        distance_sweep_range=distance_sweep_range,
+        precoder_name='learned_reduced',
+        monte_carlo_iterations=monte_carlo_iterations,
+        mode='user',
+        get_precoder_func=lambda cfg, usr_man, sat_man: get_precoding_learned_reduced(cfg, usr_man, sat_man, norm_factors, precoder_network),
+        calc_reward_funcs=calc_reward_funcs,
+    )
+
+    return metrics
+
+def test_sac_precoder_reduced_tx_power_distribution(
+        config: 'src.config.config.Config',
+        distance_sweep_range: np.ndarray,
+        model_path: Path,
+        monte_carlo_iterations: int,
+) -> dict:
+    """Test a precoder over a range of distances with zero error and get power per user."""
+
+
+    precoder_network, norm_factors = load_model(model_path)
+
+    if norm_factors != {}:
+        config.config_learner.get_state_args['norm_state'] = True
+
+    metrics = test_precoder_tx_power_distribution(
+        config=config,
+        distance_sweep_range=distance_sweep_range,
+        precoder_name='learned_reduced',
+        monte_carlo_iterations=monte_carlo_iterations,
+        mode='user',
+        get_precoder_func=lambda cfg, usr_man, sat_man: get_precoding_learned_reduced(cfg, usr_man, sat_man, norm_factors, precoder_network),
+        calc_reward_func=calc_tx_power_distribution,
+    )
+
+    return metrics
+
+def test_sac_reduced_user_number_sweep(
+        config: 'import src.config.config',
+        user_number_sweep_range: np.ndarray,
+        monte_carlo_iterations: int,
+        model_path: Path,
+        metrics: list = ['sumrate'],  # 'sumrate', 'fairness'
+) -> dict:
+    """Test a RSMA precoder over a range of user numbers"""
+
+    calc_reward_funcs = []
+    if 'sumrate' in metrics:
+        calc_reward_funcs.append(calc_sum_rate)
+    if 'fairness' in metrics:
+        calc_reward_funcs.append(calc_jain_fairness)
+
+    sac_complete_network, norm_factors = load_model(model_path)
+
+    if norm_factors != {}:
+        config.config_learner.get_state_args['norm_state'] = True
+
+    metrics = test_precoder_user_sweep(
+        config=config,
+        user_number_sweep_range=user_number_sweep_range,
+        precoder_name='learned_reduced',
+        monte_carlo_iterations=monte_carlo_iterations,
+        get_precoder_func=lambda cfg, usr_man, sat_man: get_precoding_learned_reduced(cfg, usr_man, sat_man, norm_factors,
                                                                                    sac_complete_network),
         calc_reward_funcs=calc_reward_funcs,
     )

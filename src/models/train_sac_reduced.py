@@ -38,8 +38,16 @@ from src.data.calc_sum_rate import (
 from src.data.calc_fairness import (
     calc_jain_fairness,
 )
+from src.data.precoder.mmse_precoder import (
+    mmse_precoder_normalized,
+    mmse_precoder_user_specific_normalized,
+)
+from src.data.precoder.mrc_precoder import (
+    mrc_precoder_user_specific_normalized,
+)
 from src.data.precoder.regularized_zero_forcing import (
     regularized_zero_forcing_precoder_user_specific_normalized,
+    regularized_zero_forcing_precoder_user_specific_normalized_without_inversion,
 )
 from src.data.precoder.rate_splitting import rate_splitting_no_norm
 from src.utils.real_complex_vector_reshaping import (
@@ -133,7 +141,12 @@ def train_sac_reduced(
 
     logger = config.logger.getChild(__name__)
 
-    config.config_learner.algorithm_args['network_args']['num_actions'] = 1 + config.user_nr
+    if config.private_part_precoding_style == 'RZF':
+        config.config_learner.algorithm_args['network_args']['num_actions'] = 1 + config.user_nr
+    elif config.private_part_precoding_style in ('MRT', 'MMSE'):
+        config.config_learner.algorithm_args['network_args']['num_actions'] = config.user_nr
+    else:
+        raise ValueError(f"Unknown private part precoding mode={config.private_part_precoding_style}")
 
     satellite_manager = SatelliteManager(config=config)
     user_manager = UserManager(config=config)
@@ -187,26 +200,58 @@ def train_sac_reduced(
             action = sac.get_action(state=state_current)
             step_experience['action'] = action
 
-            regularization_factor = np.clip(action[0], 0, 1)  # guarantee values between 0 and 1
+            if config.private_part_precoding_style == 'RZF':
+                regularization_factor = np.clip(action[0], 0, 10) * config.noise_power_watt * (config.user_nr/ config.power_constraint_watt)
+                power_factors_private_users = action[1:]
+            elif config.private_part_precoding_style == 'MRT' or 'MMSE':
+                # power factors for users in private part
+                power_factors_private_users = action[0:config.user_nr]
+            else:
+                raise ValueError(f"Unknown private part precoding mode={config.private_part_precoding_style}")
 
-            # power factors for users in private part
-            power_factors_private_users = action[1:config.user_nr +1]
 
-
-            # Ensuring sum of power of all users is within power_constraint_private_part
+            # Ensuring sum of power of all users is within power_constraint_watt
             power_factors_private_users_positive = np.clip(power_factors_private_users, 0, cfg.power_constraint_watt)
             sum_power_users = np.sum(power_factors_private_users_positive) + 1e-12
             private_power_scale = min(1, cfg.power_constraint_watt/sum_power_users)
             power_factors_private_users_normalized = power_factors_private_users_positive * private_power_scale
 
 
-            w_precoder = regularized_zero_forcing_precoder_user_specific_normalized(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
-                regularization_factor=regularization_factor,
-                power_factors_users=power_factors_private_users_normalized,
-            )
+            if config.private_part_precoding_style == 'RZF':
+
+                if not config.matrix_inversion_approximation:
+                    private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized(
+                        channel_matrix=satellite_manager.erroneous_channel_state_information,
+                        regularization_factor=regularization_factor,
+                        power_factors_users=power_factors_private_users_normalized,
+                    )
+                else:
+                    private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized_without_inversion(
+                        channel_matrix=satellite_manager.erroneous_channel_state_information,
+                        regularization_factor=regularization_factor,
+                        power_factors_users=power_factors_private_users_normalized,
+                    )
 
 
+            elif config.private_part_precoding_style == 'MRT':
+
+                private_part_precoding = mrc_precoder_user_specific_normalized(
+                    channel_matrix=satellite_manager.erroneous_channel_state_information,
+                    power_factors_users=power_factors_private_users_normalized,
+                )
+            elif config.private_part_precoding_style == 'MMSE':
+
+                private_part_precoding = mmse_precoder_user_specific_normalized(
+                    channel_matrix=satellite_manager.erroneous_channel_state_information,
+                    noise_power_watt=config.noise_power_watt,
+                    power_constraint_watt=config.power_constraint_watt,
+                    power_factors_users=power_factors_private_users_normalized,
+                )
+
+            else:
+                raise ValueError(f"Unknown private part precoding mode={config.private_part_precoding_style}")
+
+            w_precoder = private_part_precoding
 
             # step simulation based on action, determine reward
             reward = 0

@@ -63,4 +63,4 @@ def test_pairwise_user_distance_histogram(monte_carlo_iterations: int = 10000):
 
 
 if __name__ == "__main__":
-    dists = test_pairwise_user_distance_histogram(monte_carlo_iterations=200000)
+    dists = test_pairwise_user_distance_histogram(monte_carlo_iterations=500000)

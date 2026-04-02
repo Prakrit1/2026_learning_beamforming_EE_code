@@ -4,6 +4,7 @@ import tensorflow as tf
 
 import src
 from src.models.precoders.learned_precoder import get_learned_precoder_normalized
+from src.models.precoders.learned_precoder import get_learned_precoder_reduced
 from src.models.precoders.learned_precoder import get_learned_precoder_decentralized_normalized
 from src.models.precoders.learned_precoder import get_learned_rsma_power_factor
 from src.models.precoders.learned_precoder import get_learned_rsma_power_and_common_part
@@ -12,6 +13,8 @@ from src.models.precoders.scaled_precoder import scale_robust_slnr_complete_prec
 from src.data.precoder.mmse_precoder import mmse_precoder_normalized
 from src.data.precoder.mmse_precoder import mmse_precoder_user_specific_normalized
 from src.data.precoder.mrc_precoder import mrc_precoder_user_specific_normalized
+from src.data.precoder.regularized_zero_forcing import regularized_zero_forcing_precoder_user_specific_normalized
+from src.data.precoder.regularized_zero_forcing import regularized_zero_forcing_precoder_user_specific_normalized_without_inversion
 from src.data.precoder.mmse_precoder_decentral import mmse_precoder_decentral_blind_normed
 from src.data.precoder.mmse_precoder_decentral import mmse_precoder_decentral_limited_normalized
 from src.data.precoder.mrc_precoder import mrc_precoder_normalized
@@ -43,6 +46,82 @@ def get_precoding_learned(
     )
 
     return w_precoder_normalized
+
+def get_precoding_learned_reduced(
+        config: 'src.config.config.Config',
+        user_manager: 'src.data.user_manager.UserManager',
+        satellite_manager: 'src.data.satellite_manager.SatelliteManager',
+        norm_factors: dict,
+        precoder_network: tf.keras.models.Model,
+) -> np.array:
+
+    state = config.config_learner.get_state(
+        config=config,
+        user_manager=user_manager,
+        satellite_manager=satellite_manager,
+        norm_factors=norm_factors,
+        **config.config_learner.get_state_args
+    )
+
+    regularization_factor, power_factors_private_users = get_learned_precoder_reduced(
+        state=state,
+        precoder_network=precoder_network,
+        user_nr=config.user_nr,
+        private_part_precoding_style=config.private_part_precoding_style,
+    )
+
+    # Ensuring sum of power of all users is within power_constraint_private_part
+    power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
+    sum_power = np.sum(power_factors_private_users_positive) + 1e-12
+
+    power_scale = min(1, config.power_constraint_watt / sum_power)
+    power_factors_private_users_normalized = power_factors_private_users_positive * power_scale
+
+    power_constraint_private_part = np.sum(power_factors_private_users_normalized)
+
+    if regularization_factor is not None:
+
+        if not config.matrix_inversion_approximation:
+
+            private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized(
+                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                regularization_factor=regularization_factor,
+                power_factors_users=power_factors_private_users_normalized,
+            )
+
+        else:
+            private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized_without_inversion(
+                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                regularization_factor=regularization_factor,
+                power_factors_users=power_factors_private_users_normalized,
+            )
+
+    else:
+
+        if config.private_part_precoding_style == 'MRT':
+
+            private_part_precoding = mrc_precoder_user_specific_normalized(
+                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                power_factors_users=power_factors_private_users_normalized,
+            )
+
+        elif config.private_part_precoding_style == 'MMSE':
+
+            private_part_precoding = mmse_precoder_user_specific_normalized(
+                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                noise_power_watt=config.noise_power_watt,
+                power_constraint_watt=power_constraint_private_part,
+                power_factors_users=power_factors_private_users_normalized,
+            )
+
+    w_precoder = private_part_precoding
+
+    power_precoding = np.trace(w_precoder.conj().T @ w_precoder)
+
+    if power_precoding > 1.0001 * config.power_constraint_watt:
+        raise ValueError('Warning: The power constraint is not met')
+
+    return w_precoder
 
 
 def get_precoding_adapted_slnr_complete(
@@ -183,39 +262,12 @@ def get_precoding_learned_rsma_power_and_common_part(
         **config.config_learner.get_state_args
     )
 
-    # power_factor_network, power_factors_private_users,common_part_precoding_no_norm = get_learned_rsma_power_and_common_part(
-    #     state=state,
-    #     precoder_network=precoder_network,
-    #     user_nr=config.user_nr,
-    # )
-
-    power_factors_private_users,common_part_precoding_no_norm = get_learned_rsma_power_and_common_part(
+    regularization_factor, power_factors_private_users, common_part_precoding_no_norm = get_learned_rsma_power_and_common_part(
         state=state,
         precoder_network=precoder_network,
         user_nr=config.user_nr,
+        private_part_precoding_style=config.private_part_precoding_style,
     )
-
-    # power_constraint_private_part = config.power_constraint_watt ** power_factor_network
-    # power_constraint_common_part = config.power_constraint_watt - power_constraint_private_part
-    #
-    # common_power = np.linalg.norm(common_part_precoding_no_norm, ord=2) + 1e-12
-    #
-    # if power_constraint_common_part <= 1e-12:
-    #     # no common budget -> common part is zero
-    #     common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
-    # elif common_power <= 1e-9:
-    #     # common_raw is (almost) zero but budget > 0 -> use a stable default direction
-    #     common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
-    # else:
-    #     common_part_precoding = (
-    #             np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_power
-    #     )
-    #
-    # # Ensuring sum of power of all users is within power_constraint_private_part
-    # power_factors_private_users_positive = np.clip(power_factors_private_users, 0, power_constraint_private_part)
-    # sum_power_users = np.sum(power_factors_private_users_positive) + 1e-12
-    # private_power_scale = min(1, power_constraint_private_part / sum_power_users)
-    # power_factors_private_users_normalized = power_factors_private_users_positive * private_power_scale
 
     common_part_norm = np.linalg.norm(common_part_precoding_no_norm, ord=2)
     power_common_part = common_part_norm ** 2
@@ -239,24 +291,40 @@ def get_precoding_learned_rsma_power_and_common_part(
 
     power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
-    if config.private_part_precoding_style == 'MRT':
+    if regularization_factor is not None:
 
-        private_part_precoding = mrc_precoder_user_specific_normalized(
-            channel_matrix=satellite_manager.erroneous_channel_state_information,
-            power_factors_users=power_factors_private_users_normalized,
-        )
+        if not config.matrix_inversion_approximation:
 
-    elif config.private_part_precoding_style == 'MMSE':
+            private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized(
+                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                regularization_factor=regularization_factor,
+                power_factors_users=power_factors_private_users_normalized,
+            )
 
-        private_part_precoding = mmse_precoder_user_specific_normalized(
-            channel_matrix=satellite_manager.erroneous_channel_state_information,
-            noise_power_watt=config.noise_power_watt,
-            power_constraint_watt=power_constraint_private_part,
-            power_factors_users=power_factors_private_users_normalized,
-        )
+        else:
+            private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized_without_inversion(
+                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                regularization_factor=regularization_factor,
+                power_factors_users=power_factors_private_users_normalized,
+            )
 
     else:
-        raise ValueError(f"Unknown private part precoding mode={config.private_part_precoding_style}")
+
+        if config.private_part_precoding_style == 'MRT':
+
+            private_part_precoding = mrc_precoder_user_specific_normalized(
+                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                power_factors_users=power_factors_private_users_normalized,
+            )
+
+        elif config.private_part_precoding_style == 'MMSE':
+
+            private_part_precoding = mmse_precoder_user_specific_normalized(
+                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                noise_power_watt=config.noise_power_watt,
+                power_constraint_watt=power_constraint_private_part,
+                power_factors_users=power_factors_private_users_normalized,
+            )
 
     w_precoder = np.hstack([common_part_precoding[np.newaxis].T, private_part_precoding])
 

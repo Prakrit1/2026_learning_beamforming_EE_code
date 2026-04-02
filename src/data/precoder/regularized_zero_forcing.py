@@ -36,7 +36,7 @@ def regularized_zero_forcing_no_norm(
         np.matmul(
             np.linalg.inv(
                 np.matmul(channel_matrix.conj().T, channel_matrix)
-                + ( regularization_factor
+                + ( regularization_factor + 1e-20
                 ) * np.eye(sat_tot_ant_nr)
             ),
             channel_matrix.conj().T
