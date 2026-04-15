@@ -16,13 +16,14 @@ class PlotConfig:
 
         self._pre_init()
 
-        self.textwidth = 3.50  # inches, ieee 2 column: 3.5, thesis: 5.81
+        self.textwidth = 5.81 #3.50  # inches, ieee 2 column: 3.5, thesis: 5.81
 
         # for font sizes, see table below
-        plt.rc('axes', labelsize=8.33)  # fontsize of the axes labels in pt, default: 10
-        plt.rc('xtick', labelsize=8.33)  # fontsize of the x tick labels in pt, default: 10
-        plt.rc('ytick', labelsize=8.33)  # fontsize of the y tick labels in pt, default: 10
-        plt.rc('legend', fontsize=6.67)  # fontsize of the legend in pt, default: 10
+        plt.rc('axes', labelsize=2*10)  # fontsize of the axes labels in pt, default: 10 #
+        plt.rc('axes', labelsize=2*10)  # fontsize of the axes labels in pt, default: 10 #
+        plt.rc('xtick', labelsize=2*10)  # fontsize of the x tick labels in pt, default: 10
+        plt.rc('ytick', labelsize=2*10)  # fontsize of the y tick labels in pt, default: 10
+        plt.rc('legend', fontsize=2*9.13)  # fontsize of the legend in pt, default: 10
 
         # latex \pt         8   8.5     9   9.5    10  10.5    11  11.5    12
         #               -----------------------------------------------------
@@ -70,7 +71,9 @@ class PlotConfig:
         )
         plt.rc('xtick.minor', visible=True)  # set minor x axis ticks visible
         plt.rc('ytick.minor', visible=True)  # set minor y axis ticks visible
-        plt.rc('font', family='sans-serif')  # label fonts, ['serif', >'sans-serif', 'monospace']
+        plt.rc('font', family='serif')  # label fonts, ['serif', >'sans-serif', 'monospace']
+        plt.rc('text', usetex=True)
+
 
         # plt.rc('text', usetex=True)  # use inline math for ticks, default: False
 

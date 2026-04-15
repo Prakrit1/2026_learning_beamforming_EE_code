@@ -99,7 +99,7 @@ def test_channel_correlation_user_sweep(
 
 if __name__ == '__main__':
 
-    distance_sweep_range = np.arange(500, 50500, 500)
+    distance_sweep_range = np.arange(500, 100500, 500)
     monte_carlo_iterations = 1000
     user_1_id = 0
     user_2_id = 1

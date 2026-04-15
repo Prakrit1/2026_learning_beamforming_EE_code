@@ -46,8 +46,7 @@ class UserManager:
         # calculate average user positions
         user_pos_average = (np.arange(0, config.user_nr, dtype='float128') - (config.user_nr - 1) / 2) * config.user_dist_average
 
-        min_user_dist = 0.0
-        max_user_dist = 2.0 * config.user_dist_average
+
 
         # add random value on user distance
 
@@ -73,7 +72,6 @@ class UserManager:
                                                  high=config.user_dist_bound * config.user_dist_average,
                                                  size=config.user_nr)
                 user_dist = user_pos_average + random_factor
-
 
         else:
             raise ValueError(f"Unknown user distribution mode={config.user_distribution_mode}")

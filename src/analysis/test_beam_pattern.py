@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
+from keras.src.layers import normalization
 from matplotlib.pyplot import show as plt_show
 
 from src.data.satellite_manager import SatelliteManager
@@ -12,6 +13,7 @@ from src.config.config import Config
 from src.data.precoder.calc_autocorrelation import calc_autocorrelation
 from src.data.precoder.robust_SLNR_precoder import robust_SLNR_precoder_no_norm
 from src.data.precoder.mmse_precoder import mmse_precoder_normalized
+from src.data.precoder.mrc_precoder import mrc_precoder_normalized
 from src.models.precoders.learned_precoder import get_learned_precoder_normalized
 from src.models.precoders.adapted_precoder import adapt_robust_slnr_complete_precoder_normed
 from src.data.calc_sum_rate import calc_sum_rate
@@ -23,10 +25,11 @@ from src.utils.load_model import load_model
 
 plot = [
     'mmse',
-    # 'slnr',
-    'learned',
+    'slnr',
+    # 'learned',
     # 'slnr_adapted_complete',
     # 'ones',
+    'mrc',
 ]
 
 # angle_sweep_range = np.arange((90 - 30) * np.pi / 180, (90 + 30) * np.pi / 180, 0.1 * np.pi / 180)  # arange or None
@@ -65,6 +68,11 @@ for iter_id in range(1):
     for satellite in satellite_manager.satellites:
         pprint.pprint(satellite.estimation_errors)
 
+    w_mrc = mrc_precoder_normalized(
+        channel_matrix=satellite_manager.erroneous_channel_state_information,
+        power_constraint_watt=config.power_constraint_watt,
+    )
+
     # MMSE
     if 'mmse' in plot:
         w_mmse = mmse_precoder_normalized(
@@ -85,7 +93,10 @@ for iter_id in range(1):
             satellite_manager=satellite_manager,
             user_manager=user_manager,
             w_precoder=w_mmse,
+            w_mrc_precoder=w_mrc,
             plot_title='mmse',
+            name='MMSE',
+            normalization=True,
             # angle_sweep_range=angle_sweep_range,
         )
         # plot_directional_signal_interference_gain(
@@ -128,7 +139,10 @@ for iter_id in range(1):
             satellite_manager=satellite_manager,
             user_manager=user_manager,
             w_precoder=w_slnr,
+            w_mrc_precoder=w_mrc,
             plot_title='slnr',
+            name='SLNR',
+            normalization=True,
             # angle_sweep_range=angle_sweep_range,
         )
 
@@ -177,6 +191,8 @@ for iter_id in range(1):
             user_manager=user_manager,
             w_precoder=w_learned,
             plot_title='learned',
+            name='learned',
+            normalization=True,
             # angle_sweep_range=angle_sweep_range,
         )
 
@@ -214,6 +230,8 @@ for iter_id in range(1):
                 w_precoder=w_adapted,
                 plot_title='slnr_adapted_complete',
                 angle_sweep_range=angle_sweep_range,
+                name='slnr_adapted_complete',
+                normalization=True,
             )
 
             print(f'slnr_adapted_complete: {sum_rate_slnr_adapted_complete}')
@@ -229,14 +247,49 @@ for iter_id in range(1):
         )
 
         plot_beampattern(
-            satellite=satellite_manager.satellites[0],
-            users=user_manager.users,
+            config=config,
+            # satellite=satellite_manager.satellites[0],
+            # users=user_manager.users,
+            satellite_manager=satellite_manager,
+            user_manager=user_manager,
             w_precoder=w_ones,
+            position_sweep_range=np.arange(80,100,0.0001)*np.pi/180,
             plot_title='ones',
-            angle_sweep_range=angle_sweep_range,
+            name='ones',
+            normalization=True,
+            # angle_sweep_range=angle_sweep_range,
         )
 
         print(f'ones: {sum_rate_ones}')
+
+    if 'mrc' in plot:
+
+        w_mrc = mrc_precoder_normalized(
+            channel_matrix=satellite_manager.erroneous_channel_state_information,
+            power_constraint_watt=config.power_constraint_watt,
+        )
+
+        sum_rate_mrc = calc_sum_rate(
+            channel_state=satellite_manager.channel_state_information,
+            w_precoder=w_mrc,
+            noise_power_watt=config.noise_power_watt,
+        )
+
+        plot_beampattern(
+            config=config,
+            # satellite=satellite_manager.satellites[0],
+            # users=user_manager.users,
+            satellite_manager=satellite_manager,
+            user_manager=user_manager,
+            w_precoder=w_mrc,
+            w_mrc_precoder=w_mrc,
+            plot_title='w_mrc',
+            name='MRT',
+            normalization=True,
+            # angle_sweep_range=angle_sweep_range,
+        )
+
+        print(f'mrc: {sum_rate_mrc}')
 
 
 

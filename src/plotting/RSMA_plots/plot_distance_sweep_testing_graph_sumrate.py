@@ -140,6 +140,9 @@ if __name__ == '__main__':
         Path(cfg.output_metrics_path,
              '01_user_distance_without_error', '01_sumrate',
              'testing_learned_rsma_power_common_usersweep_500_50000.gzip'),
+        # Path(cfg.output_metrics_path,
+        #      '01_user_distance_without_error', '01_sumrate',
+        #      'testing_learned_reduced_usersweep_500_50000.gzip'),
     ]
 
     plot_width = 0.99 * plot_cfg.textwidth
