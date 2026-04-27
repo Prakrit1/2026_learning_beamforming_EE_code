@@ -158,16 +158,19 @@ def plot_beampattern(
 
     # user_positions = [user.spherical_coordinates[2] for user in user_manager.users]
     user_positions = [pos[2] for pos in original_pos]
+    user_positions = user_positions[::-1]
+    # mrc_max_positions = mrc_max_positions[::-1]
     user_labels = [rf'$\nu_{{{user.idx}}}$' for user in user_manager.users]
 
     mrc_labels = [rf'$\tilde{{\nu}}_{{{user.idx}}}$' for user in user_manager.users]
-    mrc_max_positions = mrc_max_positions[::-1]
 
 
-    all_positions = list(user_positions) + list(mrc_max_positions)
+
+    all_positions = list(user_positions) #+ list(mrc_max_positions)
     all_labels = user_labels + mrc_labels
+    all_labels = user_labels #+ mrc_labels
 
-    user_positions = user_positions[::-1]
+
 
     # ax.set_xticks(user_positions)
     # ax.set_xticklabels(user_labels)

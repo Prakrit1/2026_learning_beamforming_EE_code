@@ -1,6 +1,6 @@
 
 import numpy as np
-
+from src.utils.neumann_matrix_inversion_approximation import neumann_matrix_inversion_approximation
 
 
 def regularized_zero_forcing_precoder_user_specific_normalized(
@@ -49,6 +49,7 @@ def regularized_zero_forcing_precoder_user_specific_normalized_without_inversion
         channel_matrix: np.ndarray,
         regularization_factor: float,
         power_factors_users: np.ndarray,
+        order: int,
 ) -> np.ndarray:
     """Applies individual power factors to each user, the sum should not exceed power_constraint_watt.
         Currently only works for 1 satellite"""
@@ -56,6 +57,7 @@ def regularized_zero_forcing_precoder_user_specific_normalized_without_inversion
     precoding_matrix = regularized_zero_forcing_no_norm_without_inversion(
         channel_matrix=channel_matrix,
         regularization_factor = regularization_factor,
+        order=order,
     )
 
     precoding_vectors_norms = np.linalg.norm(precoding_matrix, axis=0) + 1e-12
@@ -69,20 +71,16 @@ def regularized_zero_forcing_precoder_user_specific_normalized_without_inversion
 def regularized_zero_forcing_no_norm_without_inversion(
         channel_matrix: np.ndarray,
         regularization_factor: float,
+        order: int,
 ) -> np.ndarray:
     """TODO: Comment"""
 
     sat_tot_ant_nr = channel_matrix.shape[1]
 
-    precoding_matrix = (
-        np.matmul(
-            np.linalg.inv(
-                np.matmul(channel_matrix.conj().T, channel_matrix)
-                + ( regularization_factor
-                ) * np.eye(sat_tot_ant_nr)
-            ),
-            channel_matrix.conj().T
-        )
-    )
+    matrix = np.matmul(channel_matrix.conj().T, channel_matrix) + (regularization_factor) * np.eye(sat_tot_ant_nr)
+
+    inv_matrix = neumann_matrix_inversion_approximation(matrix, order=order)
+
+    precoding_matrix = (np.matmul(inv_matrix, channel_matrix.conj().T))
 
     return precoding_matrix
