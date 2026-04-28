@@ -297,7 +297,7 @@ def train_sac_RSMA_power_and_common_part(
                         channel_matrix=channel_matrix_private_effective,
                         regularization_factor=regularization_factor,
                         power_factors_users=power_factors_private_users_normalized,
-                        order= cfg.matrix_inversion_approximation_order,d
+                        order= cfg.matrix_inversion_approximation_order,
                     )
 
 
