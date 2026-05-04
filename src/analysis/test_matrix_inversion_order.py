@@ -20,7 +20,7 @@ from src.utils.neumann_matrix_inversion_approximation import (
 def get_regularization_factor(
     config: Config,
     precoder_type: str,
-    inversion_constant_lambda: float = 1e-26,
+    inversion_constant_lambda: float = 1e-18,
 ) -> float:
     """
     Compute the regularization factor based on the selected precoder type.
@@ -55,7 +55,7 @@ def test_neumann_inversion_order_sweep(
     order_sweep_range: np.ndarray,
     monte_carlo_iterations: int,
     precoder_type: str,
-    inversion_constant_lambda: float = 1e-26,
+    inversion_constant_lambda: float = 1e-14,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Sweep over the Neumann approximation order and evaluate the relative residual
@@ -111,6 +111,7 @@ def test_neumann_inversion_order_sweep(
             update_sim(config, satellite_manager, user_manager)
 
             channel_matrix = satellite_manager.erroneous_channel_state_information
+            channel_matrix = channel_matrix
             sat_tot_ant_nr = channel_matrix.shape[1]
 
             matrix = (
@@ -121,21 +122,25 @@ def test_neumann_inversion_order_sweep(
                 )
             )
 
+            inv_matrix_perfect = np.linalg.inv(matrix) #/ np.linalg.norm(matrix, 'fro')
+            # matrix = matrix/ np.linalg.norm(matrix, 'fro')
+
+            # matrix = np.eye(matrix.shape[0], dtype=matrix.dtype)
+
             inv_matrix_estimation = neumann_matrix_inversion_approximation(
                 matrix=matrix,
                 order=int(order),
-            )
+            )  
 
-            inv_matrix_perfect = np.linalg.inv(inv_matrix_estimation)
-
-            identity = np.eye(matrix.shape[0], dtype=matrix.dtype)
-            residual = identity - matrix @ inv_matrix_estimation
-            relative_residual = (
-                np.linalg.norm(residual, ord='fro')
-                / np.linalg.norm(identity, ord='fro')
-            )
-            diff = inv_matrix_estimation - inv_matrix_perfect
-
+            # identity = np.eye(matrix.shape[0], dtype=matrix.dtype)
+            # residual = identity - matrix @ inv_matrix_estimation
+            # relative_residual = (
+            #     np.linalg.norm(residual, ord='fro')
+            #     / np.linalg.norm(identity, ord='fro')
+            # )
+            diff = (inv_matrix_estimation - inv_matrix_perfect)
+            #
+            #
             rmse = np.sqrt(np.mean(np.abs(diff) ** 2))
 
             # order_errors[iteration] = relative_residual
@@ -155,11 +160,11 @@ def test_neumann_inversion_order_sweep(
 if __name__ == '__main__':
     config = Config()
 
-    order_sweep_range = np.arange(1, 1001, 1)
+    order_sweep_range = np.arange(1, 21, 1)
     monte_carlo_iterations = 1000
 
     precoder_type = 'MMSE'   # choose from 'ZF', 'MMSE', 'MRT'
-    inversion_constant_lambda = 1e-26
+    inversion_constant_lambda = 0#1e-15
 
     regularization_factor = get_regularization_factor(
         config=config,
@@ -208,22 +213,24 @@ if __name__ == '__main__':
         order_sweep_range,
         mean_errors,
         marker='o',
+        color= 'black',
         label='Mean relative residual',
     )
     ax.fill_between(
         order_sweep_range,
         mean_errors - std_errors,
         mean_errors + std_errors,
-        alpha=0.3,
+        color='black',
+        alpha=0.2,
         label='±1 std',
     )
 
-    ax.set_xlabel('Neumann approximation order')
+    ax.set_xlabel('Neumann Approximation Order')
     ax.set_ylabel(r'Relative residual $\|I - A\hat{A}^{-1}\|_F / \|I\|_F$')
-    ax.set_title(
-        f'Neumann inversion error vs. order ({precoder_type}, '
-        f'lambda={regularization_factor:.3e})'
-    )
+    # ax.set_title(
+    #     f'Neumann inversion error vs. order ({precoder_type}, '
+    #     f'lambda={regularization_factor:.3e})'
+    # )
     ax.grid(True, alpha=0.3)
     ax.legend()
 
