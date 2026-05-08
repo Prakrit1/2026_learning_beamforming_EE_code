@@ -132,19 +132,19 @@ def test_neumann_inversion_order_sweep(
                 order=int(order),
             )  
 
-            # identity = np.eye(matrix.shape[0], dtype=matrix.dtype)
-            # residual = identity - matrix @ inv_matrix_estimation
-            # relative_residual = (
-            #     np.linalg.norm(residual, ord='fro')
-            #     / np.linalg.norm(identity, ord='fro')
-            # )
-            diff = (inv_matrix_estimation - inv_matrix_perfect)
+            identity = np.eye(matrix.shape[0], dtype=matrix.dtype)
+            residual = identity - matrix @ inv_matrix_estimation
+            relative_residual = (
+                np.linalg.norm(residual, ord='fro')
+                / np.linalg.norm(identity, ord='fro')
+            )
+            # diff = (inv_matrix_estimation - inv_matrix_perfect)
             #
             #
-            rmse = np.sqrt(np.mean(np.abs(diff) ** 2))
+            # rmse = np.sqrt(np.mean(np.abs(diff) ** 2))
 
-            # order_errors[iteration] = relative_residual
-            order_errors[iteration] = rmse
+            order_errors[iteration] = relative_residual
+            # order_errors[iteration] = rmse
 
         mean_errors[order_idx] = np.mean(order_errors)
         std_errors[order_idx] = np.std(order_errors)
