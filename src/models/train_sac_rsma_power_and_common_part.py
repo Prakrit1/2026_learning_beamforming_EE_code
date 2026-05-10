@@ -32,6 +32,9 @@ from src.models.algorithms.soft_actor_critic import (
 from src.models.helpers.get_state_norm_factors import (
     get_state_norm_factors,
 )
+from src.data.calc_sum_rate import (
+    calc_sum_rate,
+)
 from src.data.calc_sum_rate_RSMA import (
     calc_sum_rate_RSMA,
 )
@@ -258,13 +261,24 @@ def train_sac_RSMA_power_and_common_part(
 
             # Ensuring sum of power of all users is within power_constraint_private_part
             # todo: test power factors between 0 and 1 and then scale afterwards
-            power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
+            # power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
+            # power_factors_private_users_positive = np.clip(power_factors_private_users, 0, 1)
+            power_factors_private_users_positive = (np.clip(power_factors_private_users, -1, 1) + 1) / 2
+
             sum_power = np.sum(power_factors_private_users_positive) + power_common_part + 1e-12
 
-            power_scale = min(1, config.power_constraint_watt/sum_power)
-            power_factors_private_users_normalized = power_factors_private_users_positive * power_scale
+            # power_scale = min(1, config.power_constraint_watt/sum_power)
+            power_scale = min(1, 1/sum_power)
+            power_factors_private_users_normalized = (
+                    power_factors_private_users_positive
+                    * power_scale
+                    * config.power_constraint_watt
+            )
 
-            power_constraint_common_part = power_common_part * power_scale
+            power_constraint_common_part = (
+                    power_common_part
+                    * power_scale
+                    * config.power_constraint_watt)
 
             if common_part_norm <= 1e-12:
                 common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
@@ -275,7 +289,7 @@ def train_sac_RSMA_power_and_common_part(
 
             power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
-            eps_power = 1e-12
+            eps_power = 1e-4 * config.power_constraint_watt
             active_user_mask = power_factors_private_users_normalized > eps_power
 
             channel_matrix_private_effective = satellite_manager.erroneous_channel_state_information.copy()
@@ -297,7 +311,7 @@ def train_sac_RSMA_power_and_common_part(
                         channel_matrix=channel_matrix_private_effective,
                         regularization_factor=regularization_factor,
                         power_factors_users=power_factors_private_users_normalized,
-                        order= cfg.matrix_inversion_approximation_order,
+                        order= config.matrix_inversion_approximation_order,
                     )
 
 
