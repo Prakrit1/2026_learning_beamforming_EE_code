@@ -257,6 +257,7 @@ def train_sac_RSMA_power_and_common_part(
             # common_part_precoding = np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_power
 
             # Ensuring sum of power of all users is within power_constraint_private_part
+            # todo: test power factors between 0 and 1 and then scale afterwards
             power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
             sum_power = np.sum(power_factors_private_users_positive) + power_common_part + 1e-12
 
@@ -271,7 +272,6 @@ def train_sac_RSMA_power_and_common_part(
                 common_part_precoding = (
                         np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_part_norm
                 )
-
 
             power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
