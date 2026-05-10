@@ -248,7 +248,8 @@ def train_sac_energy_effiency(
                 if power_precoder < 1:
                     sum_rate_over_transmit_power = 0
                 else:
-                    sum_rate_over_transmit_power = sum_rate_reward / power_precoder
+                    normalized_power = power_precoder / config.power_constraint_watt
+                    sum_rate_over_transmit_power = sum_rate_reward / normalized_power
 
                 reward += config.config_learner.reward['sum_rate_over_transmit_power'] * sum_rate_over_transmit_power
 
