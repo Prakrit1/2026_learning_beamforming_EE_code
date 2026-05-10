@@ -129,7 +129,7 @@ def train_sac_energy_effiency(
         for high_score_prior_id, high_score_prior in enumerate(reversed(high_scores)):
             if high_score > 1.05 * high_score_prior or high_score_prior_id > 3:
 
-                name = f'full_snap_{high_score_prior:.3f}'
+                name = f'full_snap_energy_effiency_{high_score_prior:.3f}'
 
                 prior_checkpoint_path = Path(
                     config.trained_models_path,
@@ -216,6 +216,8 @@ def train_sac_energy_effiency(
                 power_precoder = config.power_constraint_watt
                 norm_factor = np.sqrt(power_precoder / np.trace(np.matmul(w_precoder.conj().T, w_precoder)))
                 normalized_precoder = norm_factor * w_precoder
+                w_precoder = normalized_precoder
+
 
 
             # w_precoder_normed = norm_precoder(precoding_matrix=w_precoder, power_constraint_watt=config.power_constraint_watt,
@@ -243,7 +245,7 @@ def train_sac_energy_effiency(
                     w_precoder=w_precoder,
                     noise_power_watt=config.noise_power_watt,
                 )
-                if power_precoder < 0.01:
+                if power_precoder < 1:
                     sum_rate_over_transmit_power = 0
                 else:
                     sum_rate_over_transmit_power = sum_rate_reward / power_precoder
