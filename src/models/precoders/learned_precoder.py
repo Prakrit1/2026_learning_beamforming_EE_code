@@ -62,16 +62,29 @@ def get_learned_precoder_reduced(
     network_output = network_output.numpy().flatten()
 
     if private_part_precoding_style == 'RZF':
-        regularization_factor = float(np.clip(network_output[0], 0.0, 10))
+        # regularization_factor = float(np.clip(network_output[0], 0.0, 10))
+        #
+        # power_factors_private_users = network_output[1:user_nr + 1]
+
+        x = (np.clip(network_output[0], -1, 1) + 1) / 2
+
+        if x < 1 / 3:
+            option = 0
+        elif x < 2 / 3:
+            option = 1
+        else:
+            option = 2
 
         power_factors_private_users = network_output[1:user_nr + 1]
+        power_factors_private_users_positive = (np.clip(power_factors_private_users, -1, 1) + 1) / 2
 
-        return regularization_factor, power_factors_private_users
+        return option, power_factors_private_users_positive
 
     elif private_part_precoding_style in ('MRT', 'MMSE'):
         power_factors_private_users = network_output[0:user_nr]
+        power_factors_private_users_positive = (np.clip(power_factors_private_users, -1, 1) + 1) / 2
 
-        return None, power_factors_private_users
+        return None, power_factors_private_users_positive
 
     else:
         raise ValueError(f"Unknown private part precoding mode={private_part_precoding_style}")
@@ -101,22 +114,34 @@ def get_learned_rsma_power_and_common_part(
     network_output = network_output.numpy().flatten()
 
     if private_part_precoding_style == 'RZF':
-        regularization_factor = float(np.clip(network_output[0], 0.0, 10))
+        # regularization_factor = float(np.clip(network_output[0], 0.0, 10))
+
+        x = (np.clip(network_output[0], -1, 1) + 1) / 2
+
+        if x < 1 / 3:
+            option = 0
+        elif x < 2 / 3:
+            option = 1
+        else:
+            option = 2
 
         power_factors_private_users = network_output[1:user_nr + 1]
+        power_factors_private_users_positive = (np.clip(power_factors_private_users, -1, 1) + 1) / 2
 
         common_part_precoding_no_norm = real_vector_to_half_complex_vector(
             network_output[user_nr + 1:]
         )
-        return regularization_factor, power_factors_private_users, common_part_precoding_no_norm
+
+        return option, power_factors_private_users_positive, common_part_precoding_no_norm
 
     elif private_part_precoding_style in ('MRT', 'MMSE'):
         power_factors_private_users = network_output[0:user_nr]
+        power_factors_private_users_positive = (np.clip(power_factors_private_users, -1, 1) + 1) / 2
 
         common_part_precoding_no_norm = real_vector_to_half_complex_vector(
             network_output[user_nr:]
         )
-        return None, power_factors_private_users, common_part_precoding_no_norm
+        return None, power_factors_private_users_positive, common_part_precoding_no_norm
 
     else:
         raise ValueError(f"Unknown private part precoding mode={private_part_precoding_style}")

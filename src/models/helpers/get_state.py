@@ -194,3 +194,30 @@ def get_state_aods(
         state /= norm_factors['std']
 
     return state.flatten()
+
+
+def get_state_erroneous_phase_aod_steering(
+        config: 'src.config.config.Config',
+        user_manager: 'src.data.user_manager.UserManager',
+        satellite_manager: 'src.data.satellite_manager.SatelliteManager',
+        norm_state: bool,
+        norm_factors: dict = None,
+        per_sat: bool = False,
+        **kwargs,
+) -> np.ndarray:
+
+    if per_sat:
+        raise NotImplementedError(
+            'per_sat=True is not implemented for get_state_erroneous_phase_aod_steering'
+        )
+
+    if norm_state and norm_factors is None:
+        raise ValueError('no norm factors provided')
+
+    state = satellite_manager.get_erroneous_phase_aod_steering_to_users().flatten()
+
+    if norm_state:
+        state -= norm_factors['mean']
+        state /= norm_factors['std']
+
+    return state.flatten()

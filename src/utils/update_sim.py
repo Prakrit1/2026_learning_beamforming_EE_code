@@ -33,3 +33,7 @@ def update_sim(
         channel_model=config.channel_model,
         users=user_manager.users
     )
+
+    satellite_manager.update_erroneous_phase_aod_steering(
+        users=user_manager.users
+    )

@@ -10,6 +10,7 @@ from src.utils.euclidian_distance import (
 from src.utils.get_wavelength import (
     get_wavelength,
 )
+from src.data.channel.get_phase_aod_steering import get_phase_aod_steering
 from src.utils.vector_functions import angle_between
 
 
@@ -52,9 +53,14 @@ class Satellite:
         self.steering_error = None
 
         self.csi_error_scale = None
+
         self.channel_state_to_users: np.ndarray = np.array([])  # depends on channel model
         self.erroneous_channel_state_to_users: np.ndarray = np.array([])  # depends on channel & error model
         self.scaled_erroneous_channel_state_to_users: np.ndarray = np.array([])  # e.g., for sharing with other sats
+
+        self.phase_aod_steering_to_users = np.array([])
+        self.erroneous_phase_aod_steering_to_users = np.array([])
+        self.scaled_erroneous_phase_aod_steering_to_users = np.array([])
 
         self.estimation_error_functions: dict = error_functions
         self.estimation_errors: dict = {}
@@ -140,3 +146,27 @@ class Satellite:
 
         if self.csi_error_scale is not None:
             self.scaled_erroneous_channel_state_to_users = channel_model(satellite=self, users=users, scale=self.csi_error_scale)
+
+    def calculate_phase_aod_steering(
+            self,
+            users: list,
+    ) -> None:
+
+        self.phase_aod_steering_to_users = get_phase_aod_steering(satellite=self, users=users, scale=0)
+
+    def update_erroneous_phase_aod_steering(
+            self,
+            users: list,
+    ) -> None:
+
+        self.erroneous_phase_aod_steering_to_users = get_phase_aod_steering(satellite=self, users=users, scale=1)
+
+    def update_scaled_erroneous_phase_aod_steering(
+            self,
+            users: list,
+    ) -> None:
+
+        if self.csi_error_scale is not None:
+            self.scaled_erroneous_phase_aod_steering_to_users = get_phase_aod_steering(satellite=self, users=users, scale=self.csi_error_scale)
+
+

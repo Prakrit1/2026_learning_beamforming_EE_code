@@ -26,6 +26,8 @@ class SatelliteManager:
         self.channel_state_information: np.ndarray = np.zeros((config.user_nr, config.sat_ant_nr*config.sat_nr), dtype='complex128')  # nr_user x (nr_antennas * nr_satellites)
                                                                    #   per user: sat 1 ant1, sat 1 ant 2, sat 1 ant 3, sat 2 ant 1, ...
         self.erroneous_channel_state_information: np.ndarray = np.zeros((config.user_nr, config.sat_ant_nr*config.sat_nr), dtype='complex128')  # nr_user x (nr_antennas * nr_satellites)
+        self.phase_aod_steering_to_users = np.zeros((config.sat_nr, config.user_nr), dtype='float64')
+        self.erroneous_phase_aod_steering_to_users = np.zeros((config.sat_nr, config.user_nr), dtype='float64')
 
         self.logger.info('satellites setup complete')
 
@@ -204,7 +206,44 @@ class SatelliteManager:
         """
 
         for satellite in self.satellites:
-            satellite.update_scaled_erroneous_channel_state_information(channel_model=channel_model, users=users)
+            satellite.update_scaled_erroneous_channel_state_information(
+                channel_model=channel_model,
+                users=users
+            )
+
+    def calculate_phase_aod_steering(
+            self,
+            users: list,
+    ) -> None:
+
+        for satellite in self.satellites:
+            satellite.calculate_phase_aod_steering(users=users)
+
+        self.phase_aod_steering_to_users = np.array([
+            satellite.phase_aod_steering_to_users
+            for satellite in self.satellites
+        ])
+
+    def update_erroneous_phase_aod_steering(
+            self,
+            users: list,
+    ) -> None:
+
+        for satellite in self.satellites:
+            satellite.update_erroneous_phase_aod_steering(users=users)
+
+        self.erroneous_phase_aod_steering_to_users = np.array([
+            satellite.erroneous_phase_aod_steering_to_users
+            for satellite in self.satellites
+        ])
+
+    def update_scaled_erroneous_phase_aod_steering(
+            self,
+            users: list,
+    ) -> None:
+
+        for satellite in self.satellites:
+            satellite.update_scaled_erroneous_phase_aod_steering(users=users)
 
     def set_csi_error_scale(
             self,
@@ -273,6 +312,44 @@ class SatelliteManager:
             aods_to_users[satellite_id, :] = satellite.aods_to_users
 
         return aods_to_users
+
+    def get_phase_aod_steering_to_users(
+            self,
+    ) -> np.ndarray:
+        """Todo: doc"""
+
+        phase_aod_steering_to_users = np.zeros(
+            (
+                len(self.satellites),
+                len(self.satellites[0].phase_aod_steering_to_users)
+            )
+        )
+
+        for satellite_id, satellite in enumerate(self.satellites):
+            phase_aod_steering_to_users[satellite_id, :] = (
+                satellite.phase_aod_steering_to_users
+            )
+
+        return phase_aod_steering_to_users
+
+    def get_erroneous_phase_aod_steering_to_users(
+            self,
+    ) -> np.ndarray:
+        """Todo: doc"""
+
+        erroneous_phase_aod_steering_to_users = np.zeros(
+            (
+                len(self.satellites),
+                len(self.satellites[0].erroneous_phase_aod_steering_to_users)
+            )
+        )
+
+        for satellite_id, satellite in enumerate(self.satellites):
+            erroneous_phase_aod_steering_to_users[satellite_id, :] = (
+                satellite.erroneous_phase_aod_steering_to_users
+            )
+
+        return erroneous_phase_aod_steering_to_users
 
     def get_inter_satellite_distances(
             self

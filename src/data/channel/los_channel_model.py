@@ -4,7 +4,6 @@ import src
 
 from src.data.channel.get_steering_vec import get_steering_vec
 
-
 def los_channel_model(
         satellite: 'src.data.satellite.Satellite',
         users: list,
@@ -52,6 +51,7 @@ def los_channel_model(
                 )
                 + errors['additive_error_on_cosine_of_aod'][user.idx]
             )
+
 
             steering_vector_to_user = get_steering_vec(
                 satellite,

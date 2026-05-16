@@ -63,7 +63,7 @@ def get_precoding_learned_reduced(
         **config.config_learner.get_state_args
     )
 
-    regularization_factor, power_factors_private_users = get_learned_precoder_reduced(
+    option, power_factors_private_users = get_learned_precoder_reduced(
         state=state,
         precoder_network=precoder_network,
         user_nr=config.user_nr,
@@ -71,11 +71,30 @@ def get_precoding_learned_reduced(
     )
 
     # Ensuring sum of power of all users is within power_constraint_private_part
-    power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
-    sum_power = np.sum(power_factors_private_users_positive) + 1e-12
 
-    power_scale = min(1, config.power_constraint_watt / sum_power)
-    power_factors_private_users_normalized = power_factors_private_users_positive * power_scale
+    mmse_scale = config.noise_power_watt * (config.user_nr / config.power_constraint_watt)
+
+    factor_map = np.array([0, 1, 10])
+    regularization_factor = factor_map[option] * mmse_scale
+
+    sum_power = (
+            np.sum(power_factors_private_users)
+            + 1e-12
+    )
+
+    power_scale = min(1.0, 1.0 / sum_power)
+
+    power_factors_private_users_normalized = (
+            power_factors_private_users
+            * power_scale
+            * config.power_constraint_watt
+    )
+
+    # power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
+    # sum_power = np.sum(power_factors_private_users_positive) + 1e-12
+
+    # power_scale = min(1, config.power_constraint_watt / sum_power)
+    # power_factors_private_users_normalized = power_factors_private_users_positive * power_scale
 
     power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
@@ -94,6 +113,7 @@ def get_precoding_learned_reduced(
                 channel_matrix=satellite_manager.erroneous_channel_state_information,
                 regularization_factor=regularization_factor,
                 power_factors_users=power_factors_private_users_normalized,
+                order=config.matrix_inversion_approximation_order
             )
 
     else:
@@ -262,32 +282,66 @@ def get_precoding_learned_rsma_power_and_common_part(
         **config.config_learner.get_state_args
     )
 
-    regularization_factor, power_factors_private_users, common_part_precoding_no_norm = get_learned_rsma_power_and_common_part(
+    option, power_factors_private_users, common_part_precoding_no_norm = get_learned_rsma_power_and_common_part(
         state=state,
         precoder_network=precoder_network,
         user_nr=config.user_nr,
         private_part_precoding_style=config.private_part_precoding_style,
     )
 
+    mmse_scale = config.noise_power_watt * (config.user_nr / config.power_constraint_watt)
+
+    factor_map = np.array([0, 1, 10])
+    regularization_factor = factor_map[option] * mmse_scale
+
     common_part_norm = np.linalg.norm(common_part_precoding_no_norm, ord=2)
     power_common_part = common_part_norm ** 2
     # common_part_precoding = np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_power
 
-    # Ensuring sum of power of all users is within power_constraint_private_part
-    power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
-    sum_power = np.sum(power_factors_private_users_positive) + power_common_part + 1e-12
+    sum_power = (
+            np.sum(power_factors_private_users)
+            + power_common_part
+            + 1e-12
+    )
 
-    power_scale = min(1, config.power_constraint_watt / sum_power)
-    power_factors_private_users_normalized = power_factors_private_users_positive * power_scale
+    power_scale = min(1.0, 1.0 / sum_power)
 
-    power_constraint_common_part = power_common_part * power_scale
+    power_factors_private_users_normalized = (
+            power_factors_private_users
+            * power_scale
+            * config.power_constraint_watt
+    )
+
+    power_constraint_common_part = (
+            power_common_part
+            * power_scale
+            * config.power_constraint_watt
+    )
 
     if common_part_norm <= 1e-12:
         common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
     else:
         common_part_precoding = (
-                np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_part_norm
+                np.sqrt(power_constraint_common_part)
+                * common_part_precoding_no_norm
+                / common_part_norm
         )
+
+    # Ensuring sum of power of all users is within power_constraint_private_part
+    # power_factors_private_users_positive = np.clip(power_factors_private_users, 0, config.power_constraint_watt)
+    # sum_power = np.sum(power_factors_private_users_positive) + power_common_part + 1e-12
+
+    # power_scale = min(1, config.power_constraint_watt / sum_power)
+    # power_factors_private_users_normalized = power_factors_private_users_positive * power_scale
+
+    # power_constraint_common_part = power_common_part * power_scale
+    #
+    # if common_part_norm <= 1e-12:
+    #     common_part_precoding = np.zeros_like(common_part_precoding_no_norm)
+    # else:
+    #     common_part_precoding = (
+    #             np.sqrt(power_constraint_common_part) * common_part_precoding_no_norm / common_part_norm
+    #     )
 
     power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
@@ -306,6 +360,7 @@ def get_precoding_learned_rsma_power_and_common_part(
                 channel_matrix=satellite_manager.erroneous_channel_state_information,
                 regularization_factor=regularization_factor,
                 power_factors_users=power_factors_private_users_normalized,
+                order=config.matrix_inversion_approximation_order,
             )
 
     else:

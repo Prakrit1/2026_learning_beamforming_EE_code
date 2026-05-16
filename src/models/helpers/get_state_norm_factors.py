@@ -5,7 +5,7 @@ import src
 from src.utils.update_sim import update_sim
 from src.models.helpers.get_state import (
     get_state_erroneous_channel_state_information,
-    get_state_aods,
+    get_state_aods, get_state_erroneous_phase_aod_steering,
 )
 
 
@@ -166,6 +166,13 @@ def get_state_norm_factors(
 
             norm_dict['norm_factors']['mean'] = np.mean(states_aods)
             norm_dict['norm_factors']['std'] = np.std(states_aods)
+
+        elif config.config_learner.get_state == get_state_erroneous_phase_aod_steering:
+
+            states_phase_aod_steering = np.array(states).flatten()
+
+            norm_dict['norm_factors']['mean'] = np.mean(states_phase_aod_steering)
+            norm_dict['norm_factors']['std'] = np.std(states_phase_aod_steering)
 
         else:
 
