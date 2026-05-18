@@ -117,11 +117,11 @@ def plot_error_sweep_testing_graph(
         )
         lines.append(line)
 
-    ax.set_xlabel(xlabel, fontsize=8)
-    ax.set_ylabel(ylabel, fontsize=8)
+    ax.set_xlabel(xlabel) #, fontsize=12)
+    ax.set_ylabel(ylabel) #, fontsize=12)
 
     if legend:
-        leg = ax.legend(ncols=1, fontsize=8)
+        leg = ax.legend(ncols=1, fontsize=14)
 
         # Legende: Einträge für ausgeblendete Reihen transparent machen
         for i, (legline, legtext) in enumerate(zip(leg.get_lines(), leg.get_texts())):
@@ -144,7 +144,7 @@ def plot_error_sweep_testing_graph(
         ha='left',
         va='center',
         rotation=90,
-        fontsize=8,
+        fontsize=18,
         color=change_lightness('black', 0.7),
     )
 
@@ -161,7 +161,7 @@ def plot_error_sweep_testing_graph(
         xycoords=arr2,
         ha='center',
         va='bottom',
-        fontsize=8,
+        fontsize=18,
         color=change_lightness('black', 0.7),
     )
 
@@ -195,14 +195,14 @@ if __name__ == '__main__':
     ]
 
     plot_width = 0.99 * plot_cfg.textwidth
-    plot_height = plot_width * 0.64
+    plot_height = plot_width #* 0.64
 
     plot_legend = [
         'Baseline',
         # 'SLNR',
-        'Learned $\Delta\epsilon=0.0$',
+        'Learned $\Delta\\varepsilon=0.0$',
         # 'Learned $\Delta\epsilon=0.025$',
-        'Learned $\Delta\epsilon=0.05$',
+        'Learned $\Delta\\varepsilon=0.05$',
     ]
 
     plot_markerstyle = [
@@ -239,7 +239,7 @@ if __name__ == '__main__':
         markerstyle=plot_markerstyle,
         linestyles=plot_linestyles,
         plots_parent_path=plot_cfg.plots_parent_path,
-        visible_mask=[True, False, False],
+        visible_mask=[True, True, True],
     )
     plt.show()
 

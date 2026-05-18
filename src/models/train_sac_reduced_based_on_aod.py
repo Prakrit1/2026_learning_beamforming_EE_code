@@ -58,6 +58,9 @@ from src.utils.real_complex_vector_reshaping import (
 from src.utils.norm_precoder import (
     norm_precoder,
 )
+from src.data.channel.get_steering_vec import (
+    get_steering_vecs
+)
 from src.utils.plot_sweep import (
     plot_sweep,
 )
@@ -289,6 +292,10 @@ def train_sac_reduced_based_on_aod(
             active_user_mask = power_factors_private_users_normalized > eps_power
 
             channel_matrix_private_effective = satellite_manager.erroneous_channel_state_information.copy()
+            phase_aod_steering_to_users = satellite_manager.erroneous_phase_aod_steering_to_users
+
+            steering_vectors = get_steering_vecs(satellite_manager, phase_aod_steering_to_users)
+
             channel_matrix_private_effective[~active_user_mask, :] = 0.0
 
             # ------------------------------------------------------------
@@ -299,13 +306,13 @@ def train_sac_reduced_based_on_aod(
 
                 if not config.matrix_inversion_approximation:
                     private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized(
-                        channel_matrix=channel_matrix_private_effective,
+                        channel_matrix=steering_vectors,
                         regularization_factor=regularization_factor,
                         power_factors_users=power_factors_private_users_normalized,
                     )
                 else:
                     private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized_without_inversion(
-                        channel_matrix=channel_matrix_private_effective,
+                        channel_matrix=steering_vectors,
                         regularization_factor=regularization_factor,
                         power_factors_users=power_factors_private_users_normalized,
                         order=config.matrix_inversion_approximation_order,
@@ -314,14 +321,14 @@ def train_sac_reduced_based_on_aod(
             elif config.private_part_precoding_style == 'MRT':
 
                 private_part_precoding = mrc_precoder_user_specific_normalized(
-                    channel_matrix=channel_matrix_private_effective,
+                    channel_matrix=steering_vectors,
                     power_factors_users=power_factors_private_users_normalized,
                 )
 
             elif config.private_part_precoding_style == 'MMSE':
 
                 private_part_precoding = mmse_precoder_user_specific_normalized(
-                    channel_matrix=channel_matrix_private_effective,
+                    channel_matrix=steering_vectors,
                     noise_power_watt=config.noise_power_watt,
                     power_constraint_watt=power_constraint_private_part,
                     power_factors_users=power_factors_private_users_normalized,

@@ -25,3 +25,47 @@ def get_steering_vec(
     )
 
     return steering_vector_to_user
+
+def get_steering_vecs(
+        satellite_manager,
+        phase_aod_steering_to_users: np.ndarray,
+) -> np.ndarray:
+
+    num_users = phase_aod_steering_to_users.shape[1]
+    total_antennas = sum(
+        satellite.antenna_nr
+        for satellite in satellite_manager.satellites
+    )
+
+    steering_vectors = np.zeros(
+        (num_users, total_antennas),
+        dtype='complex128'
+    )
+
+    antenna_start_idx = 0
+
+    for satellite_id, satellite in enumerate(satellite_manager.satellites):
+
+        antenna_end_idx = antenna_start_idx + satellite.antenna_nr
+
+        for user_idx in range(num_users):
+
+            phase_aod_steering = phase_aod_steering_to_users[
+                satellite_id,
+                user_idx
+            ]
+
+            steering_vector_to_user = get_steering_vec(
+                satellite=satellite,
+                phase_aod_steering=phase_aod_steering,
+            )
+
+            steering_vectors[
+                user_idx,
+                antenna_start_idx:antenna_end_idx
+            ] = steering_vector_to_user
+
+        antenna_start_idx = antenna_end_idx
+
+    return steering_vectors
+

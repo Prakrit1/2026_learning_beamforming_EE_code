@@ -98,19 +98,25 @@ def get_precoding_learned_reduced(
 
     power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
+    eps_power = 1e-4 * config.power_constraint_watt
+    active_user_mask = power_factors_private_users_normalized > eps_power
+
+    channel_matrix_private_effective = satellite_manager.erroneous_channel_state_information.copy()
+    channel_matrix_private_effective[~active_user_mask, :] = 0.0
+
     if regularization_factor is not None:
 
         if not config.matrix_inversion_approximation:
 
             private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                channel_matrix=channel_matrix_private_effective,
                 regularization_factor=regularization_factor,
                 power_factors_users=power_factors_private_users_normalized,
             )
 
         else:
             private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized_without_inversion(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                channel_matrix=channel_matrix_private_effective,
                 regularization_factor=regularization_factor,
                 power_factors_users=power_factors_private_users_normalized,
                 order=config.matrix_inversion_approximation_order
@@ -121,14 +127,14 @@ def get_precoding_learned_reduced(
         if config.private_part_precoding_style == 'MRT':
 
             private_part_precoding = mrc_precoder_user_specific_normalized(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                channel_matrix=channel_matrix_private_effective,
                 power_factors_users=power_factors_private_users_normalized,
             )
 
         elif config.private_part_precoding_style == 'MMSE':
 
             private_part_precoding = mmse_precoder_user_specific_normalized(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                channel_matrix=channel_matrix_private_effective,
                 noise_power_watt=config.noise_power_watt,
                 power_constraint_watt=power_constraint_private_part,
                 power_factors_users=power_factors_private_users_normalized,
@@ -345,19 +351,25 @@ def get_precoding_learned_rsma_power_and_common_part(
 
     power_constraint_private_part = np.sum(power_factors_private_users_normalized)
 
+    eps_power = 1e-4 * config.power_constraint_watt
+    active_user_mask = power_factors_private_users_normalized > eps_power
+
+    channel_matrix_private_effective = satellite_manager.erroneous_channel_state_information.copy()
+    channel_matrix_private_effective[~active_user_mask, :] = 0.0
+
     if regularization_factor is not None:
 
         if not config.matrix_inversion_approximation:
 
             private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                channel_matrix=channel_matrix_private_effective,
                 regularization_factor=regularization_factor,
                 power_factors_users=power_factors_private_users_normalized,
             )
 
         else:
             private_part_precoding = regularized_zero_forcing_precoder_user_specific_normalized_without_inversion(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                channel_matrix=channel_matrix_private_effective,
                 regularization_factor=regularization_factor,
                 power_factors_users=power_factors_private_users_normalized,
                 order=config.matrix_inversion_approximation_order,
@@ -368,14 +380,14 @@ def get_precoding_learned_rsma_power_and_common_part(
         if config.private_part_precoding_style == 'MRT':
 
             private_part_precoding = mrc_precoder_user_specific_normalized(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                channel_matrix=channel_matrix_private_effective,
                 power_factors_users=power_factors_private_users_normalized,
             )
 
         elif config.private_part_precoding_style == 'MMSE':
 
             private_part_precoding = mmse_precoder_user_specific_normalized(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
+                channel_matrix=channel_matrix_private_effective,
                 noise_power_watt=config.noise_power_watt,
                 power_constraint_watt=power_constraint_private_part,
                 power_factors_users=power_factors_private_users_normalized,

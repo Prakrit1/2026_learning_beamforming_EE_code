@@ -25,11 +25,11 @@ from src.utils.load_model import load_model
 
 plot = [
     'mmse',
-    'slnr',
+    # 'slnr',
     # 'learned',
     # 'slnr_adapted_complete',
     # 'ones',
-    'mrc',
+    # 'mrc',
 ]
 
 # angle_sweep_range = np.arange((90 - 30) * np.pi / 180, (90 + 30) * np.pi / 180, 0.1 * np.pi / 180)  # arange or None
@@ -112,6 +112,8 @@ for iter_id in range(1):
         # )
 
         print(f'mmse: {sum_rate_mmse}')
+
+
 
     # SLNR
     if 'slnr' in plot:
