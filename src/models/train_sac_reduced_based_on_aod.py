@@ -247,7 +247,7 @@ def train_sac_reduced_based_on_aod(
                     option = 2
 
                 # 0 = ZF, 1 = MMSE-like, 10 = strong regularization / MRT-like
-                factor_map = np.array([0, 1, 10])
+                factor_map = np.array([1e-2, 1, 10])
                 regularization_factor = factor_map[option] * mmse_scale
 
                 # remaining actions are private-user power factors
@@ -296,7 +296,8 @@ def train_sac_reduced_based_on_aod(
 
             steering_vectors = get_steering_vecs(satellite_manager, phase_aod_steering_to_users)
 
-            channel_matrix_private_effective[~active_user_mask, :] = 0.0
+            steering_vectors[~active_user_mask, :] = 0.0
+
 
             # ------------------------------------------------------------
             # Build private precoder
