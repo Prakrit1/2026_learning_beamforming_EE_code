@@ -236,6 +236,8 @@ def train_sac_reduced_based_on_aod(
                         config.user_nr / config.power_constraint_watt
                 )
 
+                mmse_scale_normed = mmse_scale / cfg.path_loss_basic
+
                 # map action[0] from [-1, 1] to [0, 1]
                 x = (np.clip(action[0], -1, 1) + 1) / 2
 
@@ -247,8 +249,8 @@ def train_sac_reduced_based_on_aod(
                     option = 2
 
                 # 0 = ZF, 1 = MMSE-like, 10 = strong regularization / MRT-like
-                factor_map = np.array([1e-2, 1, 10])
-                regularization_factor = factor_map[option] * mmse_scale
+                factor_map = np.array([0, 1, 10])
+                regularization_factor = factor_map[option] * mmse_scale_normed
 
                 # remaining actions are private-user power factors
                 power_factors_private_users = action[1:config.user_nr + 1]
