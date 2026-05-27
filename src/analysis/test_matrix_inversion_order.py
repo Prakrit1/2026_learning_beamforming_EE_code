@@ -9,12 +9,18 @@ import matplotlib.pyplot as plt
 from src.config.config import Config
 from src.data.satellite_manager import SatelliteManager
 from src.data.user_manager import UserManager
+from src.models.helpers.get_state import get_state_erroneous_channel_state_information, \
+    get_state_erroneous_phase_aod_steering
 from src.utils.update_sim import update_sim
 from src.utils.format_value import format_value
 from src.utils.progress_printer import progress_printer
 from src.utils.neumann_matrix_inversion_approximation import (
     neumann_matrix_inversion_approximation,
 )
+from src.data.channel.get_steering_vec import (
+    get_steering_vecs
+)
+
 
 
 def get_regularization_factor(
@@ -110,22 +116,40 @@ def test_neumann_inversion_order_sweep(
         for iteration in range(monte_carlo_iterations):
             update_sim(config, satellite_manager, user_manager)
 
-            channel_matrix = satellite_manager.erroneous_channel_state_information
-            channel_matrix = channel_matrix
-            sat_tot_ant_nr = channel_matrix.shape[1]
+            if config.config_learner.get_state == get_state_erroneous_channel_state_information:
+                    channel_matrix = satellite_manager.erroneous_channel_state_information
+                    sat_tot_ant_nr = channel_matrix.shape[1]
 
-            matrix = (
-                channel_matrix.conj().T @ channel_matrix
-                + regularization_factor * np.eye(
-                    sat_tot_ant_nr,
-                    dtype=channel_matrix.dtype,
+                    matrix = (
+                            channel_matrix.conj().T @ channel_matrix
+                            + regularization_factor
+                            * np.eye(
+                        sat_tot_ant_nr,
+                        dtype=channel_matrix.dtype,
+                    )
+                    )
+            elif config.config_learner.get_state == get_state_erroneous_phase_aod_steering:
+                phase_aod_steering_to_users = satellite_manager.erroneous_phase_aod_steering_to_users
+                steering_vectors = get_steering_vecs(satellite_manager, phase_aod_steering_to_users)
+
+                sat_tot_ant_nr = steering_vectors.shape[1]
+                matrix = (
+                    steering_vectors.conj().T @ steering_vectors
+                    + regularization_factor / config.path_loss_basic
+                    * np.eye(
+                        sat_tot_ant_nr,
+                        dtype=steering_vectors.dtype,
+                    )
                 )
-            )
+            else:
+                raise ValueError(
+                    f"Invalid state function provided: {config.config_learner.get_state}. "
+                    f"Expected one of: "
+                    f"{get_state_erroneous_channel_state_information.__name__}, "
+                    f"{get_state_erroneous_phase_aod_steering.__name__}."
+                )
 
-            inv_matrix_perfect = np.linalg.inv(matrix) #/ np.linalg.norm(matrix, 'fro')
-            # matrix = matrix/ np.linalg.norm(matrix, 'fro')
 
-            # matrix = np.eye(matrix.shape[0], dtype=matrix.dtype)
 
             inv_matrix_estimation = neumann_matrix_inversion_approximation(
                 matrix=matrix,
@@ -138,13 +162,9 @@ def test_neumann_inversion_order_sweep(
                 np.linalg.norm(residual, ord='fro')
                 / np.linalg.norm(identity, ord='fro')
             )
-            # diff = (inv_matrix_estimation - inv_matrix_perfect)
-            #
-            #
-            # rmse = np.sqrt(np.mean(np.abs(diff) ** 2))
+
 
             order_errors[iteration] = relative_residual
-            # order_errors[iteration] = rmse
 
         mean_errors[order_idx] = np.mean(order_errors)
         std_errors[order_idx] = np.std(order_errors)
