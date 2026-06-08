@@ -6,7 +6,7 @@
 #SBATCH -n 1
 #SBATCH -c 1
 #SBATCH -t 3-14:01:00
-# no gpu SBATCH --gres=gpu
+gpu SBATCH --gres=gpu
 #SBATCH -p wiss
 #SBATCH --mem=4G
 #SBATCH --mail-user=duee@ant.uni-bremen.de
