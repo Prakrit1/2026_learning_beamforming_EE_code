@@ -1,16 +1,18 @@
 #!/bin/bash
-#SBATCH -J Example
-#SBATCH -o Example.out
-#SBATCH -e Example.err
+#SBATCH -J EE
+#SBATCH -o EE_%J.out
+#SBATCH -e EE_%J.err
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 1
 #SBATCH -t 3-14:01:00
-gpu SBATCH --gres=gpu
+#SBATCH --gres=gpu
 #SBATCH -p wiss
-#SBATCH --mem=4G
-#SBATCH --mail-user=duee@ant.uni-bremen.de
+#SBATCH --mem=1G
+#SBATCH --mail-user=parajuli@ant.uni-bremen.de
 #SBATCH --mail-type=ALL
+%#SBATCH --exclude=madrid,mumbai
+
 
 # Set environment
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
