@@ -1,4 +1,3 @@
-
 from pathlib import Path
 from sys import path as sys_path
 project_root_path = Path(Path(__file__).parent, '..', '..')
@@ -61,6 +60,22 @@ from src.utils.progress_printer import (
 from src.utils.update_sim import (
     update_sim,
 )
+
+import os 
+import tensorflow as tf 
+
+ 
+
+gpus = tf.config.list_physical_devices('GPU') 
+if gpus: 
+    try: 
+        for gpu in gpus: 
+            tf.config.experimental.set_memory_growth(gpu, True) 
+        print(f"Using GPU: {gpus}") 
+    except RuntimeError as e: 
+        print(f"GPU error: {e}") 
+else: 
+    print("No GPU found, running on CPU") 
 
 
 def train_sac_energy_effiency(
@@ -164,7 +179,7 @@ def train_sac_energy_effiency(
     logger.info(norm_dict)
 
     metrics: dict = {
-        'mean_sum_rate_per_episode': -np.inf * np.ones(config.config_learner.training_episodes)
+        'mean_reward_per_episode': -np.inf * np.ones(config.config_learner.training_episodes)
     }
     high_score = -np.inf
     high_scores = []
@@ -180,7 +195,7 @@ def train_sac_energy_effiency(
     for training_episode_id in range(config.config_learner.training_episodes):
 
         episode_metrics: dict = {
-            'sum_rate_per_step': -np.inf * np.ones(config.config_learner.training_steps_per_episode),
+            'reward_per_step': -np.inf * np.ones(config.config_learner.training_steps_per_episode),
             'mean_log_prob_density': np.inf * np.ones(config.config_learner.training_steps_per_episode),
             'value_loss': -np.inf * np.ones(config.config_learner.training_steps_per_episode),
         }
@@ -218,8 +233,6 @@ def train_sac_energy_effiency(
                 normalized_precoder = norm_factor * w_precoder
                 w_precoder = normalized_precoder
 
-
-
             # w_precoder_normed = norm_precoder(precoding_matrix=w_precoder, power_constraint_watt=config.power_constraint_watt,
             #                                   per_satellite=True, sat_nr=config.sat_nr, sat_ant_nr=config.sat_ant_nr)
 
@@ -232,13 +245,13 @@ def train_sac_energy_effiency(
                     noise_power_watt=config.noise_power_watt,
                 )
                 reward += config.config_learner.reward['sum_rate'] * sum_rate_reward
-            if 'fairness' in config.config_learner.reward:
-                fairness_reward = calc_jain_fairness(
-                    channel_state=satellite_manager.channel_state_information,
-                    w_precoder=w_precoder,
-                    noise_power_watt=config.noise_power_watt,
-                )
-                reward += config.config_learner.reward['fairness'] * fairness_reward
+            # if 'fairness' in config.config_learner.reward:
+            #     fairness_reward = calc_jain_fairness(
+            #         channel_state=satellite_manager.channel_state_information,
+            #         w_precoder=w_precoder,
+            #         noise_power_watt=config.noise_power_watt,
+            #     )
+            #     reward += config.config_learner.reward['fairness'] * fairness_reward
             if 'sum_rate_over_transmit_power' in config.config_learner.reward:
                 sum_rate_reward = calc_sum_rate(
                     channel_state=satellite_manager.channel_state_information,
@@ -250,10 +263,23 @@ def train_sac_energy_effiency(
                 else:
                     normalized_power = power_precoder / config.power_constraint_watt
                     sum_rate_over_transmit_power = sum_rate_reward / normalized_power
-
                 reward += config.config_learner.reward['sum_rate_over_transmit_power'] * sum_rate_over_transmit_power
+            # Prakrit added this for calculation of EE
+            if 'energy_efficiency' in config.config_learner.reward:
+                sum_rate_reward = calc_sum_rate(
+                    channel_state=satellite_manager.channel_state_information,
+                    w_precoder=w_precoder,
+                    noise_power_watt=config.noise_power_watt,
+                )
+                # Total power = transmit power + static circuit power
+                total_power = (
+                    power_precoder
+                    + config.sat_nr * config.sat_ant_nr * config.circuit_power_watt
+                )
+                energy_efficiency = sum_rate_reward / total_power  # bits/s/Hz/W = bits/J
+                reward += config.config_learner.reward['energy_efficiency'] * energy_efficiency
 
-            if any(key not in ['sum_rate', 'fairness', 'sum_rate_over_transmit_power'] for key in config.config_learner.reward.keys()):
+            if any(key not in ['sum_rate', 'fairness', 'sum_rate_over_transmit_power', 'energy_efficiency'] for key in config.config_learner.reward.keys()):
                 raise ValueError("No valid reward provided")
 
             step_experience['reward'] = reward
@@ -292,7 +318,7 @@ def train_sac_energy_effiency(
                 value_loss = np.nan
 
             # log results
-            episode_metrics['sum_rate_per_step'][training_step_id] = reward
+            episode_metrics['reward_per_step'][training_step_id] = reward
             episode_metrics['mean_log_prob_density'][training_step_id] = mean_log_prob_density
             episode_metrics['value_loss'][training_step_id] = value_loss
 
@@ -301,14 +327,14 @@ def train_sac_energy_effiency(
                     progress_print()
 
         # log episode results
-        episode_mean_sum_rate = np.nanmean(episode_metrics['sum_rate_per_step'])
-        metrics['mean_sum_rate_per_episode'][training_episode_id] = episode_mean_sum_rate
+        episode_mean_reward = np.nanmean(episode_metrics['reward_per_step'])
+        metrics['mean_reward_per_episode'][training_episode_id] = episode_mean_reward
 
         # If doing optuna optimization: check trial results, stop early if bad
         if optuna_trial:
             window = 10
             lower_end = max(training_episode_id-window, 0)
-            episode_result = np.nanmean(metrics['mean_sum_rate_per_episode'][lower_end:training_episode_id+1])
+            episode_result = np.nanmean(metrics['mean_reward_per_episode'][lower_end:training_episode_id+1])
 
             optuna_trial.report(episode_result, training_episode_id)
             if optuna_trial.should_prune():
@@ -319,18 +345,18 @@ def train_sac_energy_effiency(
         progress_print(to_log=True)
         logger.info(
             f'Episode {training_episode_id}:'
-            f' Episode mean reward: {episode_mean_sum_rate:.4f}'
-            f' std {np.nanstd(episode_metrics["sum_rate_per_step"]):.2f},'
+            f' Episode mean reward: {episode_mean_reward:.4f}'
+            f' std {np.nanstd(episode_metrics["reward_per_step"]):.2f},'
             f' current exploration: {np.nanmean(episode_metrics["mean_log_prob_density"]):.2f},'
             f' value loss: {np.nanmean(episode_metrics["value_loss"]):.5f}'
             # f' curr. lr: {sac.networks["policy"][0]["primary"].optimizer.learning_rate(sac.networks["policy"][0]["primary"].optimizer.iterations):.2E}'
         )
 
         # save network snapshot
-        if episode_mean_sum_rate > high_score:
-            high_score = episode_mean_sum_rate.copy()
+        if episode_mean_reward > high_score:
+            high_score = episode_mean_reward.copy()
             high_scores.append(high_score)
-            best_model_path = save_model_checkpoint(episode_mean_sum_rate)
+            best_model_path = save_model_checkpoint(episode_mean_reward)
 
         # end compute performance profiling
     if profiler is not None:
@@ -339,8 +365,8 @@ def train_sac_energy_effiency(
     save_results()
 
     if config.show_plots:
-        plot_sweep(range(config.config_learner.training_episodes), metrics['mean_sum_rate_per_episode'],
-                   'Training Episode', 'Sum Rate')
+        plot_sweep(range(config.config_learner.training_episodes), metrics['mean_reward_per_episode'],
+                   'Training Episode', 'Reward')
         plt_show()
 
     return best_model_path, metrics
@@ -349,4 +375,3 @@ def train_sac_energy_effiency(
 if __name__ == '__main__':
     cfg = Config()
     train_sac_energy_effiency(config=cfg)
-
