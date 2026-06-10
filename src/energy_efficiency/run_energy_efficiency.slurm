@@ -15,7 +15,7 @@
 
 # Set environment
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
-conda activate gpu_beamforming        # <-- changed this
+conda activate gpu_beamforming        
 
 export CUDA_VISIBLE_DEVICES=$SLURM_JOB_GPUS
 
