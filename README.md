@@ -1,16 +1,7 @@
 
 
 # Work in progress
-oThis code was used in the following unpublished work [(preprint not available yet)](url).
 
-[1]  Alea Schröder, Steffen Gracla, Dirk Wübben, Armin Dekorsy,
-"Robust Rate-Splitting Multiple Access using Reinforcement Learning in Low Earth Orbit Satellite Communications", under preparation.
-
-Email: {**schroeder**, gracla, wuebben, dekorsy}@ant.uni-bremen.de
-
-The code version associated with this paper along with the used learned models and evaluation results is found in the releases.
-The project structure is as follows
-```
 .
 ├── models                  | trained models
 ├── outputs
@@ -26,3 +17,24 @@ The project structure is as follows
 │   ├── tests               |   code tests
 └── └── utils               |   shared helper functions
 ```
+
+
+## Energy Efficiency Extension (Parajuli)
+
+This branch extends the base code with a Soft Actor-Critic agent trained to maximize energy efficiency.
+
+## Environment Setup
+
+**GPU Training (Recommended)**
+```bash
+conda env create -f environment.yml
+conda activate gpu_beamforming
+```
+
+**CPU / pip only**
+```bash
+pip install -r requirements.txt
+```
+
+
+> **Note:** Tested on `fuchu` node (`gpu:rtx8000`). Nodes `madrid`, `miami`, `mumbai` excluded due to driver incompatibility with TF 2.15.
