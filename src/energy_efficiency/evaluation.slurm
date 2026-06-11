@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH -J EE_eval
-#SBATCH -o EE_eval_%j.out
-#SBATCH -e EE_eval_%j.err
+#SBATCH -J EE_evaluation
+#SBATCH -o EE_evaluation_%j.out
+#SBATCH -e EE_evaluation_%j.err
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 4
 #SBATCH -t 0-02:00:00
 #SBATCH --gres=gpu:1
 #SBATCH -p wiss
-#SBATCH --mem=2G
+#SBATCH --mem=4G
 #SBATCH --mail-user=parajuli@ant.uni-bremen.de
 #SBATCH --mail-type=ALL
 

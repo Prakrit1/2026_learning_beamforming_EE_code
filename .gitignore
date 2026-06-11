@@ -20,4 +20,7 @@ venv/
 /src/analysis/test_precoder_user_distance_sweep.py
 
 /.pylintrc
-nohup.out
+nohup.out.nfs*
+.giosave*
+*.err
+*.out

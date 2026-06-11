@@ -1,31 +1,26 @@
 """Plot error sweep (sum rate): MMSE vs SAC energy efficiency model."""
 import matplotlib
 matplotlib.use('Agg')
-matplotlib.rcParams['text.usetex'] = False
-
 import matplotlib.pyplot as plt
 from pathlib import Path
-
 from src.config.config import Config
 from src.config.config_plotting import PlotConfig
 from src.analysis.plotting.plot_error_sweep import plot_error_sweep_testing_graph
+import src.plotting.plot_error_sweep_testing_graph as _plot_module
 
-matplotlib.rcParams['text.usetex'] = False  # override PlotConfig
-
-
-def save_pdf(plots_parent_path, plot_name, padding=0):
-    from pathlib import Path
+# Patch save_figures in the plot module's own namespace (where it was imported to)
+def _save_figures_no_latex(plots_parent_path, plot_name, padding):
     pdf_path = Path(plots_parent_path, 'pdf')
     pdf_path.mkdir(parents=True, exist_ok=True)
-    out = Path(pdf_path, f'{plot_name}.pdf')
-    plt.savefig(out, bbox_inches='tight', pad_inches=padding, dpi=800, transparent=True)
-    print(f'Saved: {out}')
+    plt.savefig(Path(pdf_path, f'{plot_name}.pdf'), bbox_inches='tight', pad_inches=padding, dpi=800, transparent=True)
+    print(f'Saved: {plot_name}.pdf')
 
+_plot_module.save_figures = _save_figures_no_latex  # patch where it actually lives
 
 if __name__ == '__main__':
     cfg = Config()
     plot_cfg = PlotConfig()
-    matplotlib.rcParams['text.usetex'] = False
+    plt.rc('text', usetex=False)  # override PlotConfig's usetex=True
 
     data_paths = [
         Path(cfg.output_metrics_path, 'test', 'error_sweep', 'testing_mmse_sweep_0.0_0.1.gzip'),
@@ -47,6 +42,3 @@ if __name__ == '__main__':
         linestyles=['-', '-'],
         plots_parent_path=plot_cfg.plots_parent_path,
     )
-
-    save_pdf(plots_parent_path=plot_cfg.plots_parent_path, plot_name='error_sweep_ee_vs_mmse_sumrate')
-    plt.show()

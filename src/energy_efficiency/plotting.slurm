@@ -8,7 +8,7 @@
 #SBATCH -t 0-02:00:00
 #SBATCH --gres=gpu:1
 #SBATCH -p wiss
-#SBATCH --mem=2
+#SBATCH --mem=2G
 #SBATCH --mail-user=parajuli@ant.uni-bremen.de
 #SBATCH --mail-type=ALL
 
