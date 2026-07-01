@@ -225,7 +225,8 @@ def train_sac_energy_effiency(
             w_precoder_vector = real_vector_to_half_complex_vector(action)
             # w_precoder_vector = rad_and_phase_to_complex_vector(action)
             w_precoder = w_precoder_vector.reshape((config.sat_nr*config.sat_ant_nr, config.user_nr))
-            power_precoder = np.trace(np.matmul(w_precoder.conj().T, w_precoder))
+            power_precoder = np.real(np.trace(np.matmul(w_precoder.conj().T, w_precoder)))
+            raw_power_precoder = power_precoder
 
             if power_precoder > config.power_constraint_watt:
                 power_precoder = config.power_constraint_watt
@@ -238,32 +239,15 @@ def train_sac_energy_effiency(
 
             # step simulation based on action, determine reward
             reward = 0
-            if 'sum_rate' in config.config_learner.reward:
-                sum_rate_reward = calc_sum_rate(
-                    channel_state=satellite_manager.channel_state_information,
-                    w_precoder=w_precoder,
-                    noise_power_watt=config.noise_power_watt,
-                )
-                reward += config.config_learner.reward['sum_rate'] * sum_rate_reward
-            # if 'fairness' in config.config_learner.reward:
-            #     fairness_reward = calc_jain_fairness(
-            #         channel_state=satellite_manager.channel_state_information,
-            #         w_precoder=w_precoder,
-            #         noise_power_watt=config.noise_power_watt,
-            #     )
-            #     reward += config.config_learner.reward['fairness'] * fairness_reward
-            if 'sum_rate_over_transmit_power' in config.config_learner.reward:
-                sum_rate_reward = calc_sum_rate(
-                    channel_state=satellite_manager.channel_state_information,
-                    w_precoder=w_precoder,
-                    noise_power_watt=config.noise_power_watt,
-                )
-                if power_precoder < 1:
-                    sum_rate_over_transmit_power = 0
-                else:
-                    normalized_power = power_precoder / config.power_constraint_watt
-                    sum_rate_over_transmit_power = sum_rate_reward / normalized_power
-                reward += config.config_learner.reward['sum_rate_over_transmit_power'] * sum_rate_over_transmit_power
+            #if 'sum_rate' in config.config_learner.reward:
+            #    sum_rate_reward = calc_sum_rate(
+            #        channel_state=satellite_manager.channel_state_information,
+            #        w_precoder=w_precoder,
+            #        noise_power_watt=config.noise_power_watt,
+            #    )
+            #    reward += config.config_learner.reward['sum_rate'] * sum_rate_reward
+                
+                
             # Prakrit added this for calculation of EE
             if 'energy_efficiency' in config.config_learner.reward:
                 sum_rate_reward = calc_sum_rate(
@@ -271,17 +255,66 @@ def train_sac_energy_effiency(
                     w_precoder=w_precoder,
                     noise_power_watt=config.noise_power_watt,
                 )
-                # Total power = transmit power + static circuit power
-                total_power = (
-                    power_precoder
-                    + config.sat_nr * config.sat_ant_nr * config.circuit_power_watt
+                # Normalize EVERYTHING by power_constraint_watt
+                normalized_transmit = power_precoder / config.power_constraint_watt
+                normalized_circuit = (
+                    config.sat_nr
+                    * config.sat_ant_nr
+                    * config.circuit_power_watt
+                    / config.power_constraint_watt  
                 )
-                energy_efficiency = sum_rate_reward / total_power  # bits/s/Hz/W = bits/J
+                total_power_normalized = normalized_transmit + normalized_circuit
+
+                if total_power_normalized < 1e-9:
+                    energy_efficiency = 0.0
+                else:
+                    energy_efficiency = sum_rate_reward / total_power_normalized
+
                 reward += config.config_learner.reward['energy_efficiency'] * energy_efficiency
+                
+                 if 'energy_efficiency_no_normalization_fixed' in config.config_learner.reward:
+                if raw_power_precoder > config.power_constraint_watt:
+                    # still must not exceed the physical power budget -- this
+                    # is a hardware limit, not the "normalization" being
+                    # tested here. Only the upward rescale-to-saturate is
+                    # removed; the downward clip-on-violation is kept.
+                    w_precoder_raw = w_precoder  # already clipped to budget above
+                    power_for_ee = power_precoder  # == config.power_constraint_watt
+                else:
+                    w_precoder_raw = w_precoder_vector.reshape(
+                        (config.sat_nr * config.sat_ant_nr, config.user_nr)
+                    )
+                    power_for_ee = raw_power_precoder
 
-            if any(key not in ['sum_rate', 'fairness', 'sum_rate_over_transmit_power', 'energy_efficiency'] for key in config.config_learner.reward.keys()):
+                sum_rate_reward_raw = calc_sum_rate(
+                    channel_state=satellite_manager.channel_state_information,
+                    w_precoder=w_precoder_raw,
+                    noise_power_watt=config.noise_power_watt,
+                )
+                circuit_power = config.sat_nr * config.sat_ant_nr * config.circuit_power_watt
+                total_power_for_ee = power_for_ee + circuit_power
+
+                if total_power_for_ee < 1e-9:
+                    energy_efficiency_no_normalization_fixed = 0.0
+                else:
+                    energy_efficiency_no_normalization_fixed = sum_rate_reward_raw / total_power_for_ee
+
+                reward += (
+                    config.config_learner.reward['energy_efficiency_no_normalization_fixed']
+                    * energy_efficiency_no_normalization_fixed
+                )
+
+
+            
+
+            valid_reward_keys = [
+                'sum_rate',
+                'energy_efficiency',
+                'energy_efficiency_no_normalization_fixed',
+            ]
+            if any(key not in valid_reward_keys for key in config.config_learner.reward.keys()):
                 raise ValueError("No valid reward provided")
-
+                
             step_experience['reward'] = reward
 
             # optionally add the corresponding mmse precoder to the data set
@@ -351,6 +384,7 @@ def train_sac_energy_effiency(
             f' value loss: {np.nanmean(episode_metrics["value_loss"]):.5f}'
             # f' curr. lr: {sac.networks["policy"][0]["primary"].optimizer.learning_rate(sac.networks["policy"][0]["primary"].optimizer.iterations):.2E}'
         )
+        logger.info(f'Starting training: name={config.config_learner.training_name}, reward={config.config_learner.reward}')
 
         # save network snapshot
         if episode_mean_reward > high_score:

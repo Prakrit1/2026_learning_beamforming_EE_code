@@ -20,6 +20,7 @@ from src.utils.load_model import (
 )
 from src.utils.get_precoding import (
     get_precoding_learned,
+    get_precoding_learned_clip_only,
     get_learned_precoder_reduced,
     get_precoding_learned_decentralized_blind,
     get_precoding_learned_decentralized_limited,
@@ -56,6 +57,43 @@ def test_sac_precoder_error_sweep(
         precoder_name='learned',
         monte_carlo_iterations=monte_carlo_iterations,
         get_precoder_func=lambda cfg, usr_man, sat_man: get_precoding_learned(cfg, usr_man, sat_man, norm_factors, precoder_network),
+        calc_reward_funcs=calc_reward_funcs,
+    )
+
+    return metrics
+
+
+# Prakrit added this for unnormalized (clip-only) power evaluation
+def test_sac_precoder_clip_only_error_sweep(
+        config: 'src.config.config.Config',
+        model_path: Path,
+        error_sweep_parameter: str,
+        error_sweep_range: np.ndarray,
+        monte_carlo_iterations: int,
+        metrics: list = ['sumrate'],  # 'sumrate', 'fairness'
+) -> dict:
+    """
+    Same as test_sac_precoder_error_sweep, but for models trained with the
+    'energy_efficiency_no_normalization_fixed' reward: uses the clip-only
+    precoder (rescale down only if over budget) instead of the always-
+    rescale-to-budget normalization, matching how this model was trained.
+    """
+
+    calc_reward_funcs = []
+    if 'sumrate' in metrics:
+        calc_reward_funcs.append(calc_sum_rate)
+    if 'fairness' in metrics:
+        calc_reward_funcs.append(calc_jain_fairness)
+
+    precoder_network, norm_factors = load_model(model_path)
+
+    metrics = test_precoder_error_sweep(
+        config=config,
+        error_sweep_parameter=error_sweep_parameter,
+        error_sweep_range=error_sweep_range,
+        precoder_name='learned',
+        monte_carlo_iterations=monte_carlo_iterations,
+        get_precoder_func=lambda cfg, usr_man, sat_man: get_precoding_learned_clip_only(cfg, usr_man, sat_man, norm_factors, precoder_network),
         calc_reward_funcs=calc_reward_funcs,
     )
 

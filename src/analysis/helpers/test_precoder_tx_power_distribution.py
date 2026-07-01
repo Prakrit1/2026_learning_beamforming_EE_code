@@ -1,4 +1,3 @@
-
 from datetime import datetime
 from pathlib import Path
 import gzip
@@ -27,7 +26,6 @@ from src.utils.progress_printer import (
 from src.utils.update_sim import (
     update_sim,
 )
-
 
 
 def test_precoder_tx_power_distribution(
@@ -74,7 +72,6 @@ def test_precoder_tx_power_distribution(
 
     for distance_sweep_idx, distance_sweep_value in enumerate(distance_sweep_range):
 
-        # metrics_per_monte_carlo = np.zeros((len(calc_reward_funcs), monte_carlo_iterations))
         metrics_per_monte_carlo = np.zeros((monte_carlo_iterations, config.user_nr))
 
         if mode == 'user':
@@ -84,8 +81,6 @@ def test_precoder_tx_power_distribution(
         elif mode == 'satellite':
             config.sat_dist_average = distance_sweep_value
             config.sat_dist_bound = 0
-
-        # config.config_error_model.set_zero_error()
 
         for iter_idx in range(monte_carlo_iterations):
 
@@ -105,9 +100,6 @@ def test_precoder_tx_power_distribution(
                 if iter_idx % 50 == 0:
                     progress_print()
 
-        # for reward_func_id in range(metrics_per_monte_carlo.shape[0]):
-        #     metrics[calc_reward_funcs[reward_func_id]]['mean'][distance_sweep_idx] = np.mean(metrics_per_monte_carlo[reward_func_id, :])
-        #     metrics[calc_reward_funcs[reward_func_id]]['std'][distance_sweep_idx] = np.std(metrics_per_monte_carlo[reward_func_id, :])
         m = metrics['tx_power_per_user']
         m['mean'][distance_sweep_idx, :] = np.mean(metrics_per_monte_carlo, axis=0)
         m['std'][distance_sweep_idx, :] = np.std(metrics_per_monte_carlo, axis=0)

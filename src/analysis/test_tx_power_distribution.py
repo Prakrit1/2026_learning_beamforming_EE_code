@@ -33,14 +33,12 @@ from src.analysis.helpers.test_rsma_precoder import test_rsma_precoder_error_swe
 from src.analysis.helpers.test_rsma_precoder import test_rsma_precoder_user_number_sweep
 
 
-sweep_parameter='error_sweep' # available 'error_sweep','user_distance_sweep', 'user_number_sweep'
-
 def test_tx_power_distribution():
 
     monte_carlo_iterations = 10000
 
     rsma_factors = np.arange(0, 1+0.01, step=0.01)  # exclusive interval
-    user_dist_sweep_range = np.arange(50000, 50500, 500)
+    user_dist_sweep_range = np.arange(25000, 25500, 500)
 
     cfg = Config()
     cfg.show_plots = False

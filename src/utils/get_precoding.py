@@ -4,6 +4,7 @@ import tensorflow as tf
 
 import src
 from src.models.precoders.learned_precoder import get_learned_precoder_normalized
+from src.models.precoders.learned_precoder import get_learned_precoder_clip_only
 from src.models.precoders.learned_precoder import get_learned_precoder_reduced
 from src.models.precoders.learned_precoder import get_learned_precoder_decentralized_normalized
 from src.models.precoders.learned_precoder import get_learned_rsma_power_factor
@@ -46,6 +47,38 @@ def get_precoding_learned(
     )
 
     return w_precoder_normalized
+
+
+# Prakrit added this for unnormalized (clip-only) power evaluation
+def get_precoding_learned_clip_only(
+        config: 'src.config.config.Config',
+        user_manager: 'src.data.user_manager.UserManager',
+        satellite_manager: 'src.data.satellite_manager.SatelliteManager',
+        norm_factors: dict,
+        precoder_network: tf.keras.models.Model,
+) -> np.ndarray:
+    """
+    Clip-only counterpart to get_precoding_learned: use this for models
+    trained with the 'energy_efficiency_no_normalization_fixed' reward, so
+    evaluation only clips down when the raw output exceeds the power budget
+    instead of always rescaling to sit exactly on it.
+    """
+
+    state = config.config_learner.get_state(
+        config=config,
+        user_manager=user_manager,
+        satellite_manager=satellite_manager,
+        norm_factors=norm_factors,
+        **config.config_learner.get_state_args
+    )
+
+    w_precoder_clipped = get_learned_precoder_clip_only(
+        state=state,
+        precoder_network=precoder_network,
+        **config.learned_precoder_args,
+    )
+
+    return w_precoder_clipped
 
 def get_precoding_learned_reduced(
         config: 'src.config.config.Config',

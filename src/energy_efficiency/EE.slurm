@@ -1,11 +1,11 @@
 #!/bin/bash
-#SBATCH -J EE_test
-#SBATCH -o EE_test%J.out
-#SBATCH -e EE_test%J.err
+#SBATCH -J EE
+#SBATCH -o EE_%J.out
+#SBATCH -e EE_%J.err
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 4
-
+#SBATCH --gres=gpu:1
 #SBATCH -t 3-14:01:00
 #SBATCH -p wiss
 #SBATCH --mem=16G
@@ -28,7 +28,7 @@ echo "CUDA_VISIBLE_DEVICES = $CUDA_VISIBLE_DEVICES"
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/tx_power_distribution.py
+srun python3 src/models/EE_sac.py
 
 wait
 echo "$(date): Finished jobs!"

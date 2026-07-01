@@ -162,6 +162,32 @@ class SoftActorCritic:
 
         return actions_bounded
 
+    # --- PARALLEL PROCESSING (num_parallel_envs speedup) -----------------------
+    # Added alongside EE_sac.py's parallel-environment training loop. get_action()
+    # above is called once per single environment; this is the batched counterpart
+    # called once per GROUP of environments -- see EE_sac.py's train_sac_energy_effiency
+    # and num_parallel_envs in config_sac_learner.py for how the batch is assembled.
+    def get_action_batch(
+            self,
+            states: np.ndarray,  # shape (batch, size_state)
+    ) -> np.ndarray:
+        """
+        Get actions for a batch of states in a single forward pass, returned as
+        a (batch, num_actions) numpy array (not flattened, unlike get_action).
+
+        Calling this once for N states is far cheaper than calling get_action()
+        N times: per-call GPU dispatch overhead dominates wall time for a batch=1
+        forward pass through a small MLP, so batching amortizes that overhead
+        across N samples almost for free.
+        """
+
+        actions, _ = self.networks['policy'][0]['primary'].get_action_and_log_prob_density(state=states,
+                                                                                           print_stds=False)
+
+        actions_bounded = self.bound_actions(actions.numpy())
+
+        return actions_bounded
+
     def add_experience(
             self,
             experience: dict,

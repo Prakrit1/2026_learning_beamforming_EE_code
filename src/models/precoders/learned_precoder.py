@@ -2,7 +2,7 @@
 import numpy as np
 import tensorflow as tf
 
-from src.utils.norm_precoder import norm_precoder
+from src.utils.norm_precoder import norm_precoder, clip_precoder_to_power_budget
 from src.utils.real_complex_vector_reshaping import real_vector_to_half_complex_vector
 
 
@@ -49,6 +49,43 @@ def get_learned_precoder_normalized(
     )
 
     return w_precoder_normalized
+
+
+# Prakrit added this for unnormalized (clip-only) power evaluation
+def get_learned_precoder_clip_only(
+        state: np.ndarray,
+        precoder_network: tf.keras.Model,
+        sat_nr: int,
+        sat_ant_nr: int,
+        user_nr: int,
+        power_constraint_watt: float,
+) -> np.ndarray:
+    """
+    Clip-only counterpart to get_learned_precoder_normalized: rescales down
+    only if the raw network output exceeds the power budget, otherwise
+    passes it through unchanged. Use this for models trained with the
+    'energy_efficiency_no_normalization_fixed' reward -- using
+    get_learned_precoder_normalized on them instead would forcibly rescale
+    every sample to the power budget and hide any power savings they learned.
+    """
+
+    w_precoder_no_norm = get_learned_precoder_no_norm(
+        state=state,
+        precoder_network=precoder_network,
+        sat_nr=sat_nr,
+        sat_ant_nr=sat_ant_nr,
+        user_nr=user_nr,
+    )
+
+    w_precoder_clipped = clip_precoder_to_power_budget(
+        precoding_matrix=w_precoder_no_norm,
+        power_constraint_watt=power_constraint_watt,
+        per_satellite=True,
+        sat_nr=sat_nr,
+        sat_ant_nr=sat_ant_nr,
+    )
+
+    return w_precoder_clipped
 
 def get_learned_precoder_reduced(
         state: np.ndarray,
