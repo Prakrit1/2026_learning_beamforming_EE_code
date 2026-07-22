@@ -5,6 +5,7 @@ import tensorflow as tf
 import src
 from src.models.precoders.learned_precoder import get_learned_precoder_normalized
 from src.models.precoders.learned_precoder import get_learned_precoder_clip_only
+from src.models.precoders.learned_precoder import get_learned_precoder_no_norm
 from src.models.precoders.learned_precoder import get_learned_precoder_reduced
 from src.models.precoders.learned_precoder import get_learned_precoder_decentralized_normalized
 from src.models.precoders.learned_precoder import get_learned_rsma_power_factor
@@ -79,6 +80,50 @@ def get_precoding_learned_clip_only(
     )
 
     return w_precoder_clipped
+
+
+# Added to diagnose whether the clip-only precoder's power is being
+# controlled by the reward gradient at all, or is dominated by the clip
+# operation itself: this returns the RAW network output before either
+# clipping or normalization, so its power can be compared against the
+# post-clip power measured by get_precoding_learned_clip_only. If the clip
+# triggers on nearly every sample regardless of lambda (see
+# tx_power_distribution.py's fixed-lambda summary: only 1-2% of samples
+# land below budget even at lambda=3.0/5.0), then whatever the reward
+# gradient taught the policy about raw magnitude is invisible in the
+# post-clip power the model is actually evaluated on.
+def get_precoding_learned_no_norm(
+        config: 'src.config.config.Config',
+        user_manager: 'src.data.user_manager.UserManager',
+        satellite_manager: 'src.data.satellite_manager.SatelliteManager',
+        norm_factors: dict,
+        precoder_network: tf.keras.models.Model,
+) -> np.ndarray:
+    """
+    Raw counterpart to get_precoding_learned_clip_only: returns the network's
+    output completely unclipped and unnormalized. NOT a valid precoder to
+    transmit with (it can exceed the power budget) -- diagnostic use only,
+    to measure what the network would output before the clip masks it.
+    """
+
+    state = config.config_learner.get_state(
+        config=config,
+        user_manager=user_manager,
+        satellite_manager=satellite_manager,
+        norm_factors=norm_factors,
+        **config.config_learner.get_state_args
+    )
+
+    w_precoder_no_norm = get_learned_precoder_no_norm(
+        state=state,
+        precoder_network=precoder_network,
+        sat_nr=config.learned_precoder_args['sat_nr'],
+        sat_ant_nr=config.learned_precoder_args['sat_ant_nr'],
+        user_nr=config.learned_precoder_args['user_nr'],
+    )
+
+    return w_precoder_no_norm
+
 
 def get_precoding_learned_reduced(
         config: 'src.config.config.Config',
@@ -476,6 +521,32 @@ def get_precoding_mrc(
     )
 
     return w_mrc
+
+
+# Added -- no ZF wrapper existed before this. Pure zero-forcing is
+# regularized_zero_forcing_precoder_user_specific_normalized with
+# regularization_factor=0 (a nonzero factor makes it REGULARIZED ZF, which
+# with the right factor value is mathematically identical to MMSE -- see
+# that function's docstring). Equal power split across users, summing to
+# exactly power_constraint_watt, matches the convention get_precoding_mmse/
+# get_precoding_mrc already use (both are pinned at the full budget by
+# construction too) -- makes the three classical baselines directly
+# comparable on the same terms.
+def get_precoding_zero_forcing(
+        config: 'src.config.config.Config',
+        user_manager: 'src.data.user_manager.UserManager',
+        satellite_manager: 'src.data.satellite_manager.SatelliteManager',
+) -> np.ndarray:
+
+    power_factors_users = (config.power_constraint_watt / config.user_nr) * np.ones(config.user_nr)
+
+    w_zf = regularized_zero_forcing_precoder_user_specific_normalized(
+        channel_matrix=satellite_manager.erroneous_channel_state_information,
+        regularization_factor=0.0,
+        power_factors_users=power_factors_users,
+    )
+
+    return w_zf
 
 
 def get_precoding_robust_slnr(

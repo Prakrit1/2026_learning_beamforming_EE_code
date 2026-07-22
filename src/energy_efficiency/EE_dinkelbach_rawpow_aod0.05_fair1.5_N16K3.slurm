@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH -J EE_rawpow_aod0.05_fair1.5
+#SBATCH -o EE_rawpow_aod0.05_fair1.5_%J.out
+#SBATCH -e EE_rawpow_aod0.05_fair1.5_%J.err
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH -c 4
+#SBATCH --gres=gpu:1
+#SBATCH -t 3-14:01:00
+#SBATCH -p wiss
+#SBATCH --mem=16G
+#SBATCH --mail-user=parajuli@ant.uni-bremen.de
+#SBATCH --mail-type=ALL
+
+# Set environment
+source /home/parajuli/miniconda3/etc/profile.d/conda.sh
+conda activate gpu_beamforming
+
+export CUDA_VISIBLE_DEVICES=$SLURM_JOB_GPUS
+# See EE_dinkelbach_rawpow_aod0.05_fair0.5_N16K3.slurm for full context --
+# same setup, middle of the three trial fairness weights (0.5, 1.5, 3.0).
+export EE_REWARD_MODE=energy_efficiency_dinkelbach_adaptive
+export EE_TRAIN_ERROR_BOUND=0.05
+export EE_DINKELBACH_LAMBDA_WINDOW_STEPS=5000
+export EE_FAIRNESS_WEIGHT=1.5
+
+cd /home/parajuli/repos/2025_learning_beamforming_rsma_code
+export PYTHONPATH=/home/parajuli/repos/2025_learning_beamforming_rsma_code
+
+srun nvidia-smi
+echo "CUDA_VISIBLE_DEVICES = $CUDA_VISIBLE_DEVICES"
+echo "EE_REWARD_MODE = $EE_REWARD_MODE"
+echo "EE_TRAIN_ERROR_BOUND = $EE_TRAIN_ERROR_BOUND"
+echo "EE_DINKELBACH_LAMBDA_WINDOW_STEPS = $EE_DINKELBACH_LAMBDA_WINDOW_STEPS"
+echo "EE_FAIRNESS_WEIGHT = $EE_FAIRNESS_WEIGHT"
+
+HOSTNAME=$(hostname)
+srun echo $HOSTNAME
+srun python3 src/models/EE_sac.py
+
+wait
+echo "$(date): Finished jobs!"

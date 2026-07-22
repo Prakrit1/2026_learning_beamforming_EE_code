@@ -20,6 +20,7 @@ from src.data.precoder.robust_SLNR_precoder import robust_SLNR_precoder_no_norm
 from src.models.precoders.learned_precoder import get_learned_precoder_normalized
 from src.utils.update_sim import update_sim
 from src.utils.progress_printer import progress_printer
+from src.utils.calc_channel_correlation import calc_channel_correlation
 
 
 def generate_beampatterns(
@@ -32,6 +33,7 @@ def generate_beampatterns(
         generate_mmse: bool = True,
         generate_slnr: bool = True,
         generate_ones: bool = True,
+        compute_channel_correlations: bool = False,
 ) -> None:
 
     def calc_power_gains(w_precoder):
@@ -110,6 +112,22 @@ def generate_beampatterns(
              for user_idx in range(len(user_manager.users))]
             for satellite in satellite_manager.satellites
         ]
+
+        if compute_channel_correlations:
+            # true (error-free) channel -- this is a physical/geometric
+            # property of the user placement, independent of CSIT error or
+            # which precoder is used
+            channel = satellite_manager.channel_state_information
+            user_pairs = [(i, j)
+                          for i in range(len(user_manager.users))
+                          for j in range(i + 1, len(user_manager.users))]
+            iter_data['channel_correlations'] = {
+                pair: abs(calc_channel_correlation(
+                    channel_1=channel[pair[0], :],
+                    channel_2=channel[pair[1], :],
+                ))
+                for pair in user_pairs
+            }
 
         for learned_model in learned_models:
             state = config.config_learner.get_state(

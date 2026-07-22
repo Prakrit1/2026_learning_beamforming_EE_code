@@ -1,0 +1,794 @@
+I'm working on RSMA/energy-efficiency beamforming for satellite downlink in
+/home/parajuli/repos/2025_learning_beamforming_rsma_code (branch: EnergyEfficiency).
+This is a continuation session -- read this whole file before doing anything.
+This handoff REPLACES all previous ones and has been trimmed to keep only
+what's still relevant. Current as of 2026-07-15, ~16:50 CEST.
+
+## TL;DR: where things actually stand
+
+The investigation moved through several hypotheses (reward bugs, entropy
+mechanism, network capacity) before landing on the one that actually
+mattered: **this project used to train every model at
+EE_TRAIN_ERROR_BOUND=0.5, an error range 10x larger than the reference
+paper ever uses.** Retraining at realistic error levels (0.0 and 0.05,
+matching the paper's own Fig. 3 training points) produced genuine power
+savings (~56% of budget) and a rate-vs-error curve with the paper's
+expected shape (higher-error-trained model degrades more gracefully,
+crossing over the zero-error-trained model around error~0.045).
+
+Since then, several follow-up investigations all held up and sharpened the
+picture further:
+- **The full paper-matching three-point set (0.0/0.025/0.05) is now
+  trained and evaluated**, not just 0.0/0.05. Clean, monotonic crossovers:
+  0.025-trained overtakes 0.0-trained around error~0.035-0.04, and is
+  itself overtaken by 0.05-trained further out. See "error=0.025 SAC
+  checkpoint" below.
+- **Classical baselines (MMSE/MRT/ZF) added for comparison.** At full
+  power budget they beat SAC on raw rate, as expected -- but they always
+  use 100% of the budget by construction, while SAC only uses ~56%. Once
+  MMSE is constrained to the SAME 56 W SAC actually uses, the two are
+  statistically tied at zero error (MMSE 3.39 vs SAC 3.36 bps/Hz), and MMSE
+  degrades much faster under CSIT error than at full power -- SAC's
+  crossover advantage at higher error is even more pronounced against this
+  power-matched baseline. See "Classical baseline comparison" below.
+- **Channel correlation confirmed as a real, physical driver of variance**
+  in this scenario, unrelated to training -- see "Channel correlation
+  investigation" below.
+- **Beampattern comparison (EE vs. "regular" 100W SAC)**: sometimes EE
+  matches the regular checkpoint's spatial strategy exactly, just with a
+  sharper/differently-scaled beam; other times EE spatially abandons the
+  weakest-channel user to concentrate power on the other two -- genuinely
+  realization-dependent, not a fixed rule. See "Beampattern comparison"
+  below.
+
+Three fresh Optuna hyperparameter searches are still running (one per
+error bound: 0.0, 0.025, 0.05) to find good learning rates before
+potentially retraining "final" SAC checkpoints -- see "Optuna searches"
+below. This supersedes the single, since-abandoned 0.5-error search (job
+143462) referenced in older handoffs.
+
+## Current validated results (SAC checkpoints, jobs 147505/147506)
+
+Two checkpoints, both using the FIXED Dinkelbach reward (see "Background:
+what's already fixed" below), trained at Delta-epsilon_aod = 0.0 and 0.05
+respectively. Evaluated with 10,000-sample Monte Carlo per point, 11 error
+levels from 0.00 to 0.10 in steps of 0.01 (matches the paper's own
+evaluation range):
+
+**Rate vs. CSIT error** (plot: rate_power_error_sweep.pdf,
+error_sweep_rawpow_error_bound_comparison_sumrate.pdf):
+- error=0.0-trained model: starts at 3.37 bps/Hz, degrades steeply to 0.87
+  by error=0.10.
+- error=0.05-trained model: starts lower (1.96 bps/Hz) but degrades far
+  more gracefully (1.25 at error=0.10) -- crosses over and becomes the
+  BETTER model past error~0.045. Matches the paper's own Fig. 3 shape.
+
+**Power vs. budget**, zero eval error, paper-matching user distance
+scenario (100km mean, +-50km roam): both checkpoints land at ~56% of the
+100W budget (error=0.0: 56.0 W; error=0.05: 56.5 W), confirmed by two
+independent measurement scripts. Plots: power_savings_bars_error_bound_0_0.05.pdf,
+power_savings_comparison_error_bound_0_0.05.pdf.
+
+## Classical baseline comparison (MMSE/MRT/ZF vs SAC)
+
+New this session: src/utils/get_precoding.py gained get_precoding_zero_forcing
+(pure ZF, regularization_factor=0.0 -- no ZF wrapper existed before). All
+three classical precoders (MMSE, MRT -- "mrc" in this codebase's naming but
+mathematically genuine Maximum Ratio Transmission -- and ZF) are always
+rescaled to exactly the power budget by algebraic construction (no Monte
+Carlo needed to know their power; only rate needs measuring).
+
+**Zero-error rate comparison** (classical_baselines_zero_error.py, plot:
+rate_comparison_classical_vs_sac.pdf), all at 100W except where noted:
+MMSE 4.91, MRT 4.86, ZF 4.89, **MMSE@56W (power-matched to SAC) 3.39**, SAC
+(error=0.0) 3.36, SAC (error=0.05) 1.96 bps/Hz. The 56W-vs-56W pair (MMSE
+3.39 vs SAC 3.36) is a statistical tie -- MMSE's apparent lead over SAC at
+full budget is almost entirely a power-budget mismatch, not a modeling gap.
+
+**Full error sweep, 6 curves** (classical_baselines_error_sweep.py, plot:
+error_sweep_classical_vs_sac_sumrate.pdf): MMSE/MRT/ZF at 100W nearly
+overlap across the whole 0.00-0.10 range. MMSE@56W degrades much faster
+than MMSE@100W (e.g. error=0.05: 1.41 bps/Hz at 56W vs 2.11 at 100W) --
+cutting MMSE's power compounds its lack of CSIT-error robustness. SAC
+(error=0.05-trained) still crosses over and beats every classical baseline,
+power-matched or not, above error~0.06-0.07.
+
+**Power savings bar chart, extended** (power_savings_bars_classical_vs_sac.pdf):
+lay-friendly version with MMSE/MRT/ZF/MMSE@56W and both SAC checkpoints on
+one chart.
+
+## Channel correlation investigation
+
+Explores whether high correlation between users' channels (a purely
+geometric/physical property, independent of any training) is a real
+difficulty in this N16K3/100km scenario -- see src/utils/calc_channel_correlation.py
+(normalized complex inner product between two users' channel vectors;
+|correlation|=1 means spatially indistinguishable, no precoder can help).
+
+**Zero-error, our actual operating point** (channel_correlation_zero_error.py,
+10,000-sample MC, wiggle enabled -- our real scenario, not a sweep): User1-User2
+mean=0.077 (max 0.993), User1-User3 mean=0.042 (max 0.081, never spikes),
+User2-User3 mean=0.076 (max 0.992). Two of three pairs occasionally spike
+to near-total correlation; the third never does -- a geometric effect of
+whichever user ends up "in the middle" of the +-50km roam range.
+
+**Distance sweep** (channel_correlation_distance_sweep.py, wraps the
+pre-existing src/analysis/test_channel_correlation_distance_sweep.py --
+needed a headless-safe rewrapper, that file has neither matplotlib.use('Agg')
+nor a non-blocking save, would hang forever in a SLURM job; also used a
+coarser 40-point grid instead of the original's 200-point grid to keep
+runtime reasonable, disable_wiggle=True i.e. pure distance dependence, no
+roam): correlation collapses from ~0.999 at 500m to ~0.2 by 20km, then
+flattens into a noisy 0.02-0.2 floor for the rest of the range with no
+further systematic trend. At our 100km mean operating point: 0.041 --
+solidly in the low-noise floor. Together with the zero-error result above,
+this shows the mean 100km distance itself is NOT a correlation risk; the
+occasional near-1.0 spikes come from the +-50km ROAM occasionally pushing a
+pair's effective distance down into the steep sub-20km region, not from
+the mean distance choice.
+
+## Optuna searches: DEAD (jobs 147529/147530/147531), tuned-LR retraining DONE and evaluated -- DECISION: only aod=0.025's tuned-LR checkpoint adopted, aod=0.0/0.05 keep default-LR
+
+Replaced the old single 0.5-error search (job 143462, which crashed at
+trial 61/100 with no persistence and lost all progress -- see "Background"
+below). Three separate searches ran in parallel, one per paper-matching
+training error bound (0.0, 0.025, 0.05), each tuning lr_critic/lr_actor via
+TPE + MedianPruner, targeting 100 trials each on a 9-day SLURM time budget.
+Made crash-resilient beforehand: persistent SQLite storage
+(`outputs/optuna_studies/<study_name>.db`, load_if_exists=True) and
+per-trial try/except RuntimeError -> optuna.TrialPruned().
+
+**All three died from OOM on 2026-07-18** (`--mem=16G` in the .slurm
+matches the kill threshold exactly: "StepId exceeded memory limit
+(17180196864 > 17179869184)"). Not resubmitted -- `squeue` confirmed no
+jobs running as of this handoff (2026-07-20). The crash-resilience work
+paid off though: SQLite persistence caught far more progress than the
+3/100 this file previously reported (that was an early snapshot from
+partway through the run, not their final state):
+
+- aod=0.0: 65/100 trials done. Best = trial #7, value=0.004774,
+  lr_critic=10^-4.383974=4.14e-5, lr_actor=10^-6.602540=2.50e-7. Caveat:
+  trial 7 was found very early and never beaten in the next 57 trials --
+  weaker evidence of a true optimum than the other two studies below.
+- aod=0.025: 65/100 trials done. Best = trial #40, value=0.006806,
+  lr_critic=10^-5.739663=1.82e-6, lr_actor=10^-5.930565=1.18e-6.
+- aod=0.05: 66/100 trials done. Best = trial #60, value=0.007788,
+  lr_critic=10^-5.603007=2.50e-6, lr_actor=10^-4.141658=7.22e-5.
+
+All three best-LR combinations differ substantially from both the shared
+config.py default (lr_critic~4.2e-5, lr_actor~8.8e-6) and from each other
+-- confirms the earlier suspicion that the LR optimum is not the same
+across error bounds. Extracted straight from the existing job logs
+(`grep "Trial N finished" optuna_EE_aod*_<jobid>.err`) rather than
+resubmitting anything, per the sbatch-only rule -- reading a finished
+job's own stdout/stderr isn't compute.
+
+**Retraining with these tuned LRs -- DONE.** Added EE_LR_CRITIC/EE_LR_ACTOR
+env-var override to EE_sac.py's __main__ (same pattern as
+EE_HIDDEN_LAYER_UNITS etc. -- both must be set together, tags
+training_name with `_lrc..._lra...` so tuned checkpoints land in their own
+folder, never mixing with the default-LR ones). Three new scripts
+`EE_dinkelbach_rawpow_aod{0.0,0.025,0.05}_N16K3_lrtuned.slurm` submitted as
+jobs 152303/152304/152305 -- all three completed cleanly in 5-7h (well
+under the copied-over `-t 3-14:01:00` ceiling, as expected: episode count
+is fixed regardless of LR, and the aod0.025 default-LR checkpoint, job
+148538, had already shown ~4h51m is the real ballpark).
+
+**One training-time anomaly, later found to not matter**: job 152304
+(aod=0.025 tuned-LR)'s `entropy_scale_alpha` sat near 0 for ~8,500
+episodes, then exploded exponentially -- 1.7 to 6.3M to 780B to 3.8e15,
+peaking ~1.1e19 around episode 11,000, still ~1.3e17 at episode 13,000
+(compare aod=0.0 and aod=0.05 tuned-LR runs, which both stayed bounded,
+~0-1.0 and ~0-2.07 respectively). No NaN/crash, so the existing
+RuntimeError divergence guard never triggered -- this is a slower-motion
+failure mode entirely separate from what that guard catches. Likely cause:
+EE_LR_CRITIC/EE_LR_ACTOR only override the actor/critic LR, not the
+entropy-scale optimizer's own (unchanged, un-clipped) LR -- with a much
+slower-learning actor from the tuned (smaller) LR, policy entropy
+presumably stayed off-target for far longer than usual, and the adaptive
+entropy-scale optimizer's correction snowballed. **Turned out not to
+matter**: `get_best_model_path` selects the checkpoint saved at the
+highest reward score within the session, not the final episode's policy --
+for this run that was `full_snap_energy_effiency_1.645`, saved at
+2026-07-20 18:39:38 UTC, right at/just before the estimated onset of the
+divergence (episode ~8500, estimated wall-clock ~18:37 UTC by
+linear-interpolating the run's start/end times) -- close enough to the
+edge to have warranted checking, but the evaluated policy (see below)
+turned out smooth and sane, not degenerate.
+
+**Evaluation (job 152475, all six checkpoints -- default-LR x3 +
+tuned-LR x3 -- in one run of the now-6-block my_evaluation.py) and
+plotting (job 152478, my_plotting.py's new "Default-LR vs. tuned-LR"
+block, reports/figures/pdf/error_sweep_lrtuned_vs_default_comparison_
+sumrate.pdf) -- DONE.** Sum-rate at error=0.00 / error=0.10:
+
+| error bound | default-LR @ 0.00 | tuned-LR @ 0.00 | default-LR @ 0.10 | tuned-LR @ 0.10 |
+|---|---|---|---|---|
+| 0.0   | 3.36 | 3.17 (-5.7%) | 0.85 | 0.83 |
+| 0.025 | 2.97 | **3.01 (+1.3%)** | 1.09 | 1.07 |
+| 0.05  | 1.96 | 1.91 (-2.6%) | 1.25 | 1.15 (-8%) |
+
+Visually (see the plot), tuned-LR (dashed) tracks almost exactly on top of
+default-LR (solid) of the same color across the whole error range for all
+three bounds -- aod=0.025 is the only pair where tuned-LR sits above
+default-LR, and only at the low-error end (they converge by error~0.03).
+The crossover structure (0.025 overtakes 0.0 around error~0.035, both
+overtaken by 0.05 further out) is preserved in both LR variants -- tuning
+didn't change the qualitative shape.
+
+Likely explanation for the largely-flat result: each Optuna trial only
+trained on 20% of the full episode budget (`optuna_train_EE.py`'s
+objective scales `training_episodes` by 0.2 to keep the 100-trial search
+tractable) -- the LR that's best for a short partial run isn't
+necessarily best once trained to the full ~13,000 episodes, so the tuning
+objective and the real target diverged for two of the three error bounds.
+
+**DECISION (explicit user instruction): only the aod=0.025 tuned-LR
+checkpoint is adopted as the new "final" one for that error bound.**
+aod=0.0 and aod=0.05 keep their existing default-LR checkpoints (jobs
+147505/147506) -- their tuned-LR variants (152303/152305) did not
+improve on default-LR and are not being adopted. The new "final"
+three-checkpoint set going forward is:
+- aod=0.0: `EE_dinkelbach_adaptive_lwin5000_N16K3_eta0.6_rawpow` (default-LR, unchanged)
+- aod=0.025: `EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_eta0.6_rawpow_lrc1.82e-06_lra1.17e-06` (tuned-LR, NEWLY adopted)
+- aod=0.05: `EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_eta0.6_rawpow` (default-LR, unchanged)
+
+**NOT YET DONE: propagating this decision through the rest of the
+codebase.** As of this handoff, my_evaluation.py, my_plotting.py's
+"Raw-power-fixed Dinkelbach reward" block (error_sweep_rawpow_error_
+bound_comparison_sumrate.pdf), rate_power_error_sweep.py,
+tx_power_distribution.py, classical_baselines_zero_error.py,
+classical_baselines_error_sweep.py, and both beampattern scripts all
+still point at the OLD aod=0.025 default-LR training_name
+(`EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_eta0.6_rawpow`, no
+`_lrc..._lra...` suffix) wherever they reference "the aod=0.025
+checkpoint" -- none of these have been repointed at the newly-adopted
+tuned-LR training_name yet. Whoever picks this up next should grep for
+`aod0.025_lwin5000_N16K3_eta0.6_rawpow` (without a trailing `_lrc`) across
+src/energy_efficiency/ and src/analysis/ to find every place that still
+needs updating, then re-run whichever comparisons matter (classical
+baselines, beampattern, power savings) with the new checkpoint before
+trusting those plots/numbers again.
+
+The old optuna_train_EE.slurm (default EE_TRAIN_ERROR_BOUND=0.5, now known
+wrong) is kept on disk per explicit instruction but not running -- the
+three per-error-bound Optuna search scripts (optuna_train_EE_aod0.0/0.025/
+0.05.slurm) are the ones that produced the LR values above, also not
+running/resubmitted (dead, OOM-killed 2026-07-18).
+
+## error=0.025 SAC checkpoint: trained AND evaluated (jobs 148538/148543/148544/148545, all complete)
+
+Explicit user request: train the missing 0.025 checkpoint without waiting
+for the Optuna search above to finish (multi-day) -- can retrain later with
+Optuna's tuned LR if it meaningfully differs. New file
+src/energy_efficiency/EE_dinkelbach_rawpow_aod0.025_N16K3.slurm, identical
+in structure to the existing aod0.0/aod0.05 training scripts (same fixed
+Dinkelbach reward, same default EMA lambda). Job 148538 completed cleanly
+(~4h51m, ~13,000 episodes, Dinkelbach lambda converged ~1.29-1.30). Saved
+as training_name 'EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_eta0.6_rawpow'.
+
+Evaluated the same way as the other two checkpoints (my_evaluation.py now
+has a third block; rate_power_error_sweep.py's models_to_check now has all
+three) -- this is now the FULL paper-matching three-point (0.0/0.025/0.05)
+set. Results (11-point sweep, error 0.00-0.10):
+
+**Rate vs. error, all three**: at error=0.00, 0.0-trained=3.36, 0.025-trained
+=2.96, 0.05-trained=1.95 bps/Hz -- ordered exactly as expected (more
+training error -> lower peak rate). Crossovers are clean and monotonic: the
+0.025-trained curve overtakes the 0.0-trained curve around error~0.035-0.04,
+and is itself overtaken by the 0.05-trained curve further out (~error~0.06-
+0.07, consistent with the earlier two-checkpoint finding). This is exactly
+the paper's own Fig. 3 shape, now with all three training points matched
+instead of two.
+
+**Power at zero error, all three**: 0.0-trained 56.0 W (56.0%), 0.025-trained
+58.6 W (58.6%), 0.05-trained 56.3 W (56.3%) of the 100 W budget -- all three
+land in the same ~56-59% power-savings band.
+
+Plots updated in place (same filenames, now 3 SAC curves instead of 2):
+reports/figures/pdf/rate_power_error_sweep.pdf (job 148544) and
+reports/figures/pdf/error_sweep_rawpow_error_bound_comparison_sumrate.pdf
+(via my_plotting.py + job 148545 -- this file's third block, "Raw-power-
+fixed Dinkelbach reward", now plots MMSE + all 3 SAC error bounds together).
+
+## Satellite hardware parameter cross-check: 3GPP TR 38.821 vs. config.py -- DONE, one real discrepancy found (sat_gain_dBi)
+
+Three reference documents were searched this session for satellite
+hardware/power parameters to validate against config.py. **General method
+for searching ANY new reference doc for parameters** (reuse this recipe --
+don't re-derive it): extract the doc's full text with the appropriate tool,
+ALWAYS wrapped in a .slurm + sbatch (never run directly, per the sbatch-only
+rule), write the extracted text to `outputs/<name>_extracted_text.txt`, then
+`grep -ni` for the parameter keywords (antenna gain, EIRP, PA/HPA efficiency,
+circuit power, noise figure, antenna temperature, back-off, altitude/orbit,
+etc.) against the .txt file -- grepping/reading a plain-text file afterward
+is not compute and doesn't need sbatch, only the extraction step does.
+- **.doc (legacy binary Word)**: no antiword/wvWare/libreoffice/pandoc and no
+  sudo on this machine (confirmed: libreoffice isn't on conda-forge
+  linux-64 either, apt needs a password) -- use `olefile` (pip-installed) to
+  open the OLE compound file, read the "WordDocument" stream, decode as
+  single-byte **CP1252 (NOT UTF-16** -- UTF-16 produces mojibake since Word
+  compresses plain-Latin-text runs to 1 byte/char), then regex out
+  printable-character runs. Script: src/energy_efficiency/extract_38821_doc.py
+  (+ matching .slurm). Page numbers: the doc's own TOC PAGEREF fields cache
+  a page number as a SEPARATE short (1-3 char) text run right after the
+  field code -- a naive regex with a length-4+ minimum filters these out
+  silently; a second low-threshold (length-1+) pass recovers them. Only
+  gives page numbers at clause granularity (TOC entries), not per-table --
+  individual tables within a clause aren't separately paginated.
+- **.pdf**: `pdftotext -layout <file> <out>.txt` (already installed at
+  /usr/bin/pdftotext, no python PDF library available -- checked
+  pdfplumber/PyPDF2/fitz, none installed). `-layout` preserves table
+  structure reasonably well. Page numbers: pdftotext inserts a `\f`
+  (form-feed) between pages -- `text.split('\f')` gives one list entry per
+  PDF page, 1-indexed, so `grep`-ing a keyword then checking which split
+  chunk it falls in gives an exact page number (more reliable than the .doc
+  TOC-cache approach above).
+
+**Result 1: 3GPP TR 38.821** ("Solutions for NR to support non-terrestrial
+networks (NTN)", Release 16, 140 pages, src/energy_efficiency/38821-g20
+(3).doc). Full comparison against config.py:
+
+| config.py param | our value | 3GPP value (LEO-600, S-band -- our scenario) | page | verdict |
+|---|---|---|---|---|
+| `altitude_orbit` | 600 km | Table 6.1.1.1-1/-2: LEO-600 = 600 km exactly | ~34 | match |
+| `freq` | 2 GHz | labelled "S-band (i.e. 2 GHz)" throughout | ~34 | match |
+| `sat_gain_dBi` (has a `# TODO: Wert nochmal checken` comment) | 20 dBi | Table 6.1.1.1-1 (Set-1): 30 dBi. Table 6.1.1.1-2 (Set-2): 24 dBi | ~34-35 | **mismatch -- our 20 dBi is below BOTH 3GPP sets. Confirms the TODO was warranted; 24 dBi (Set-2) is the closer reference if aligning.** |
+| `user_gain_dBi` | 0 dBi | Table 6.1.1.1-3, "Handheld" column: Tx antenna gain = 0 dBi per element | ~36 | exact match |
+| `noise_power_watt` formula (NF=7dB, T=290K) | NF=7dB, T=290K | Table 6.1.1.1-3, "Handheld": Antenna temperature=290K, Noise figure=7dB | ~36 | exact match on both |
+| `pa_efficiency` | 0.60 | not a 3GPP value; closest concept is NOTE 5's "[5] dB" satellite HPA back-off (different metric, not efficiency %) | ~34-35 | no direct 3GPP source (see PPA paper finding below for a real efficiency number) |
+| `power_constraint_watt` | 100 W | 3GPP gives EIRP density (34 dBW/MHz, LEO-600/S-band) + Tx max Gain, not a standalone Watts figure | ~34 | not directly comparable |
+| `circuit_power_watt`, `sat_tot_ant_nr` | 1.0 W/antenna, 16 | not present in this TR -- antenna array/pattern details deferred to "Section 6.4.1 in [2]" (TR 38.811, a different, not-locally-available document) | -- | no 3GPP source found |
+
+**Result 2: 6G-NTN D4.1** ("Report on Unified and Data Driven Air-Interface
+for 6G-NTN", 6G-NTN Horizon Europe project deliverable, 167 pages,
+src/energy_efficiency/6G-NTN_D4.1_r1_v00.pdf) -- **searched, contributes
+nothing new**. This doc is scoped to waveform/PHY design (CP-OFDM vs.
+DFT-s-OFDM vs. OTFS comparison, HPA nonlinearity models like Rapp/Saleh/
+Ghorbani, phase noise) rather than a satellite power/hardware budget like
+TR 38.821. Grepped for antenna gain, EIRP, G/T, PA efficiency (numeric),
+circuit power, altitude/orbit ("600 km" has zero matches anywhere in the
+167 pages) -- none present. HPA characterization here is by IBO/OBO
+(input/output back-off in dB, e.g. Table 25's 2dB/5dB test cases), same
+concept family as 3GPP's 5dB back-off NOTE but not a drain-efficiency
+percentage either. The doc explicitly defers actual constellation/link-
+budget parameters to a **different, not-locally-available deliverable,
+D3.5** (referenced at "the LEO constellation proposed in D3.5").
+
+**Result 3: PPA paper -- the one real amplifier-efficiency number found**
+(Yan, Ramesh, Gallagher, Ling, Cabric, "Performance, Power, and Area Design
+Trade-offs in Millimeter-Wave Transmitter Beamforming Architectures",
+arXiv:1807.07201, src/energy_efficiency/Performance_Power_and_Area_Design_
+Trade-offs_in_Mi.pdf, 20 pages -- terrestrial mmWave 5G BS array design,
+NOT satellite, but the only source found with an actual numeric PA
+efficiency derivation). Page 12 (Section IV.D, near Fig. 7): gives a PA
+power-consumption model P_PA = P_out / (N * eta_PA) with **eta_PA = 0.185**
+(18.5%) adopted, explicitly derived from **0.3 peak PAE, 10dB power
+back-off, Doherty PA architecture** (footnote: Doherty PAs hold PAE more
+constant across back-off than simpler Class A/AB/B, which is why they
+picked it as the reference topology). Fig. 7 (same page) is a survey of
+state-of-the-art 28GHz PA measurements across CMOS/SiGe BiCMOS/GaAs/GaN
+process technologies (refs [71]-[82]), saturated output power vs. peak PAE.
+
+**pa_efficiency discrepancy, now with three data points**: our config.py
+uses 0.60 (60%, from Ha et al. 2023/2024, satellite-specific, "60% for both
+antenna/HPA efficiency" per the existing code comment); the PPA paper gives
+0.185 (18.5%, terrestrial mmWave, realistic 10dB-backed-off operating
+point); the OLD (already-superseded) config value was 0.35 (35%, Auer et
+al. 2011, sub-6GHz terrestrial). **60% vs. 18.5% is a >3x gap.** Neither is
+obviously "more correct" -- Ha et al. is satellite-domain-matched but the
+PPA number is grounded in a concrete back-off/architecture derivation with
+real measured PA data behind it, illustrating how sensitive PA efficiency
+actually is to operating point (back-off from saturation) and amplifier
+architecture. Given `pa_efficiency` directly scales `power_constraint_watt`
+into the DC-draw denominator of the whole energy-efficiency reward/metric,
+this single assumption is worth a sensitivity check (e.g. re-run the power
+savings/rate numbers at eta=0.185 or eta=0.35 alongside the current 0.60,
+see how much the headline power-savings percentage moves) if the EE
+numbers are ever presented outside this project.
+
+**Result 4 (follow-up, user-prompted): "antenna efficiency" is a DIFFERENT,
+separate quantity from pa_efficiency -- and our model doesn't have it at
+all.** User asked whether 3GPP's "antenna aperture efficiency" (0.55-0.70,
+found in the Link Budget Calculation clause 6.1.3.1, TOC page ~51-52 --
+NOT page ~34-35 as initially guessed, see Eq. 6.1.3.1-4) is the same thing
+as PA/amplifier inefficiency. It is not, and there are actually THREE
+distinct "efficiency" concepts worth keeping straight:
+1. **PA/HPA drain efficiency** (our `pa_efficiency`) -- fraction of DC
+   electrical power that becomes RF power inside the amplifier; the rest
+   is wasted as heat in the amplifier circuitry. This is what
+   `pa_efficiency` models: `DC_draw = P_transmit / eta`.
+2. **Antenna aperture efficiency** (3GPP's 0.55-0.70 figure) -- a
+   geometric/illumination-taper effect: how much of a dish's raw physical
+   size becomes directive GAIN. Nothing here becomes heat -- untaken power
+   just spreads into sidelobes instead of the main beam. Affects
+   `sat_gain_dBi`-type figures, not power draw.
+3. **Antenna radiation efficiency** (sometimes just "antenna efficiency")
+   -- fraction of power delivered to the antenna terminals that is
+   actually radiated vs. dissipated as ohmic/dielectric heat IN the
+   antenna structure itself. This is the concept the user was actually
+   asking about ("power our antenna loses while radiating") and it is
+   real, but distinct from both 1 and 2 above.
+
+Checked Ha et al. directly (the source of our 0.60 value,
+src/energy_efficiency/Energy-Efficient_Precoding_and_Feeder-Link-Beam_
+Matching_Design_for_Bent-Pipe_SATCOM_Systems.pdf, extracted to
+outputs/ha_extracted_text.txt) to see which of these their "60% for both
+antenna and HPA efficiency" comment actually means. Found: Ha et al. uses
+TWO SEPARATE symbols -- rho_Sa/rho_GWA, explicitly named "the power
+amplifier efficiency at the satellite" and used in exactly the same
+`P_PA = (1/rho)(P_transmit - P_bb)` form as our `pa_efficiency`; AND a
+separate, only-mentioned-in-prose "antenna efficiency," which (based on
+where antenna gains G_GWA/G_Sa-Rx actually appear in their model -- only in
+the channel/propagation equation, Eq. 1, never in the power-consumption
+equations) most likely feeds into how THEY compute their fixed antenna
+gain numbers, analogous to our `sat_gain_dBi`, not a second DC-power
+divisor. Both factors happen to be set to the same 60% in their numerical
+example, which is almost certainly why the code comment compressed them
+into one description ("both... 60%") when only one (HPA efficiency) was
+actually carried over into this codebase's `pa_efficiency`.
+
+**Net conclusion**: `pa_efficiency=0.60` correctly models PA/HPA drain
+efficiency ONLY (matches Ha et al.'s rho, and the PPA paper's eta_PA,
+structurally). **Antenna radiation efficiency is not modeled anywhere in
+this project's config.py at all** -- `sat_gain_dBi=20` (already flagged as
+unverified via the 3GPP cross-check above) is a flat, independent number,
+implicitly assuming a perfectly lossless antenna. If Ha et al.'s own
+antenna-efficiency factor (whatever it actually multiplies in their gain
+calculation) should also be reducing our effective `sat_gain_dBi`, that's
+a second, so-far-unexamined possible source of over-optimism in the
+current EE numbers, separate from and additional to the pa_efficiency
+sensitivity question above. Not yet investigated further -- would need to
+find exactly how Ha et al. derives their G_GWA/G_Sa-Rx numeric values in
+Table I (not included in what was extracted so far) to know whether their
+"antenna efficiency" is multiplicative on gain (dBi domain, i.e.
+G_dBi_effective = G_dBi_ideal + 10*log10(0.6)) or something else.
+
+Extracted text files (for further ad-hoc grepping without re-extracting):
+outputs/38821_extracted_text.txt (+ _lowthresh.txt for TOC page numbers),
+outputs/6gntn_d4.1_extracted_text.txt, outputs/ppa_extracted_text.txt,
+outputs/ha_extracted_text.txt.
+
+## Beampattern comparison: EE vs. regular SAC (jobs 149554-149565, complete)
+
+User's question: does the EE (Dinkelbach) checkpoint point its beams in the
+SAME spatial direction as a "regular" (always-uses-full-100W) SAC
+checkpoint, just scaled down in power -- or does it do something spatially
+different to save power?
+
+New file src/energy_efficiency/beampattern_ee_vs_regular.py wraps the
+existing, UNMODIFIED beampattern pipeline (src/analysis/generate_beampatterns.py
+sweeps angle-of-departure and computes power gain per user per angle;
+src/plotting/plot_beam_patterns.py overlays multiple precoders on one axis
+-- unlike src/analysis/test_beam_pattern.py, which plots each precoder as
+its own separate figure, not useful for a direct comparison). As found
+originally, neither script's own __main__ pointed at our current N16K3
+scenario or any of our checkpoints -- both were still wired to an old,
+unrelated test scenario (`1sat_16ant_100k~0_3usr_10k~5k`) -- so this new
+driver script points them at our real setup instead, without editing the
+reusable pipeline functions themselves.
+
+Checkpoints compared: 'EE_dinkelbach_aod0.05' (error=0.05-trained
+Dinkelbach, our most "robust" EE checkpoint, ~56% of budget) vs.
+'regular_schemeI' (training_name 'full_EE_aod0.5_N16K3_eta0.6', the ONLY
+"regular"/always-rescale-to-100W SAC checkpoint trained at N16K3 -- trained
+at the old error=0.5 regime, which only affects ITS OWN rate/robustness,
+not whether it points beams in a sensible direction). Evaluated at CSIT
+error=0.05 ("the robust case"), angle_sweep_range verified against 200 real
+samples of our scenario's actual user AoD range (~1.33-1.81 rad, comfortably
+inside the swept 1.2-1.9 rad). 30 Monte Carlo realizations generated and
+saved once (job 149554, training_name 'EE_beampattern_comparison_N16K3_aod0.05',
+includes MMSE too even though not plotted by default) -- individual
+realizations replotted cheaply afterward via `--plot-only --realization N`
+(no GPU Monte Carlo needed, just replots from the saved gzip).
+
+**Finding, checked across 6 realizations (0, 2, 5, 10, 17, 21) -- genuinely
+realization-dependent, not a fluke either way:**
+- **Realizations 5, 17, 21** ("same strategy" case): EE's beam peaks land at
+  essentially the SAME angles as the regular checkpoint's peaks (and MMSE's,
+  when plotted) -- same spatial directions, just EE's beam is sharper/taller
+  and the regular checkpoint's is broader/smeared. Realization 21 is the
+  cleanest example (all 3 users, both curves peak at the same 3 angles).
+- **Realizations 0, 2, 10** ("different strategy" case): EE dumps almost all
+  its power into just ONE or TWO of the three directions (whichever user(s)
+  have the best channel), leaving the weaker user(s) essentially unserved --
+  a genuinely different allocation, not a rescaled copy of the regular
+  checkpoint's pattern (which still spreads, imperfectly, across all three
+  in the same realizations).
+- Working hypothesis: when all three users have comparable channel quality,
+  EE matches the regular/MMSE spatial strategy just more efficiently shaped;
+  when one user's channel is notably worse, EE seems to sacrifice serving
+  that user rather than spend power on a low marginal-rate return -- makes
+  sense given the Dinkelbach reward directly optimizes rate-per-power.
+
+Plot shows only the two SAC curves now (MMSE dropped from the plotted
+legend, though still generated/saved in the gzip) -- user found the
+3-curve legend too large; replaced plot_beam_patterns()'s default
+auto-legend (large, unstyled) with a small `fontsize=7` one, same
+convention used in every other multi-curve plot this session. Labels:
+'SAC (100 W)' / 'SAC (Energy-Efficient)'.
+
+Saved: reports/figures/pdf/beampattern_ee_vs_regular_realization{0,2,5,10,17,21}.pdf
+-- realization 21 recommended as the headline "same strategy" figure;
+realizations 0 or 10 recommended for the "different strategy" follow-up.
+
+## Power usage + beampattern comparison ACROSS the three "final" error-trained EE checkpoints (jobs 152482/152483/152488, all complete)
+
+Two follow-ups after adopting the aod=0.025 tuned-LR checkpoint (see
+"Optuna searches" above): how much power does the new final three-
+checkpoint set actually use, and do checkpoints trained at different fixed
+CSIT error levels point their beams differently from EACH OTHER (as
+opposed to the earlier "EE vs. regular 100W" question above)?
+
+**Power usage (job 152482, tx_power_distribution.py's error_bound_models_
+to_check block, now 3 entries instead of 2)**, zero eval error, paper-
+matching user-distance scenario:
+
+| checkpoint | mean power | % of 100W budget | std |
+|---|---|---|---|
+| aod=0.0 (default-LR) | 55.98 W | 56.0% | 2.43 W |
+| aod=0.025 (tuned-LR, newly adopted) | **63.06 W** | **63.1%** | 7.87 W |
+| aod=0.05 (default-LR) | 56.31 W | 56.3% | 11.08 W |
+
+The newly-adopted aod=0.025 checkpoint uses noticeably MORE power than
+either the old default-LR aod=0.025 checkpoint (58.6%, per the
+"error=0.025 SAC checkpoint" section above) or the other two final
+checkpoints (~56% each) -- and with a much wider spread than aod=0.0's
+tight 2.43 W std. Its slightly higher rate (3.01 vs. 2.97 bps/Hz at zero
+error, see "Optuna searches" above) is being bought with real extra power,
+not obtained for free. Plots: reports/figures/pdf/power_savings_comparison_
+error_bound_0_0.025_0.05.pdf, power_savings_bars_error_bound_0_0.025_
+0.05.pdf (renamed from the old _0_0.05 filenames now that there are 3
+models, not 2).
+
+**Beampattern across error models (jobs 152483/152488)**: new script
+src/energy_efficiency/beampattern_across_error_models.py (reuses the same
+generate_beampatterns/plot_beam_patterns pipeline as
+beampattern_ee_vs_regular.py, but compares the three EE checkpoints
+against EACH OTHER instead of against the "regular" 100W checkpoint), all
+evaluated at a fixed CSIT error=0.05 so any spatial differences reflect
+the TRAINING error bound, not the evaluation condition. 30 realizations
+generated and saved (job 152483, training_name
+'EE_beampattern_across_error_models_N16K3'); three replotted for the
+write-up below (job 152488 replotted realizations 9/13 cheaply from the
+saved gzip, no new Monte Carlo).
+
+**Sum-rate statistics across all 30 realizations** (all at CSIT
+error=0.05, extracted from print_realizations' per-realization log lines):
+
+| model | avg sum rate | beats MMSE how often | wins outright how often |
+|---|---|---|---|
+| MMSE (reference) | 2.037 | -- | -- |
+| aod=0.0 | 2.247 | 22/30 | 9/30 |
+| aod=0.025 (tuned-LR) | **2.493** (highest avg) | 19/30 | 7/30 |
+| aod=0.05 | 2.472 | 17/30 | **13/30** (wins outright most often) |
+
+Note the apparent contradiction resolves once you look at individual
+realizations: aod=0.05 wins outright most often, but aod=0.025 has the
+highest AVERAGE -- aod=0.05's wins tend to be landslides, its losses also
+large (matches its much higher power-usage std, 11.08 W, found above).
+
+**Three realizations examined in detail, illustrating WHY**:
+- **Realization 0** (plotted, beampattern_across_error_models_
+  realization0.pdf): sum rate aod0.0=2.14, aod0.025=2.92 (best here),
+  aod0.05=2.77, MMSE=1.82 -- all three EE checkpoints beat MMSE. aod=0.05's
+  beam concentrates almost entirely on User 1 (large_scale_fading=0.74,
+  actually the WEAKEST of the three users here) with a sharp ~1130-gain
+  spike, barely touching Users 2/3; aod=0.025 spreads more evenly across
+  all three (moderate peaks near Users 1/2, smaller peak near User 3) and
+  wins outright despite (or because of) that broader spread.
+- **Realization 9** (beampattern_across_error_models_realization9.pdf) --
+  the clearest "abandoning a user pays off big" case: sum rate aod0.0=0.58,
+  aod0.025=1.63, **aod0.05=4.09** (landslide win), MMSE=0.20. aod=0.05's
+  beam lands two SHARP, well-aligned peaks exactly on Users 2 and 3,
+  completely skipping User 1. aod=0.0 and aod=0.025 both instead try to
+  serve User 1 (with peaks OFFSET from its true angle, not well-aligned)
+  and largely miss User 2 -- an imperfect attempt to serve a hard user
+  that costs far more than it's worth, exactly the scenario aod=0.05's
+  training presumably prepared it to recognize and avoid.
+- **Realization 13** (beampattern_across_error_models_realization13.pdf) --
+  the mirror case, "spreading power to serve everyone pays off": sum rate
+  **aod0.0=4.69** (wins here), aod0.025=4.34, aod0.05=3.80, MMSE=4.64 (all
+  close to MMSE -- a good channel realization for everyone). All three
+  models' beams actually land on all three user angles reasonably well,
+  but aod=0.05 clearly deprioritizes the middle user (near-zero gain
+  there) in favor of taller peaks at the other two -- in THIS realization,
+  where the "abandoned" user's channel was actually fine, that
+  deprioritization costs it the lead rather than winning it.
+
+**MMSE added to all three plots (user-prompted follow-up, job 152492,
+cheap replot -- generate_mmse=True the whole time, just wasn't plotted
+before)**. MMSE (gold) visually attempts to serve ALL THREE users in
+EVERY one of these three realizations -- it has no CSIT-error-robustness
+training, so it never learns to deliberately abandon a user the way the
+EE checkpoints do. This makes MMSE's own sum rate swing wildly across the
+three realizations (1.82 -> 0.20 -> 4.64) purely as a function of how
+badly the CSIT error happens to hurt it in each specific draw, regardless
+of user geometry: realization 9 is the starkest illustration -- MMSE's
+beam looks spatially reasonable (three plausible peaks near all three
+users) yet its sum rate craters to 0.20, WORSE than aod=0.0 (0.58) and
+aod=0.025 (1.63) despite both of those also botching User 1, and far
+worse than aod=0.05's 4.09 from deliberately not even trying to serve
+User 1. Trying to serve everyone is not inherently safer under CSIT
+error -- MMSE's naive completeness loses badly here to a policy that
+learned when to give up on a user.
+
+**Working conclusion**: the training CSIT error bound teaches the policy
+HOW READILY to abandon a user, not just how gracefully to degrade.
+Higher-error training (aod=0.05) learns a more aggressive
+"concentrate-on-fewer-users" reflex that wins big when a user's channel
+genuinely doesn't justify the power, and loses ground when it
+misjudges a still-servable user as not worth serving. aod=0.025 (the
+newly-adopted tuned-LR checkpoint) sits in between and comes out best on
+average, though not most-often-outright-best -- consistent with it being
+a genuine middle ground rather than simply "better."
+
+## Background: what's already fixed (brief -- full derivations in git history of this file if needed)
+
+1. **Raw-power reward dead-zone bug (FIXED)**: the Dinkelbach reward's
+   power PENALTY term used to collapse to a constant whenever the raw
+   (pre-clip) network output exceeded budget -- virtually always at
+   error=0.5. A constant contributes zero gradient. Fixed in EE_sac.py: the
+   power term now uses raw_power_precoder unconditionally; the rate term
+   still correctly uses the physically-valid clipped precoder. New
+   training_name suffix `_rawpow`. Necessary but not sufficient on its own
+   -- the error-bound fix (above) was the dominant factor.
+2. **action_bound_mode='tanh' (tried, deliberately abandoned)**: SAC's tanh
+   log-prob correction biases against ever reaching near-saturated actions,
+   inherent to any squashing-based actor bound.
+3. **Entropy mechanism mismatch (found, tested, ambiguous)**: the paper
+   uses a FIXED entropy scale (never updated) vs. this codebase's adaptive
+   entropy tuning. Tested at error=0.5 only (now known-bad regime, job
+   147503) -- performed worse than adaptive; never retested at low error.
+4. **Entropy floor / network capacity (jobs 147485/147486)**: neither
+   change broke the old ~1.82 ceiling at error=0.5 -- superseded, the
+   ceiling was about training error scale, not entropy or capacity.
+5. **Distance-scenario bug (FIXED)**: tx_power_distribution.py's
+   `run_monte_carlo` used to hardcode a fixed 25km user distance (zero
+   variance) instead of config.py's paper-matching 100km-mean/+-50km-roam
+   default -- silently gave wrong power numbers (34%/64% instead of
+   56%/56.5%). Fixed via `distance_value=None` (skip override, inherit
+   config default), applied to the error=0.0/0.05 block specifically.
+   **power_savings_N8K2_repro.pdf and the script's other, older blocks
+   (2-model comparison, lambda sweep) still use the old wrong 25km value**
+   -- don't trust those numbers without applying the same fix first.
+
+## Current file states
+
+- **src/energy_efficiency/my_evaluation.py**: has all three default-LR
+  checkpoints (error=0.0, 0.025, 0.05) PLUS all three tuned-LR checkpoints
+  (6 blocks total, jobs 152303/152304/152305) -- see "Optuna searches"
+  above. Does NOT yet reflect the aod=0.025 checkpoint-swap decision (still
+  evaluates the old default-LR aod=0.025 alongside the new tuned-LR one as
+  separate blocks, rather than only the adopted one). error_sweep_range =
+  `np.linspace(0, 0.10, 11)`, matches the paper's own evaluation range.
+- **src/energy_efficiency/rate_power_error_sweep.py**: measures rate AND
+  power together from the same Monte Carlo samples across the error sweep,
+  currently for the three OLD default-LR checkpoints (models_to_check list
+  + 3rd color) -- NOT yet repointed at the newly-adopted aod=0.025
+  tuned-LR checkpoint (see "NOT YET DONE" note in "Optuna searches" above).
+- **src/energy_efficiency/my_plotting.py**: third block ("Raw-power-fixed
+  Dinkelbach reward") plots MMSE + the three OLD default-LR SAC error
+  bounds (not yet repointed either). NEW 4th block ("Default-LR vs.
+  tuned-LR") added this session, all 6 checkpoints (default+tuned x3),
+  reports/figures/pdf/error_sweep_lrtuned_vs_default_comparison_sumrate.pdf.
+- **src/energy_efficiency/beampattern_ee_vs_regular.py**: see "Beampattern
+  comparison: EE vs. regular SAC" above (uses the OLD default-LR aod=0.05
+  checkpoint, unaffected by the aod=0.025 swap since it never used
+  aod=0.025 anyway).
+- **src/energy_efficiency/beampattern_across_error_models.py** (NEW): see
+  "Power usage + beampattern comparison ACROSS the three 'final' error-
+  trained EE checkpoints" above -- already uses the newly-adopted aod=0.025
+  tuned-LR checkpoint (this script was written AFTER the swap decision).
+- **src/energy_efficiency/tx_power_distribution.py**: error_bound_models_
+  to_check block now has all THREE final checkpoints (was 2, aod=0.025
+  added this session, using the newly-adopted tuned-LR checkpoint --
+  distance-scenario fix applied) and plot_power_savings_bars (lay-friendly
+  progress-bar chart). Output filenames renamed _0_0.05 -> _0_0.025_0.05
+  to reflect the 3rd model. Older blocks (2-model comparison, lambda sweep,
+  N8K2) untouched, still use the old wrong 25km default.
+- **src/energy_efficiency/classical_baselines_zero_error.py**,
+  **classical_baselines_error_sweep.py** (both NEW): MMSE/MRT/ZF vs SAC,
+  zero-error bar charts and full 6-curve error sweep, including the
+  power-matched MMSE@56W baseline. See "Classical baseline comparison" above.
+- **src/energy_efficiency/channel_correlation_zero_error.py**,
+  **channel_correlation_distance_sweep.py** (both NEW): see "Channel
+  correlation investigation" above.
+- **src/utils/get_precoding.py**: added get_precoding_zero_forcing (pure
+  ZF wrapper, didn't exist before).
+- **src/models/optuna_train_EE.py**: rewrote for crash-resilience
+  (persistent SQLite storage, per-trial exception -> TrialPruned).
+- **src/energy_efficiency/EE_dinkelbach_rawpow_aod0.025_N16K3.slurm** (NEW):
+  trains the 0.025 checkpoint, job 148538 -- complete.
+- **reports/figures/pdf/**: current contents --
+  lambda_convergence.pdf, error_sweep_rawpow_error_bound_comparison_sumrate.pdf
+  (now 4 curves: MMSE + 3 SAC error bounds, still OLD default-LR aod=0.025),
+  rate_power_error_sweep.pdf (3 SAC checkpoints, same caveat),
+  power_savings_bars_error_bound_0_0.025_0.05.pdf, power_savings_comparison_
+  error_bound_0_0.025_0.05.pdf (renamed this session, now 3 models incl.
+  the NEW tuned-LR aod=0.025), error_sweep_lrtuned_vs_default_comparison_
+  sumrate.pdf (NEW, all 6 checkpoints), rate_comparison_classical_vs_sac.pdf,
+  power_savings_bars_classical_vs_sac.pdf, error_sweep_classical_vs_sac_
+  sumrate.pdf, channel_correlation_distance_sweep.pdf,
+  beampattern_ee_vs_regular_realization{0,2,5,10,17,21}.pdf,
+  beampattern_across_error_models_realization{0,9,13}.pdf (NEW, see above).
+  power_savings_N8K2_repro.pdf is present but NOT trustworthy (see above).
+
+## What to do next (priority order)
+
+1. **Tuned-LR retraining/evaluation/decision: DONE** (see "Optuna
+   searches" above) -- only the aod=0.025 tuned-LR checkpoint was adopted;
+   aod=0.0/0.05 keep their default-LR checkpoints, per explicit user
+   decision after seeing the comparison plot.
+2. **HIGHEST PRIORITY NOW: propagate the aod=0.025 checkpoint swap.**
+   Every downstream script that references the aod=0.025 checkpoint
+   (my_evaluation.py, my_plotting.py, rate_power_error_sweep.py,
+   tx_power_distribution.py, classical_baselines_zero_error.py,
+   classical_baselines_error_sweep.py, both beampattern scripts) still
+   points at the OLD default-LR training_name -- see the "NOT YET DONE"
+   paragraph in "Optuna searches" above for the exact grep to find every
+   occurrence. Every plot/number involving the aod=0.025 checkpoint
+   produced before this swap is repointed should be treated as superseded,
+   not wrong -- it was correct for the checkpoint that existed at the
+   time, just not the checkpoint we're using going forward.
+3. **Beampattern follow-up**: check more realizations, or try to
+   characterize WHEN EE drops a user (e.g. correlate with that user's
+   large_scale_fading value relative to the other two -- the printed
+   per-realization summary in EE_beampattern_*.out already has this) rather
+   than just eyeballing individual plots.
+4. **Consider a finer error sweep near the crossovers** (~0.035-0.04 and
+   ~0.06-0.07) between the three checkpoints, if of particular interest.
+5. **If the N8K2 or original 4-curve comparisons are ever revisited**, redo
+   with BOTH the distance-scenario fix AND paper-matching error levels --
+   neither has been redone under the now-correct methodology.
+6. **Satellite hardware cross-check: DONE** (see "Satellite hardware
+   parameter cross-check" section above) -- one real, actionable
+   discrepancy found (`sat_gain_dBi=20` vs. 3GPP's 24-30 dBi for LEO-600),
+   and a >3x spread on `pa_efficiency` across sources (0.60 current vs.
+   0.185 from the PPA paper). Neither has been ACTED on yet -- deciding
+   whether to change `sat_gain_dBi` and/or run a `pa_efficiency` sensitivity
+   sweep is still open. If more satellite hardware grounding is wanted
+   beyond what's already found, TR 38.811 (referenced by both TR 38.821 and
+   6G-NTN D4.1 as "Section 6.4.1 in [2]"/"D3.5" respectively for antenna
+   array/constellation details) is not locally available and would need to
+   be sourced first.
+
+## Process notes (still relevant)
+
+- **sbatch only, always, no exceptions.** This interactive shell sits
+  directly on a live shared compute node (fuchu) outside SLURM's
+  accounting. Wrap any real compute in a .slurm script and submit via
+  `sbatch`.
+- matplotlib gotcha: PlotConfig() resets text.usetex to True on
+  construction; this system's default backend (TkAgg) can hang forever in
+  a headless job if show_plots isn't explicitly disabled. Always
+  matplotlib.use('Agg') + cfg.show_plots=False, re-asserted after
+  constructing Config()/PlotConfig(). Also watch for bare plt.show() in any
+  pre-existing script being reused -- same hang risk.
+- config.mmse_args / config.mrc_args / etc. are copied BY VALUE from
+  config.power_constraint_watt at Config() construction time -- to test a
+  different power budget for a classical precoder, override the dict entry
+  directly (e.g. `cfg.mmse_args['power_constraint_watt'] = 56.0`), not just
+  `cfg.power_constraint_watt`, or the override silently won't propagate.
+- Benign, recurring: concurrent jobs sharing outputs/logs/log.txt
+  occasionally race on log rotation, producing a "Logging error" +
+  FileNotFoundError in .err -- doesn't affect training.
+- SLURM job logs land at the REPO ROOT, not next to the .slurm scripts.
+- NFS "silly rename" (.nfsXXXXXXXX hidden files) can appear when deleting
+  a file some other process still has open -- harmless.
+- The reference paper PDF is at src/energy_efficiency/Model-Free_Robust_
+  Beamforming_in_Satellite_Downlink_Using_Reinforcement_Learning.pdf
+  (Schroder et al., IEEE Open J. Comm. Soc. 2025). Fig. 3 (N=16/K=3,
+  d_K=100km) is the scenario this whole investigation targets, trained at
+  three fixed error levels (0.0/0.025/0.05) -- what the Optuna 3-way split
+  and the eventual "final" checkpoints are matching.
+
+## Uncommitted git state (as of 2026-07-14, branch EnergyEfficiency)
+
+Still nothing committed since 0650aa1. 48 changed/new paths as of this
+handoff (`git status --short` for current count). Modified: my_evaluation.py,
+my_plotting.py, tx_power_distribution.py, EE_sac.py, get_precoding.py.
+NOT in git at all (gitignored): src/config/config.py -- still local-only,
+still where the N16K3 EE_USER_NR/EE_SAT_TOT_ANT_NR override and the
+paper-matching user_dist_average/bound values live. Don't commit without
+checking first.

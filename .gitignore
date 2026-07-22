@@ -1,4 +1,3 @@
-
 # Folders
 __pycache__/
 .idea/
@@ -8,16 +7,7 @@ venv/
 /data/
 /models/
 /outputs/
-/references/
-/reports/
 /src/notebooks/
-
-/src/config/config.py
-/src/config/config_error_model.py
-/src/config/config_sac_learner.py
-
-/src/analysis/test_precoder_error_sweep.py
-/src/analysis/test_precoder_user_distance_sweep.py
 
 /.pylintrc
 nohup.out.nfs*

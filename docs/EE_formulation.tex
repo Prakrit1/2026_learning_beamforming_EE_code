@@ -1,0 +1,663 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
+
+\title{From Sum-Rate to Energy-Efficient Beamforming:\\
+       What Is Reused, What Is Extended, and What Is Novel}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Purpose of this note}
+
+This note separates three things that are easy to blur together when
+presenting the idea: (i) what is taken directly from the reference paper
+\cite{Schroder2025}, (ii) what we changed, and (iii) why the change is a
+genuine departure and not a relabeling of the same optimum. The system and
+channel model in Section~\ref{sec:system} is unchanged from the paper and is
+restated only to fix notation. Section~\ref{sec:related} positions this
+extension against the closest related work found outside the reference
+paper's own line of work.
+
+\section{System model (adopted, unchanged)}
+\label{sec:system}
+
+A set $\mathcal{M}=\{1,\dots,M\}$ of LEO satellites, each equipped with a
+uniform linear array of $N$ antennas, serves a set $\mathcal{K}=\{1,\dots,K\}$
+single-antenna users in the downlink. The channel between satellite $m$ and
+user $k$ is $\mathbf{h}_{k,m}\in\mathbb{C}^{1\times N}$, stacked as
+$\mathbf{h}_k = [\mathbf{h}_{k,1},\dots,\mathbf{h}_{k,M}] \in
+\mathbb{C}^{1\times MN}$. Data symbols are precoded with
+$\mathbf{w}_k \in \mathbb{C}^{MN\times 1}$ and superimposed,
+$\mathbf{x} = \sum_{k\in\mathcal{K}} \mathbf{w}_k u_k$. The full precoding
+matrix is $\mathbf{W} = [\mathbf{w}_1,\dots,\mathbf{w}_K] \in
+\mathbb{C}^{MN\times K}$. The instantaneous achievable sum rate is
+
+\begin{equation}
+  R(\mathbf{W}) \;=\; \sum_{k\in\mathcal{K}}
+  \log_2\!\left(1 + \frac{|\mathbf{h}_k \mathbf{w}_k|^2}
+  {\sigma_{\text{noise}}^2 + \sum_{k'\neq k}|\mathbf{h}_k \mathbf{w}_{k'}|^2}\right).
+  \label{eq:sumrate}
+\end{equation}
+
+CSIT is corrupted by two error sources acting on the true channel
+$\mathbf{h}_{k,m}$: an angle-of-departure (steering) error
+$\boldsymbol{\epsilon}_{\text{aod},k,m}\sim\mathcal{U}(-\Delta\epsilon_{\text{aod}},
+\Delta\epsilon_{\text{aod}})$ and a synchronization phase error
+$\epsilon_{\text{ph},k,m}\sim\mathcal{N}(0,\sigma_{\text{ph}}^2)$, giving an
+estimate $\tilde{\mathbf{h}}_{k,m}$ used by every precoder in place of the
+true $\mathbf{h}_{k,m}$.
+
+\section{The paper's optimization problem (reproduced)}
+\label{sec:paper-problem}
+
+The reference paper poses a single objective: maximize expected sum rate
+under a per-satellite radiated-power budget,
+
+\begin{equation}
+  \max_{\mathbf{W}} \;\; \bar{R} = \mathbb{E}_{\mathbf{H}}[R(\mathbf{W})]
+  \qquad \text{s.t.} \quad \|\mathbf{W}_m\|_F^2 \le P/M \quad \forall m\in\mathcal{M}.
+  \label{eq:paper-problem}
+\end{equation}
+
+Every precoder evaluated in the paper --- MMSE, robust SLNR, and the
+learned SAC policy --- enforces this constraint by \emph{unconditional
+rescaling} of the raw precoder to the boundary of the feasible ball:
+
+\begin{equation}
+  \mathbf{W}_{\text{paper}} \;=\; \sqrt{\frac{P/M}{\|\mathbf{W}_{\text{raw}}\|_F^2}}\;\mathbf{W}_{\text{raw}},
+  \label{eq:paper-normalization}
+\end{equation}
+
+independent of $\|\mathbf{W}_{\text{raw}}\|_F^2$. This is Eq.~(26)/(30) of the
+paper for MMSE, and the SAC output transform is normalized identically. The
+reward signal driving SAC's actor is the sum rate $R(\mathbf{W}_{\text{paper}})$
+alone; power never appears as a cost, only as this hard, always-active
+rescaling.
+
+\begin{lemma}[Full-power optimality under rate-only objectives]
+\label{lem:saturate}
+Fix a precoding \emph{direction} $\hat{\mathbf{W}}$ with
+$\|\hat{\mathbf{W}}\|_F^2=1$ and consider the scaled family
+$\mathbf{W}(\alpha) = \alpha\hat{\mathbf{W}}$, $\alpha\in(0,\sqrt{P/M}]$. Then
+$R(\mathbf{W}(\alpha))$ is non-decreasing in $\alpha$, so the maximizer of
+\eqref{eq:paper-problem} over this family is $\alpha^\star = \sqrt{P/M}$.
+\end{lemma}
+
+\begin{proof}[Sketch]
+Scaling $\mathbf{W}$ by $\alpha$ scales every signal term
+$|\mathbf{h}_k\mathbf{w}_k|^2$ and every interference term
+$|\mathbf{h}_k\mathbf{w}_{k'}|^2$ by $\alpha^2$, while
+$\sigma_{\text{noise}}^2$ is fixed. Hence each user's SINR,
+$\alpha^2|\mathbf{h}_k\hat{\mathbf{w}}_k|^2 /
+(\sigma_{\text{noise}}^2 + \alpha^2\sum_{k'\neq k}|\mathbf{h}_k\hat{\mathbf{w}}_{k'}|^2)$,
+is non-decreasing in $\alpha$ (strictly increasing while noise-limited,
+saturating to an interference-limited ceiling as $\alpha\to\infty$, never
+decreasing). $\log_2(1+\cdot)$ is monotone, so $R$ inherits the same
+monotonicity. $\blacksquare$
+\end{proof}
+
+Lemma~\ref{lem:saturate} is not a limitation of the paper's method --- it is
+the \emph{correct} optimal behavior for problem~\eqref{eq:paper-problem}.
+Rescaling every raw output to the boundary (Eq.~\ref{eq:paper-normalization})
+is therefore not a modeling simplification; it exactly implements the
+optimal solution structure of a rate-only objective. Any precoder solving
+\eqref{eq:paper-problem} \emph{should} saturate the power budget.
+
+\section{Our extension: making power a cost, not just a cap}
+\label{sec:our-extension}
+
+\subsection{Power consumption model (new)}
+
+The paper's constraint counts only radiated power, $\|\mathbf{W}\|_F^2$. We
+add a satellite HPA electrical power model of the same form used in recent
+energy-efficient satellite precoding work \cite{HaEtAl2024}, splitting DC
+power draw into amplifier draw and static circuit dissipation:
+
+\begin{equation}
+  P_{\text{total}}(\mathbf{W}) \;=\; \underbrace{\frac{\mathrm{tr}\{\mathbf{W}^H\mathbf{W}\}}{\eta_{\text{PA}}}}_{\text{amplifier draw}}
+  \;+\; \underbrace{MN\,P_c}_{\text{circuit draw}},
+  \label{eq:ptotal}
+\end{equation}
+
+with power-amplifier efficiency $\eta_{\text{PA}}\in(0,1)$ and per-antenna
+static circuit power $P_c$. We set $\eta_{\text{PA}}=0.60$, matching the
+satellite antenna/HPA efficiency used in \cite{HaEtAl2024} and consistent
+with reported saturated TWTA/SSPA efficiencies of 55--70\%
+\cite{Lohmeyer2016}. An earlier version of this model used
+$\eta_{\text{PA}}=0.35$ sourced from a \emph{terrestrial}
+macro/micro/pico/femto base-station power study \cite{Auer2011} -- not
+satellite hardware -- and has been corrected. Two structural properties of
+\eqref{eq:ptotal} matter for what follows:
+
+\begin{itemize}
+  \item \textbf{No such term exists in the reference paper.} Its optimization
+    problem \eqref{eq:paper-problem} has no notion of amplifier efficiency or
+    circuit power; $P_{\text{total}}$ is our addition in full.
+  \item $P_{\text{total}}$ has a strictly positive floor $MN P_c/\eta_{\text{PA}}\cdot 0 + MNP_c = MNP_c$
+    as $\mathrm{tr}\{\mathbf{W}^H\mathbf{W}\}\to 0$: the circuit term never
+    vanishes. This bounds the maximum achievable percentage power savings
+    and keeps any rate/power ratio well defined even at zero transmit power.
+\end{itemize}
+
+\subsection{The energy-efficiency objective (new)}
+
+We replace \eqref{eq:paper-problem} with a fractional (concave-over-affine)
+objective,
+
+\begin{equation}
+  \max_{\mathbf{W}} \;\; \mathrm{EE}(\mathbf{W}) = \frac{R(\mathbf{W})}{P_{\text{total}}(\mathbf{W})}
+  \qquad \text{s.t.} \quad \|\mathbf{W}_m\|_F^2 \le P/M \quad \forall m\in\mathcal{M}.
+  \label{eq:ee-problem}
+\end{equation}
+
+This is a genuinely different problem from \eqref{eq:paper-problem}, not a
+relaxation of it: power now appears in the objective, not only in the
+constraint. Lemma~\ref{lem:saturate} no longer applies, because scaling
+$\mathbf{W}(\alpha)=\alpha\hat{\mathbf{W}}$ now moves \emph{both} the
+numerator and the denominator:
+
+\begin{equation}
+  \mathrm{EE}(\alpha) = \frac{R(\alpha\hat{\mathbf{W}})}
+  {\alpha^2\|\hat{\mathbf{W}}\|_F^2/\eta_{\text{PA}} + MNP_c}.
+  \label{eq:ee-alpha}
+\end{equation}
+
+The numerator saturates (Lemma~\ref{lem:saturate}, bounded above by the
+interference-limited ceiling); the denominator grows without bound, linearly
+in $\alpha^2$. Consequently $\mathrm{EE}(\alpha)$ is not monotone: it
+generically increases while noise-limited, then \emph{decreases} once the
+marginal rate gained per additional watt falls below the marginal cost of
+that watt. The maximizer $\alpha^\star$ of \eqref{eq:ee-alpha} is generically
+in the \emph{interior} of $(0,\sqrt{P/M}]$, not at the boundary. This is the
+precise sense in which the idea is not a relabeling of the paper's problem:
+we did not merely permit $\|\mathbf{W}\|_F^2 < P/M$ (that permission alone is
+vacuous under \eqref{eq:paper-problem}, by Lemma~\ref{lem:saturate}); we
+changed the objective so the boundary stops being automatically optimal.
+
+\begin{remark}
+This is precisely the classical energy-efficiency/spectral-efficiency
+trade-off \cite{Chen2011}: under a rate-only objective, more power is always
+weakly better and the power cap binds; under a rate-per-power objective, the
+optimal power level is an interior stationary point of a concave-over-affine
+ratio, characterized by Dinkelbach's transform (Section~\ref{sec:schemes}).
+\end{remark}
+
+\subsection{Relaxing the always-saturate precoder (new)}
+
+To let the learned policy actually reach the interior of the feasible ball,
+we replace the unconditional rescaling \eqref{eq:paper-normalization} with a
+\emph{clip-only} projection,
+
+\begin{equation}
+  \mathbf{W}_{\text{ours}} =
+  \begin{cases}
+    \mathbf{W}_{\text{raw}}, & \|\mathbf{W}_{\text{raw}}\|_F^2 \le P/M, \\[4pt]
+    \sqrt{P/M}/\|\mathbf{W}_{\text{raw}}\|_F \cdot \mathbf{W}_{\text{raw}}, & \text{otherwise.}
+  \end{cases}
+  \label{eq:clip-only}
+\end{equation}
+
+Constraint (15b) of the paper is enforced exactly as written (an inequality)
+rather than as the de facto equality every paper precoder produces. This is
+the actual, literal feasible set of \eqref{eq:ee-problem}; \eqref{eq:paper-normalization}
+only ever explores its boundary.
+
+\section{Three formulations implemented and compared}
+\label{sec:schemes}
+
+\paragraph{Scheme I --- reproduction of the paper's convention.} Precoder
+\eqref{eq:paper-normalization}, reward $R(\mathbf{W})/P_{\text{total}}$. Since
+$P_{\text{total}}$ is a constant here (power is always exactly $P/M$), this
+reduces to maximizing $R(\mathbf{W})$ alone --- it is the paper's sum-rate
+objective in all but name, retained purely as a same-conditions reference
+point.
+
+\paragraph{Scheme II --- direct-ratio reward, free power.} Precoder
+\eqref{eq:clip-only}, reward $R(\mathbf{W})/P_{\text{total}}(\mathbf{W})$
+evaluated directly as a ratio. Numerically fragile as
+$P_{\text{total}}\to MNP_c$ from below is bounded (Section~\ref{sec:our-extension}),
+but the ratio's gradient can still be poorly scaled for online SGD.
+
+\paragraph{Scheme III --- Dinkelbach-reformulated reward, free power.}
+Precoder \eqref{eq:clip-only}; reward is the Dinkelbach subtractive transform
+of the fractional program,
+
+\begin{equation}
+  \mathrm{reward}_t = R(\mathbf{W}_t) - \lambda_t\, P_{\text{total}}(\mathbf{W}_t),
+  \qquad
+  \lambda_{t+1} = \frac{\overline{R}_{\text{window}}}{\overline{P}_{\text{total},\text{window}}},
+  \label{eq:dinkelbach}
+\end{equation}
+
+the classical fixed-point reformulation \cite{Dinkelbach1967}:
+$F(\lambda) = \max_{\mathbf{W}} \left[R(\mathbf{W}) - \lambda P_{\text{total}}(\mathbf{W})\right]$,
+with $F(\lambda^\star)=0 \iff \lambda^\star = \mathrm{EE}(\mathbf{W}^\star)$.
+Framing \eqref{eq:dinkelbach} as a running stochastic-approximation update
+(rather than solving each $\lambda$-subproblem to optimality before updating,
+as the textbook alternating scheme prescribes) is a deliberate relaxation for
+the online RL setting, made explicit here rather than left implicit.
+
+\section{Theoretical grounding for the online Dinkelbach update}
+\label{sec:dinkelbach-rigor}
+
+Framing~\eqref{eq:dinkelbach} as a running stochastic-approximation update was
+flagged in Section~\ref{sec:schemes} as a deliberate relaxation of the
+classical scheme, in which $\lambda$ is updated only after the inner problem
+$\max_{\mathbf{W}}[R(\mathbf{W})-\lambda P_{\text{total}}(\mathbf{W})]$ is
+solved to its exact global optimum \cite{Dinkelbach1967}. SAC does neither:
+its inner solve is approximate, local, and updated concurrently with
+$\lambda$ rather than beforehand. This section asks, and answers, whether
+that relaxation has any rigorous grounding, without changing the underlying
+algorithm.
+
+\subsection{What the closest existing results do and do not cover}
+
+Four adjacent literatures combine a fractional (ratio) objective with a
+learned/iterative policy, and none directly covers a concurrently-updated
+outer multiplier with function approximation. The classical beamforming
+literature \cite{HaEtAl2024,DengEtAl2023} uses Dinkelbach's method with the
+inner problem solved to full, certified convergence (convex optimization or
+tabular Q-learning re-solved exactly each step) before $\lambda$ is touched.
+Risk-sensitive RL results for ratio objectives such as the Sharpe ratio
+\cite{SharpeRatioMDP2025} use the same exact block/outer-loop pattern.
+Safe/constrained RL does have real convergence proofs for genuinely
+\emph{concurrent} primal-dual updates \cite{Paternain2019,DingZhangBasar2020},
+but only for a softmax policy over a finite action space --- not for
+continuous actions or neural function approximation. The one result that
+formally extends Dinkelbach's method to an \emph{inexact} inner solve,
+Jin et al.\ \cite{JinTangZhangWang2023}, requires (a) an explicit,
+per-iteration approximation-error bound $\epsilon_i$ that (b) shrinks over
+iterations, and (c) convexity of the inner value function in $\lambda$. As
+implemented, EE\_sac.py satisfies none of the three as stated for a general
+MDP. The remainder of this section shows that, for this specific
+environment, (c) holds unconditionally, (a) is obtainable from standard
+nonconvex stochastic-optimization theory, and (b) is the one genuine gap ---
+closable by a training-schedule change, not an architectural one.
+
+\subsection{The environment is a contextual bandit}
+
+\begin{lemma}[Action-independent transitions collapse temporal credit assignment]
+\label{lem:bandit}
+Let $s_t$ denote the SAC state at training step $t$ and $a_t$ the
+(pre-projection) action. If the state-transition kernel satisfies
+$s_{t+1}\sim p(\cdot\mid s_t)$, independent of $a_t$, then for every state $s$,
+$$
+Q^\star(s,a) \;=\; r(s,a) \;+\; \gamma\,\mathbb{E}_{s'\sim p(\cdot\mid s)}\big[V^\star(s')\big],
+\qquad
+\arg\max_a Q^\star(s,a) \;=\; \arg\max_a r(s,a).
+$$
+\end{lemma}
+\begin{proof}
+By the Bellman optimality decomposition,
+$Q^\star(s,a)=\mathbb{E}[r_t+\gamma V^\star(s_{t+1})\mid s_t=s,a_t=a]$. Since
+$s_{t+1}\sim p(\cdot\mid s_t)$ does not depend on $a_t$, the second term
+equals $\gamma\,\mathbb{E}_{s'\sim p(\cdot\mid s)}[V^\star(s')]$ for every
+$a$ --- a quantity constant in $a$. Adding an $a$-independent term to $r(s,a)$
+does not change its argmax. $\blacksquare$
+\end{proof}
+
+\begin{remark}[This holds by construction in this codebase, not by assumption]
+\texttt{update\_sim()}, the state-transition routine shared by every training
+script in this repository, advances user/satellite positions, rolls CSIT
+estimation errors, and recomputes channel state information without ever
+receiving the chosen precoder as an argument. The hypothesis of
+Lemma~\ref{lem:bandit} is therefore exact, not approximate: whichever
+$\mathbf{W}_t$ SAC outputs, the channel realization at step $t+1$ is drawn
+from the same exogenous process regardless. There is no delayed consequence
+of a precoding decision anywhere in this environment --- it is a per-sample
+stochastic optimization problem wearing an RL interface, not a genuine
+sequential MDP. This is precisely why a concurrently-updated $\lambda$ is not
+automatically ruled out here the way it is in the general MDP results of
+Section~\ref{sec:dinkelbach-rigor} above: there is no real temporal credit
+assignment to get wrong.
+\end{remark}
+
+\subsection{Convexity and smoothness on the constraint set}
+
+\begin{lemma}[Automatic convexity of the Dinkelbach value function]
+\label{lem:convex}
+Define $F(\lambda) = \max_{\mathbf{W}\in\mathcal{W}}\big[R(\mathbf{W}) -
+\lambda P_{\text{total}}(\mathbf{W})\big]$ for the feasible ball
+$\mathcal{W}=\{\mathbf{W}:\|\mathbf{W}_m\|_F^2\le P/M\ \forall m\}$. Then $F$
+is convex in $\lambda$ on $\mathbb{R}$, regardless of the specific form of
+$R$ or $P_{\text{total}}$.
+\end{lemma}
+\begin{proof}
+For each fixed $\mathbf{W}\in\mathcal{W}$, $\lambda\mapsto
+R(\mathbf{W})-\lambda P_{\text{total}}(\mathbf{W})$ is affine in $\lambda$.
+$F$ is a pointwise supremum of affine functions of $\lambda$, hence convex.
+$\blacksquare$
+\end{proof}
+
+This discharges condition (c) of \cite{JinTangZhangWang2023} unconditionally.
+
+\begin{lemma}[Smoothness of the per-step Dinkelbach surface]
+\label{lem:smooth}
+Fix $\lambda\ge0$ and let $f_\lambda(\mathbf{W}) = R(\mathbf{W}) - \lambda
+P_{\text{total}}(\mathbf{W})$. On $\mathcal{W}$, $f_\lambda$ is continuously
+differentiable with Lipschitz-continuous gradient (finite $L_\lambda$-smooth).
+\end{lemma}
+\begin{proof}[Sketch]
+$\sigma_{\text{noise}}^2>0$ is a fixed positive constant, so every SINR
+denominator in \eqref{eq:sumrate} is bounded away from zero uniformly on
+$\mathcal{W}$; $R$ is a composition of rational functions (bounded
+denominator) with $\log_2(1+\cdot)$, hence real-analytic on $\mathcal{W}$.
+$P_{\text{total}}$ \eqref{eq:ptotal} is affine in the quadratic form
+$\mathrm{tr}\{\mathbf{W}^H\mathbf{W}\}$, with constant Hessian
+$(2/\eta_{\text{PA}})I$. A finite linear combination of functions with
+continuous Hessian has bounded (hence Lipschitz) Hessian on the compact set
+$\mathcal{W}$. $\blacksquare$
+\end{proof}
+
+\begin{remark}[The clip is a projection, not an objective-level discontinuity]
+The precoder \eqref{eq:clip-only} is exactly Euclidean projection
+$\Pi_{\mathcal{W}}$ onto a convex ball. The composite map
+$\mathbf{W}_{\text{raw}}\mapsto f_\lambda(\Pi_{\mathcal{W}}(\mathbf{W}_{\text{raw}}))$,
+viewed as a function of the unconstrained actor output, has a discontinuous
+Jacobian exactly on the sphere $\|\mathbf{W}_{\text{raw}}\|_F^2=P/M$ ---
+$\Pi_{\mathcal{W}}$ itself is what is non-smooth there, not $f_\lambda$. This
+is exactly the setting nonconvex \emph{projected}-stochastic-gradient theory
+is built for: convergence is stated via the gradient mapping
+$G_\lambda(\mathbf{W}) = \big(\mathbf{W}-\Pi_{\mathcal{W}}(\mathbf{W}+\alpha\nabla
+f_\lambda(\mathbf{W}))\big)/\alpha$ rather than the raw gradient
+\cite{GhadimiLanZhang2016}, sidestepping the projection boundary's
+non-smoothness instead of requiring it away. Lemma~\ref{lem:smooth} is
+exactly the hypothesis on $f_\lambda$ that framework needs.
+\end{remark}
+
+\subsection{The one remaining gap: an unshrinking entropy bias}
+
+Under Lemma~\ref{lem:bandit}, SAC's actor/critic are --- in effect ---
+running stochastic projected-gradient ascent directly on $f_\lambda$, so the
+gradient-mapping norm after $T$ inner steps admits the standard $O(1/\sqrt{T})$
+rate \cite{GhadimiLan2013,GhadimiLanZhang2016}: an explicit, checkable route
+to condition (a) of \cite{JinTangZhangWang2023}, in place of an
+unquantifiable ``training plateaued.'' What this does \emph{not} yet secure
+is condition (b), that the inner-solve error actually shrinks over training
+rather than plateauing at a nonzero floor.
+
+SAC's maximum-entropy objective is exactly such a floor. The auto-tuned
+temperature $\alpha_{\text{SAC}}$ is adjusted throughout training to hold the
+policy's entropy at \texttt{target\_entropy}, fixed at $1.0$ for the entire
+run in \texttt{config\_sac\_learner.py} and never annealed. The soft-optimal
+policy therefore maximizes $\mathbb{E}[Q(s,a)]+\alpha_{\text{SAC}}\mathcal{H}(\pi(\cdot\mid s))$,
+not $\mathbb{E}[Q(s,a)]$ alone, and the resulting gap from the true argmax is
+bounded by a term of order $\alpha_{\text{SAC}}$ that does not shrink from
+episode $0$ to episode $13{,}000$ under the current schedule --- the one
+condition of \cite{JinTangZhangWang2023} not currently met.
+
+\begin{remark}[The resulting recommendation, and why it does not require abandoning SAC]
+Annealing \texttt{target\_entropy} (or decaying $\alpha_{\text{SAC}}$) over
+training turns this floor into a term that vanishes as training proceeds,
+which is exactly what condition (b) requires. This is a schedule change to
+the existing training loop, not an architectural one: actor, critic, and
+replay buffer are unchanged. That matters because, while the environment is
+action-\emph{independent} (Lemma~\ref{lem:bandit}), it is not
+\emph{stationary} over the mission timeline --- the satellite's motion drifts
+the channel statistics continuously. An offline ``learning-to-optimize''
+alternative (a feed-forward network trained once by ordinary backpropagation
+against a fixed, i.i.d.-sampled batch of channel realizations) would satisfy
+Lemma~\ref{lem:smooth} equally well, but would need an explicit
+retraining/adaptation mechanism to track that drift, which SAC's online
+training loop provides for free. This is why the object being justified here
+is the existing online SAC formulation, not a replacement for it.
+\end{remark}
+
+A related, purely empirical stabilization technique is worth noting
+separately: the $\lambda$ update in \eqref{eq:dinkelbach} is, mathematically,
+a pure integral controller on the rate/power gap, which is known from
+control theory to be prone to oscillation and overshoot. PID-Lagrangian
+methods from safe RL \cite{StookeAchiamAbbeel2020} add proportional and
+derivative terms to exactly this kind of update to damp such oscillation.
+This is a complementary, cheap engineering fix for training stability; unlike
+the entropy-annealing schedule above, it comes with no convergence proof of
+its own and does not by itself close any of the three conditions discussed
+above.
+
+\subsection{Summary of the argument}
+
+Lemma~\ref{lem:bandit} reduces the relevant question from general-MDP
+convergence --- where every concurrently-updated primal-dual scheme found in
+the literature either requires a discrete/softmax policy
+\cite{Paternain2019,DingZhangBasar2020} or an exactly-solved inner problem
+\cite{HaEtAl2024,DengEtAl2023} --- to bandit-level convergence, which is far
+better understood. Lemma~\ref{lem:convex} discharges condition (c) of
+\cite{JinTangZhangWang2023} unconditionally. Lemma~\ref{lem:smooth}, combined
+with projected-SGD gradient-mapping bounds
+\cite{GhadimiLan2013,GhadimiLanZhang2016}, gives an explicit route to
+condition (a). What remains open is condition (b), currently blocked only by
+a fixed, non-annealed entropy target. Annealing that target is therefore the
+single concrete change needed to make the online, reward-embedded Dinkelbach
+update \eqref{eq:dinkelbach} a rigorously justified instance of an
+established inexact-fractional-programming convergence theorem, rather than
+an unjustified heuristic --- without departing from the SAC architecture used
+throughout this work. Whether entropy annealing changes the trained policy's
+realized $\mathrm{EE}(\mathbf{W})$ in practice is a separate, still-open
+empirical question.
+
+\section{Related work}
+\label{sec:related}
+
+The reference paper \cite{Schroder2025} itself continues an earlier
+single-objective (sum-rate only) line of work by the same group
+\cite{Gracla2024}, which introduced the flexible SAC-based precoding
+framework this note builds on. Outside that lineage, three adjacent bodies
+of work are relevant, and it is worth being precise about what each does and
+does not share with the extension proposed here.
+
+\textbf{Energy-efficient beamforming via deep RL.} DRL has been applied
+directly to EE-objective beamforming design, e.g.\ uplink beamforming for
+long-term EE maximization in cell-free networks via DDPG
+\cite{LiNiTianHua2021}. This confirms ``RL for an EE objective'' is an
+established combination in general, but not in a satellite downlink setting
+and not paired with CSIT-error robustness.
+
+\textbf{Energy-efficient learning for LEO satellites.} DRL has also been
+used for EE optimization specifically in LEO satellite systems, e.g.\ joint
+beamforming, UAV positioning, and rate-splitting for RSMA-based LEO links
+assisted by an active reconfigurable intelligent surface
+\cite{YeganehBehroozi2025}, and a risk-aware (CVaR-based) DRL framework for
+robust hybrid beamforming in massive-MIMO LEO systems that also targets
+energy efficiency \cite{RiskAwareLEO2024}. Both combine EE, robustness, and
+LEO satellites as we do, but in materially larger/different system
+architectures (RIS- and UAV-assisted, or massive-MIMO hybrid precoding) and
+via a different robustness mechanism (risk measures rather than training
+under a CSIT error distribution).
+
+\textbf{Fractional programming combined with DRL.} The Dinkelbach
+transform's classical, non-learned use in beamforming is developed
+comprehensively in \cite{ShenYu2018}. Closer to our combination,
+\cite{JiaoFangDing2022} jointly uses fractional programming and DRL for
+robust EE beamforming in a WPT-assisted D2D/MISO-NOMA setting; there,
+fractional programming and DRL solve separate subproblems in an alternating
+scheme, rather than the Dinkelbach multiplier being folded directly into a
+single RL reward signal as in \eqref{eq:dinkelbach}.
+
+\textbf{Closest classical (non-learned) analogue.} \cite{HaEtAl2024}
+solves an EE precoding problem for a multi-gateway, bent-pipe SATCOM system
+using Dinkelbach's method combined with an MMSE-based (WMMSE-style)
+transformation and a compressed-sensing relaxation for sparse
+feeder-link-beam matching -- the same general tool (Dinkelbach) applied to
+a materially different, and more classically tractable, version of the
+problem. Three differences separate it from this work: (i) it is a
+model-based iterative convex optimization, solved assuming accurate channel
+knowledge at every step, not a learned policy; (ii) it does not train
+against or evaluate robustness to CSIT \emph{estimation error} -- channel
+impairments (phase noise, fading) are simulated, but the algorithm optimizes
+assuming it knows the channel it is given; and (iii) Dinkelbach's $\lambda$
+is updated via the classical exact alternating scheme (solve the inner QCQP
+to convergence, then update $\lambda$), not the online, continuously-updated
+reward-embedded form of \eqref{eq:dinkelbach}. This sharpens the gap this
+work fills: robustness to erroneous CSIT is difficult to fold into a
+closed-form/convex-relaxation solver of this kind, which is precisely why
+\cite{Schroder2025} argues for a learned policy in the first place -- an
+argument this work extends from the sum-rate objective to the EE one.
+
+None of these combine, on the exact system and CSIT-error-robustness setup
+of \cite{Schroder2025}, (i) the electrical power model \eqref{eq:ptotal},
+(ii) the resulting EE objective \eqref{eq:ee-problem}, and (iii) an
+online, reward-embedded Dinkelbach update \eqref{eq:dinkelbach}. That
+combination, on this system, is the specific gap this work fills.
+
+\section{Summary: what is the paper's, what is ours}
+
+\begin{center}
+\begin{tabular}{@{}p{0.32\linewidth}p{0.63\linewidth}@{}}
+\toprule
+\textbf{Component} & \textbf{Status} \\
+\midrule
+Channel model, LoS geometry, CSIT error sources (Eq.~\ref{eq:sumrate} and
+$\S$\ref{sec:system}) & Reproduced unchanged from \cite{Schroder2025}. \\
+Sum-rate objective \eqref{eq:paper-problem} and always-saturate precoder
+\eqref{eq:paper-normalization} & Reproduced unchanged; retained as Scheme~I,
+a same-conditions reference point. \\
+SAC algorithm (actor/critic structure, entropy objective, offline replay
+buffer) & Reused, same underlying learning algorithm. \\
+Electrical power model $P_{\text{total}}$ \eqref{eq:ptotal} (amplifier
+efficiency, static circuit power) & \textbf{New.} No analogue in the paper. \\
+Energy-efficiency objective \eqref{eq:ee-problem} (rate over total power) &
+\textbf{New.} Paper only ever maximizes rate subject to a power cap. \\
+Clip-only precoder \eqref{eq:clip-only} realizing the true inequality
+constraint & \textbf{New.} Every paper precoder instead implements
+\eqref{eq:paper-normalization}. \\
+Dinkelbach reward reformulation \eqref{eq:dinkelbach} with an online,
+windowed $\lambda$ update & \textbf{New.} Not a fractional program in the
+paper at all. \\
+Rigorous grounding for the online $\lambda$ update
+(Section~\ref{sec:dinkelbach-rigor}) & \textbf{New.} Reduces the question to
+a bandit-convergence argument with an automatically-convex, provably-smooth
+inner surface; identifies one concrete remaining gap (a non-annealed entropy
+target) and its fix, without changing the SAC architecture. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The claim of novelty rests on Section~\ref{sec:our-extension}: introducing
+$P_{\text{total}}$ into the objective is what breaks
+Lemma~\ref{lem:saturate}'s always-saturate conclusion, and Section~\ref{sec:related}
+situates that claim against the closest work found elsewhere in the
+literature. Whether the trained policy \emph{empirically} finds and exploits
+an interior optimum that beats Scheme~I on realized $\mathrm{EE}(\mathbf{W})$
+is a separate, still-open empirical question, addressed by evaluation rather
+than by the formulation itself. Section~\ref{sec:dinkelbach-rigor} addresses
+a different open question --- not whether the trained policy performs well,
+but whether the training procedure itself has a defensible theoretical basis
+--- and identifies exactly one concrete, not-yet-implemented change
+(entropy-target annealing) needed to close it.
+
+\begin{thebibliography}{99}
+
+\bibitem{Schroder2025}
+A.~Schr\"oder, S.~Gracla, C.~Bockelmann, D.~W\"ubben, and A.~Dekorsy,
+``Model-Free Robust Beamforming in Satellite Downlink Using Reinforcement
+Learning,'' \emph{IEEE Open Journal of the Communications Society}, 2025.
+arXiv:2510.25393.
+
+\bibitem{Gracla2024}
+A.~Schr\"oder, S.~Gracla, M.~R\"oper, D.~W\"ubben, C.~Bockelmann, and
+A.~Dekorsy, ``Flexible Robust Beamforming for Multibeam Satellite Downlink
+using Reinforcement Learning,'' arXiv:2402.16563, 2024.
+
+\bibitem{Auer2011}
+G.~Auer, V.~Giannini, C.~Desset, I.~Godor, P.~Skillermark, M.~Olsson,
+M.~A.~Imran, D.~Sabella, M.~J.~Gonzalez, O.~Blume, and A.~Fehske, ``How Much
+Energy Is Needed to Run a Wireless Network?,'' \emph{IEEE Wireless
+Communications}, vol.~18, no.~5, pp.~40--49, 2011.
+
+\bibitem{Chen2011}
+Y.~Chen, S.~Zhang, S.~Xu, and G.~Y.~Li, ``Fundamental Trade-offs on Green
+Wireless Networks,'' \emph{IEEE Communications Magazine}, vol.~49, no.~6,
+pp.~30--37, 2011.
+
+\bibitem{Dinkelbach1967}
+W.~Dinkelbach, ``On Nonlinear Fractional Programming,'' \emph{Management
+Science}, vol.~13, no.~7, pp.~492--498, 1967.
+
+\bibitem{ShenYu2018}
+K.~Shen and W.~Yu, ``Fractional Programming for Communication
+Systems---Part I: Power Control and Beamforming,'' \emph{IEEE Transactions
+on Signal Processing}, vol.~66, no.~10, pp.~2616--2630, 2018.
+
+\bibitem{LiNiTianHua2021}
+W.~Li, W.~Ni, H.~Tian, and M.~Hua, ``Deep Reinforcement Learning for
+Energy-Efficient Beamforming Design in Cell-Free Networks,'' in \emph{Proc.
+IEEE Wireless Communications and Networking Conference Workshops
+(WCNCW)}, 2021. arXiv:2102.03077.
+
+\bibitem{YeganehBehroozi2025}
+R.~S.~Yeganeh and H.~Behroozi, ``Energy Efficient RSMA-Based LEO Satellite
+Communications Assisted by UAV-Mounted BD-Active RIS: A DRL Approach,''
+arXiv:2505.04148, 2025.
+
+\bibitem{RiskAwareLEO2024}
+``Robust Beamforming for Massive MIMO LEO Satellite Communications: A
+Risk-Aware Learning Framework,'' \emph{IEEE} [venue/author details to be
+verified before citing in a manuscript --- not independently confirmed],
+IEEE Xplore document 10336551.
+
+\bibitem{JiaoFangDing2022}
+S.~Jiao, F.~Fang, and Z.~Ding, ``Joint Robust Beamforming Design for
+WPT-assisted D2D Communications in MISO-NOMA: Fractional Programming and
+Deep Reinforcement Learning,'' arXiv:2209.12253, 2022.
+
+\bibitem{HaEtAl2024}
+V.~N.~Ha, J.~C.~Merlano Duncan, E.~Lagunas, J.~Querol, and S.~Chatzinotas,
+``Energy-Efficient Precoding and Feeder-Link-Beam Matching Design for
+Bent-Pipe SATCOM Systems,'' arXiv:2304.13436, 2023 (revised 2024).
+
+\bibitem{Lohmeyer2016}
+W.~Lohmeyer et al., ``Communication Satellite Power Amplifiers: Current and
+Future SSPA and TWTA Technologies,'' \emph{International Journal of
+Satellite Communications and Networking}, vol.~34, no.~2, pp.~95--113, 2016.
+
+\bibitem{DengEtAl2023}
+Deng, Li, Jhaveri, et al., ``Reinforcement-Learning-Based Optimization on
+Energy Efficiency in UAV Networks for IoT,'' \emph{IEEE Internet of Things
+Journal}, 2023.
+
+\bibitem{SharpeRatioMDP2025}
+``Sharpe Ratio Optimization in Markov Decision Processes,'' arXiv:2509.00793,
+2025.
+
+\bibitem{Paternain2019}
+S.~Paternain, L.~F.~O.~Chamon, M.~Calvo-Fullana, and A.~Ribeiro,
+``Constrained Reinforcement Learning Has Zero Duality Gap,'' \emph{Advances
+in Neural Information Processing Systems (NeurIPS)}, 2019. arXiv:1910.13393.
+
+\bibitem{DingZhangBasar2020}
+D.~Ding, K.~Zhang, and T.~Ba\c{s}ar, ``Natural Policy Gradient Primal-Dual
+Method for Constrained Markov Decision Processes,'' \emph{Advances in Neural
+Information Processing Systems (NeurIPS)}, 2020. arXiv:2206.02346.
+
+\bibitem{JinTangZhangWang2023}
+Jin, Tang, Zhang, and Wang, ``Fractional Deep Reinforcement Learning for
+Age-Minimal Mobile Edge Computing,'' arXiv:2312.10418, 2023.
+
+\bibitem{GhadimiLan2013}
+S.~Ghadimi and G.~Lan, ``Stochastic First- and Zeroth-Order Methods for
+Nonconvex Stochastic Programming,'' \emph{SIAM Journal on Optimization},
+vol.~23, no.~4, pp.~2341--2368, 2013.
+
+\bibitem{GhadimiLanZhang2016}
+S.~Ghadimi, G.~Lan, and H.~Zhang, ``Mini-Batch Stochastic Approximation
+Methods for Nonconvex Stochastic Composite Optimization,'' \emph{Mathematical
+Programming}, vol.~155, pp.~267--305, 2016.
+
+\bibitem{StookeAchiamAbbeel2020}
+A.~Stooke, J.~Achiam, and P.~Abbeel, ``Responsive Safety in Reinforcement
+Learning by PID Lagrangian Methods,'' \emph{International Conference on
+Machine Learning (ICML)}, 2020. arXiv:2007.03964.
+
+\end{thebibliography}
+
+\end{document}

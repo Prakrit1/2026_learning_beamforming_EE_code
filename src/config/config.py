@@ -1,0 +1,311 @@
+
+import os
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+
+import logging
+import json
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from sys import stdout
+from datetime import datetime
+
+import numpy as np
+from scipy import constants
+from tensorflow import get_logger as tf_get_logger
+from tensorflow.config import list_physical_devices
+
+from src.config.config_error_model import (
+    ConfigErrorModel,
+)
+from src.config.config_sac_learner import (
+    ConfigSACLearner,
+)
+from src.data.channel.los_channel_model import (
+    los_channel_model,
+)
+from src.utils.get_wavelength import (
+    get_wavelength,
+)
+from src.utils.compare_configs import (
+    compare_configs,
+)
+from src.utils.format_value import (
+    format_value,
+)
+
+
+class Config:
+    """The config sets up all global parameters."""
+
+    def __init__(
+            self,
+    ) -> None:
+
+        self._pre_init()
+
+        # General
+        self.profile: bool = False  # performance profiling
+        self.show_plots: bool = True
+
+        self.verbosity: int = 1  # 0 = no prints, 1 = prints
+        self._logging_level_stdio = logging.INFO  # DEBUG < INFO < WARNING < ERROR < CRITICAL < CRITICAL+1
+        self._logging_level_file = logging.DEBUG
+        self._logging_level_tensorflow = logging.WARNING
+        self._logging_level_matplotlib = logging.INFO
+        
+        # Prakrit added this circuit power for the energy efficiency
+        self.logfile_max_bytes: int = 10_000_000  # log file max size, one backup file is kept
+
+        # Basic Communication Parameters
+        self.freq: float = 2 * 10**9
+        self.noise_power_watt: float = 10**(7 / 10) * 290 * constants.value('Boltzmann constant') * 30 * 10**6  # Noise power
+        self.power_constraint_watt = 100  # in watt
+        self.circuit_power_watt = 1.0  # static hardware dissipation per antenna
+        # PA drain efficiency: radiated power is only a fraction eta of the DC power
+        # actually drawn by the amplifier, so the amplifier's true power draw is
+        # transmit_power / eta, not transmit_power.
+        # UPDATE: was 0.35, sourced from Auer et al. 2011 -- a TERRESTRIAL
+        # macro/micro/pico/femto GSM/UMTS/LTE base station power study (EARTH
+        # project), not satellite hardware. Actual satellite HPA efficiency
+        # runs higher: Lohmeyer et al. (satellite SSPA/TWTA survey) report
+        # 55-70% saturated efficiency, and Ha et al., "Energy-Efficient
+        # Precoding and Feeder-Link-Beam Matching Design for Bent-Pipe SATCOM
+        # Systems," arXiv:2304.13436, 2023/2024 (SnT Luxembourg/Chatzinotas
+        # group -- directly on-topic, also uses Dinkelbach's method) use 60%
+        # for both antenna and HPA efficiency. Updated to match.
+        self.pa_efficiency = 0.60
+
+        self.wavelength: float = get_wavelength(self.freq)
+
+        # Orbit
+        self.altitude_orbit: float = 600 * 10**3  # Orbit altitude d0
+        self.radius_earth: float = 6378.1 * 10**3  # Earth radius RE, earth centered
+
+        self.radius_orbit: float = self.altitude_orbit + self.radius_earth  # Orbit radius with Earth center r0, earth centered
+
+        # User
+        # Matches the reference paper's Fig. 3 single-satellite scenario:
+        # K=3 users, mean inter-user distance d_K=100km, roam d~_K=50km
+        # (user_dist_bound is a FRACTION of user_dist_average -- see
+        # UserManager.calc_spherical_coordinates -- so d~_K/d_K = 50/100 = 0.5).
+        # EE_USER_NR env var override lets EE_sac.py's __main__ switch system size
+        # (e.g. to reproduce the older N8K2 scenario) before any of the derived
+        # fields/dicts below are built from user_nr -- unset leaves this unchanged.
+        self.user_nr: int = int(os.environ.get('EE_USER_NR', 3))  # Number of users
+        self.user_gain_dBi: float = 0  # User gain in dBi
+        self.user_dist_average: float = 100_000  # Average user distance in m
+        self.user_dist_bound: float = 0.5  # Variance of user distance in [0,1], uniform distribution [avg-bound, avg+bound]
+        self.user_center_aod_earth_deg: float = 90  # Average center of users
+        self.user_area = self.user_dist_average  # Only valid if user activity selection is _area_constant
+        self.user_activity_selection: str = 'all_active_area_flexible' # ['all_active_area_constant', 'random_uniform_centered_area_constant', 'all_active_area_flexible', 'random_uniform_centered_area_flexible']
+
+        # I Prakrit added these line for User spatial distribution: mode and beta distribution parameters for 'edges'/'mix' modes
+        self.user_distribution_mode: str = 'uniform'
+        self.beta_a: float = 0.5
+        self.beta_b: float = 0.5
+        self.weighting_factor_beta_distribution: float = 0.5
+
+
+        self.user_gain_linear: float = 10**(self.user_gain_dBi / 10)  # User gain linear
+
+        # Satellite
+        self.sat_nr: int = 1  # Number of satellites
+        # N=16 antennas, matching the reference paper's Fig. 3 scenario (see User section above).
+        # EE_SAT_TOT_ANT_NR env var override, see EE_USER_NR comment above -- unset leaves this unchanged.
+        self.sat_tot_ant_nr: int = int(os.environ.get('EE_SAT_TOT_ANT_NR', 16))  # Total number of  Tx antennas, should be a number larger than sat nr
+        self.sat_gain_dBi: float = 20  # Total sat TODO: Wert nochmal checken
+        self.sat_dist_average: float = 100_000  # Average satellite distance in meter
+        self.sat_dist_bound: float = 0  # Variance of sat distance in [0,1], uniform distribution [avg-bound, avg+bound]
+        self.sat_center_aod_earth_deg: float = 90  # Average center of satellites
+
+        self.sat_gain_linear: float = 10**(self.sat_gain_dBi / 10)  # Gain per satellite linear
+        self.sat_ant_nr: int = int(self.sat_tot_ant_nr / self.sat_nr)  # Number of Tx antennas per satellite
+        self.sat_ant_gain_linear: float = self.sat_gain_linear / self.sat_tot_ant_nr  # Gain per satellite antenna
+        self.sat_ant_dist: float = 3 * self.wavelength / 2  # Distance between antenna elements in meter
+
+        # Channel Model
+        self.channel_model = los_channel_model
+
+        # Decentralized Processing
+        #  Remember to satellite_manager.set_csi_error_scale(scale), disabled by default for performance
+        self.csi_error_scale = 2  # factor by which error is magnified for csi received from other sats
+        self.local_csi_own_quality = 'error_free'  # ['error_free', 'erroneous'] quality of local sats own csi
+        self.local_csi_others_quality = 'erroneous'  # ['erroneous', 'scaled_erroneous'] quality of other satellites csi
+
+        # RSMA Parameters
+        self.common_part_precoding_style='basic'  # 'basic' or 'MRT'
+
+        self._post_init()
+
+    def _pre_init(
+            self,
+    ) -> None:
+
+        if self.__class__.__module__ == 'src.config.config':  # check if self is main instance of config
+            self._inert = False
+        else:
+            self._inert = True
+
+        self.rng = np.random.default_rng()
+        self.logger = logging.getLogger(datetime.now().strftime('%H-%M-%S'))
+
+        self.project_root_path = Path(__file__).parent.parent.parent
+        self.performance_profile_path = Path(self.project_root_path, 'outputs', 'performance_profiles')
+        self.output_metrics_path = Path(self.project_root_path, 'outputs', 'metrics')
+        self.trained_models_path = Path(self.project_root_path, 'models')
+        self.logfile_path = Path(self.project_root_path, 'outputs', 'logs', 'log.txt')
+
+        if not self._inert:
+            self.performance_profile_path.mkdir(parents=True, exist_ok=True)
+            self.output_metrics_path.mkdir(parents=True, exist_ok=True)
+            self.trained_models_path.mkdir(parents=True, exist_ok=True)
+            self.logfile_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _post_init(
+            self,
+    ) -> None:
+
+        if not self._inert:
+            self.__logging_setup()
+
+        # Error Model
+        self.config_error_model = ConfigErrorModel(
+            channel_model=self.channel_model,
+            rng=self.rng,
+            wavelength=self.wavelength,
+            user_nr=self.user_nr,
+        )
+
+        # Learner
+        self.config_learner = ConfigSACLearner(
+            sat_nr=self.sat_nr,
+            sat_ant_nr=self.sat_ant_nr,
+            user_nr=self.user_nr,
+        )
+
+        # Collected args
+        self.satellite_args: dict = {
+            'rng': self.rng,
+            'antenna_nr': self.sat_ant_nr,
+            'antenna_distance': self.sat_ant_dist,
+            'antenna_gain_linear': self.sat_ant_gain_linear,
+            'user_nr': self.user_nr,
+            'freq': self.freq,
+            'center_aod_earth_deg': self.sat_center_aod_earth_deg,
+            'error_functions': self.config_error_model.error_rngs
+        }
+
+        self.user_args: dict = {
+            'gain_linear': self.user_gain_linear,
+        }
+
+        self.mmse_args: dict = {
+            'power_constraint_watt': self.power_constraint_watt,
+            'noise_power_watt': self.noise_power_watt,
+            'sat_nr': self.sat_nr,
+            'sat_ant_nr': self.sat_ant_nr,
+        }
+
+        self.mrc_args: dict = {
+            'power_constraint_watt': self.power_constraint_watt,
+        }
+
+        self.learned_precoder_args: dict = {
+            'sat_nr': self.sat_nr,
+            'sat_ant_nr': self.sat_ant_nr,
+            'user_nr': self.user_nr,
+            'power_constraint_watt': self.power_constraint_watt,
+        }
+
+    def generate_name_from_config(
+            self,
+    ) -> str:
+        """
+        Generates a path for a specific config
+        """
+
+        config_name = None
+
+        # compare to default configs
+        default_configs_path = Path(self.project_root_path, 'src', 'config', 'default_configs')
+        for default_config_path in [subitem for subitem in default_configs_path.iterdir() if subitem.is_dir()]:
+            if compare_configs(self, default_config_path, log_differences=False):
+                self.logger.info(f'current config matches default config {default_config_path.stem}')
+                config_name = default_config_path.stem
+                break
+
+        # otherwise generate name from config values
+        if config_name is None:
+            config_name = (
+                f'{self.sat_nr}sat_'
+                f'{self.sat_tot_ant_nr}ant_'
+                f'{format_value(self.sat_dist_average)}~'
+                f'{format_value(self.sat_dist_bound)}_'
+                f'{self.user_nr}usr_'
+                f'{format_value(self.user_dist_average)}~'
+                f'{format_value(self.user_dist_bound)}'
+            )
+
+        return config_name
+
+    def save(
+            self,
+            path: Path,
+    ) -> None:
+        """
+        Serialize config to json
+        """
+
+        path.mkdir(parents=True, exist_ok=True)
+        with open(Path(path, 'config.json'), 'w') as file:
+            json.dump(vars(self), file, indent=4, default=lambda o: f'{str(o)}')
+        with open(Path(path, 'config_sac_learner.json'), 'w') as file:
+            json.dump(vars(self.config_learner), file, indent=4, default=lambda o: f'{str(o)}')
+        with open(Path(path, 'config_error_model.json'), 'w') as file:
+            json.dump(vars(self.config_error_model), file, indent=4, default=lambda o: f'{str(o)}')
+
+    def __logging_setup(
+            self,
+    ) -> None:
+
+        logging_formatter = logging.Formatter(
+            '{asctime} : {levelname:8s} : {name:30} : {funcName:25} :: {message}',
+            datefmt='%Y-%m-%d %H:%M:%S',
+            style='{',
+        )
+
+        # Create Handlers
+        logging_file_handler = RotatingFileHandler(self.logfile_path, maxBytes=self.logfile_max_bytes, backupCount=1)
+        logging_stdio_handler = logging.StreamHandler(stdout)
+
+        # Set Logging Level
+        logging_file_handler.setLevel(self._logging_level_file)
+
+        if self.verbosity == 0:
+            logging_stdio_handler.setLevel(logging.CRITICAL + 1)
+        else:
+            logging_stdio_handler.setLevel(self._logging_level_stdio)
+
+        tensorflow_logger = tf_get_logger()
+        tensorflow_logger.setLevel(self._logging_level_tensorflow)
+        if len(tensorflow_logger.handlers) > 0:
+            tensorflow_logger.handlers.pop(0)  # remove tf handler, we've got our own
+
+        matplotlib_logger = logging.getLogger('matplotlib')
+        matplotlib_logger.setLevel(self._logging_level_matplotlib)
+
+        self.logger.setLevel(logging.DEBUG-1)  # set primary logger level to lowest to catch all
+
+        # Set Formatting
+        logging_file_handler.setFormatter(logging_formatter)
+        logging_stdio_handler.setFormatter(logging_formatter)
+
+        # Add Handlers
+        self.logger.addHandler(logging_file_handler)
+        self.logger.addHandler(logging_stdio_handler)
+
+        self.logger.propagate = False  # prevent logs being passed to system root logger
+
+        self.logger.info(f'GPUs detected: {list_physical_devices("GPU")}')
