@@ -59,6 +59,22 @@ EXPERIMENTS = {
         'labels': {'mmse': 'MMSE', 'EE_aod0.0': 'EE (err=0.0)', 'EE_aod0.025': 'EE (err=0.025)', 'EE_aod0.05': 'EE (err=0.05)'},
         'colors': {'mmse': 'gold', 'EE_aod0.0': 'green', 'EE_aod0.025': 'blue', 'EE_aod0.05': 'magenta'},
     },
+    'fairness_comparison': {
+        'gzip_path': Path(REPO_ROOT, 'outputs', 'metrics', 'EE_beampattern_fairness_comparison_N16K3_aod0.05', 'beam_patterns', 'beam_patterns.gzip'),
+        'models': ['EE_aod0.05_baseline', 'EE_aod0.05_fair0.5', 'EE_aod0.05_fair1.5', 'EE_aod0.05_fair3.0'],
+        'labels': {
+            'EE_aod0.05_baseline': 'EE aod0.05 (no fairness)',
+            'EE_aod0.05_fair0.5': 'EE aod0.05 (fairness=0.5)',
+            'EE_aod0.05_fair1.5': 'EE aod0.05 (fairness=1.5)',
+            'EE_aod0.05_fair3.0': 'EE aod0.05 (fairness=3.0)',
+        },
+        'colors': {
+            'EE_aod0.05_baseline': 'magenta',
+            'EE_aod0.05_fair0.5': 'blue',
+            'EE_aod0.05_fair1.5': 'green',
+            'EE_aod0.05_fair3.0': 'gold',
+        },
+    },
 }
 
 ERROR_BOUNDS_COS_AOD = [0.025, 0.05, 0.10]
