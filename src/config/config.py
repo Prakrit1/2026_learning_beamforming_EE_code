@@ -55,26 +55,20 @@ class Config:
         self._logging_level_tensorflow = logging.WARNING
         self._logging_level_matplotlib = logging.INFO
         
-        # Prakrit added this circuit power for the energy efficiency
         self.logfile_max_bytes: int = 10_000_000  # log file max size, one backup file is kept
 
         # Basic Communication Parameters
         self.freq: float = 2 * 10**9
         self.noise_power_watt: float = 10**(7 / 10) * 290 * constants.value('Boltzmann constant') * 30 * 10**6  # Noise power
-        self.power_constraint_watt = 100  # in watt
+        # Radiated power budget. 75 W is the per-beam power implied by TR 38.821
+        # Set-1 (Table 6.1.1.1-1: 34 dBW/MHz EIRP density over 30 MHz at 30 dBi).
+        # Checkpoints trained before 2026-07-27 used 100 -- evaluate those with
+        # EE_POWER_BUDGET_WATT=100.
+        self.power_constraint_watt = float(os.environ.get('EE_POWER_BUDGET_WATT', 75))
         self.circuit_power_watt = 1.0  # static hardware dissipation per antenna
-        # PA drain efficiency: radiated power is only a fraction eta of the DC power
-        # actually drawn by the amplifier, so the amplifier's true power draw is
-        # transmit_power / eta, not transmit_power.
-        # UPDATE: was 0.35, sourced from Auer et al. 2011 -- a TERRESTRIAL
-        # macro/micro/pico/femto GSM/UMTS/LTE base station power study (EARTH
-        # project), not satellite hardware. Actual satellite HPA efficiency
-        # runs higher: Lohmeyer et al. (satellite SSPA/TWTA survey) report
-        # 55-70% saturated efficiency, and Ha et al., "Energy-Efficient
-        # Precoding and Feeder-Link-Beam Matching Design for Bent-Pipe SATCOM
-        # Systems," arXiv:2304.13436, 2023/2024 (SnT Luxembourg/Chatzinotas
-        # group -- directly on-topic, also uses Dinkelbach's method) use 60%
-        # for both antenna and HPA efficiency. Updated to match.
+        # PA drain efficiency: amplifier DC draw is transmit_power / eta. 0.60
+        # matches satellite HPA hardware (Ha et al. arXiv:2304.13436; Lohmeyer
+        # et al. report 55-70% saturated efficiency for SSPA/TWTA).
         self.pa_efficiency = 0.60
 
         self.wavelength: float = get_wavelength(self.freq)
@@ -86,22 +80,29 @@ class Config:
         self.radius_orbit: float = self.altitude_orbit + self.radius_earth  # Orbit radius with Earth center r0, earth centered
 
         # User
-        # Matches the reference paper's Fig. 3 single-satellite scenario:
-        # K=3 users, mean inter-user distance d_K=100km, roam d~_K=50km
-        # (user_dist_bound is a FRACTION of user_dist_average -- see
-        # UserManager.calc_spherical_coordinates -- so d~_K/d_K = 50/100 = 0.5).
-        # EE_USER_NR env var override lets EE_sac.py's __main__ switch system size
-        # (e.g. to reproduce the older N8K2 scenario) before any of the derived
-        # fields/dicts below are built from user_nr -- unset leaves this unchanged.
+        # Reference-paper Fig. 3 scenario: K=3 users, 100 km mean spacing, +-50 km
+        # roam (user_dist_bound is a FRACTION of user_dist_average). The EE_USER_NR
+        # env var can override the system size.
         self.user_nr: int = int(os.environ.get('EE_USER_NR', 3))  # Number of users
         self.user_gain_dBi: float = 0  # User gain in dBi
         self.user_dist_average: float = 100_000  # Average user distance in m
         self.user_dist_bound: float = 0.5  # Variance of user distance in [0,1], uniform distribution [avg-bound, avg+bound]
         self.user_center_aod_earth_deg: float = 90  # Average center of users
+        # EE_TARGET_ELEVATION_DEG env var: shift the user-cluster center off nadir
+        # to hit a target elevation angle (TR 38.821 uses 30 deg for LEO link
+        # budgets; eps=30 -> center 82.33 deg, slant range ~1074 km). Unset = nadir.
+        _target_elevation_deg = os.environ.get('EE_TARGET_ELEVATION_DEG')
+        if _target_elevation_deg is not None:
+            _elevation_rad = np.deg2rad(float(_target_elevation_deg))
+            _earth_central_angle_rad = (
+                np.pi / 2 - _elevation_rad
+                - np.arcsin(self.radius_earth / self.radius_orbit * np.cos(_elevation_rad))
+            )
+            self.user_center_aod_earth_deg -= float(np.rad2deg(_earth_central_angle_rad))
         self.user_area = self.user_dist_average  # Only valid if user activity selection is _area_constant
         self.user_activity_selection: str = 'all_active_area_flexible' # ['all_active_area_constant', 'random_uniform_centered_area_constant', 'all_active_area_flexible', 'random_uniform_centered_area_flexible']
 
-        # I Prakrit added these line for User spatial distribution: mode and beta distribution parameters for 'edges'/'mix' modes
+        # user spatial distribution mode and beta parameters for 'edges'/'mix' modes
         self.user_distribution_mode: str = 'uniform'
         self.beta_a: float = 0.5
         self.beta_b: float = 0.5
@@ -112,10 +113,13 @@ class Config:
 
         # Satellite
         self.sat_nr: int = 1  # Number of satellites
-        # N=16 antennas, matching the reference paper's Fig. 3 scenario (see User section above).
-        # EE_SAT_TOT_ANT_NR env var override, see EE_USER_NR comment above -- unset leaves this unchanged.
-        self.sat_tot_ant_nr: int = int(os.environ.get('EE_SAT_TOT_ANT_NR', 16))  # Total number of  Tx antennas, should be a number larger than sat nr
-        self.sat_gain_dBi: float = 20  # Total sat TODO: Wert nochmal checken
+        # N=16 antennas (reference-paper Fig. 3); EE_SAT_TOT_ANT_NR can override
+        self.sat_tot_ant_nr: int = int(os.environ.get('EE_SAT_TOT_ANT_NR', 16))  # Total number of Tx antennas
+        # Satellite Tx gain. 30 dBi = TR 38.821 Set-1, LEO-600, S-band (Table
+        # 6.1.1.1-1) -- the set whose aperture/beamwidth also matches this array.
+        # Checkpoints trained before 2026-07-27 used 20 (the reference paper's
+        # value) -- evaluate those with EE_SAT_GAIN_DBI=20.
+        self.sat_gain_dBi: float = float(os.environ.get('EE_SAT_GAIN_DBI', 30))
         self.sat_dist_average: float = 100_000  # Average satellite distance in meter
         self.sat_dist_bound: float = 0  # Variance of sat distance in [0,1], uniform distribution [avg-bound, avg+bound]
         self.sat_center_aod_earth_deg: float = 90  # Average center of satellites

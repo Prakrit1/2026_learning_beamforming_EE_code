@@ -92,11 +92,8 @@ def train_sac_energy_effiency(
             progress_printer(progress=progress, real_time_start=real_time_start, logger=logger)
 
     def compute_mmse_action_and_reward():
-        """Compute the MMSE precoder and its reward on the CURRENT (pre-transition)
-        channel, so it lines up with state_current. This must run before
-        update_sim() mutates satellite_manager/user_manager in place -- see the
-        call site below for why the resulting experience is only assembled and
-        added later, once state_next for this same transition is known."""
+        """Compute the MMSE precoder and its reward on the current channel,
+        before update_sim() advances it."""
 
         # must use erroneous CSI, else the buffer distribution overstates CSI reliability
         w_mmse = mmse_precoder_normalized(
@@ -199,33 +196,10 @@ def train_sac_energy_effiency(
     }
     high_score = -np.inf
     high_scores = []
-    # Only ever assigned once the run clears is_past_dinkelbach_warmup
-    # (30-episode gate for the Dinkelbach-adaptive reward, see below) --
-    # every real production run (13,000 episodes) clears this long before
-    # returning, but a short run (e.g. a smoke test with training_episodes <
-    # the warmup) would hit an UnboundLocalError on the return statement
-    # without this default.
+    # default needed so short runs that never clear the Dinkelbach warmup can still return
     best_model_path = None
-    # Dinkelbach lambda: three mutually-exclusive update modes.
-    # Legacy (default): EMA of rate/power updated every step (window in steps,
-    # not episodes, via EE_DINKELBACH_LAMBDA_WINDOW_STEPS -- see __main__).
-    # Block (EE_DINKELBACH_BLOCK_EPISODES > 0): lambda is held FIXED for an
-    # entire block of N episodes while rate/power stats accumulate fresh (not
-    # blended with prior-lambda history), then lambda is updated once at the
-    # block boundary from that block's mean rate/power and the accumulators
-    # reset. This matches the block/outer-loop alternation classical Dinkelbach
-    # and its inexact extensions (Jin et al., arXiv:2312.10418) actually
-    # require, instead of a continuous EMA drifting on the same timescale as
-    # the actor/critic gradient updates -- see docs/EE_formulation.tex Section 6
-    # for why the EMA's "fixed inner problem" assumption doesn't hold as
-    # implemented.
-    # Fixed (EE_DINKELBACH_LAMBDA_FIXED set): lambda is a constant for the
-    # ENTIRE run, never updated at all -- takes priority over both modes above.
-    # Empirically, block-update (job 144104) tracked the EMA control almost
-    # exactly (see docs/EE_formulation.tex), which argues the update mechanism
-    # isn't the bottleneck -- this mode tests something more basic first: does
-    # the power penalty term have ANY effect on the learned policy at all, for
-    # a given constant lambda, before worrying about how lambda evolves.
+    # Dinkelbach lambda, three mutually exclusive update modes: per-step EMA
+    # (default), one update per block of N episodes, or held constant all run
     dinkelbach_lambda_fixed = getattr(config, 'dinkelbach_lambda_fixed', None)
     lambda_ee = dinkelbach_lambda_fixed if dinkelbach_lambda_fixed is not None else 0.0
     dinkelbach_rate_ema = None
@@ -236,10 +210,7 @@ def train_sac_energy_effiency(
     dinkelbach_block_rate_sum = 0.0
     dinkelbach_block_power_sum = 0.0
     dinkelbach_block_count = 0
-    # warmup before the EMA/block estimate has enough samples to be a meaningful
-    # rate/power ratio -- at least one full block, so checkpointing never fires
-    # before lambda has been updated from its lambda=0 initialization even once.
-    # Fixed mode needs no warmup at all (lambda is meaningful from episode 0).
+    # don't checkpoint before lambda has moved off its 0.0 initialization
     dinkelbach_high_score_warmup_episodes = (
         0 if dinkelbach_lambda_fixed is not None else max(30, dinkelbach_block_episodes)
     )
@@ -315,8 +286,7 @@ def train_sac_energy_effiency(
                 # step simulation based on action, determine reward
                 reward = 0
 
-                # Scheme I (paper's Eq. 26 normalization): always rescale to exactly
-                # power_constraint_watt, so tr{W^H W} is constant and d(power)/d(action) == 0.
+                # Scheme I: always rescale to the full budget, so power carries no gradient
                 if 'energy_efficiency' in config.config_learner.reward:
                     if raw_power_precoder < 1e-9:
                         energy_efficiency = 0.0
@@ -352,26 +322,9 @@ def train_sac_energy_effiency(
 
                     reward += config.config_learner.reward['energy_efficiency'] * energy_efficiency
 
-                # Uses raw_power_precoder (pre-clip), so the agent can genuinely be
-                # rewarded for transmitting below budget, unlike the Scheme I branch above.
-                #
-                # RATE term uses w_precoder -- the PHYSICALLY VALID, already-clipped
-                # (if it needed clipping) precoder from above; the satellite cannot
-                # actually transmit more than the power budget, so the achieved rate
-                # must reflect what's actually transmittable.
-                #
-                # POWER term uses raw_power_precoder UNCONDITIONALLY, not a value that
-                # collapses to the constant power_constraint_watt whenever the raw
-                # output exceeds budget (the previous version's "if over budget" branch
-                # substituted power_precoder, which IS exactly that constant post-clip).
-                # A constant contributes zero gradient -- it can't distinguish "5% over
-                # budget" from "1700% over budget", so the power penalty went dead
-                # exactly in the region the raw network output actually lived in (see
-                # preclip_power_diagnostic.py: the fixed-lambda checkpoints sat at
-                # 480-1700% of budget on ~98-99.8% of samples). Using raw_power_precoder
-                # here always gives a live, continuous gradient proportional to the
-                # actual violation size, everywhere, while the rate term above stays
-                # physically correct regardless.
+                # Rate uses the clipped (physically transmittable) precoder; the power
+                # penalty uses raw pre-clip power so its gradient stays alive when the
+                # network outputs more than the budget.
                 if 'energy_efficiency_no_normalization_fixed' in config.config_learner.reward:
                     w_precoder_raw = w_precoder
                     power_for_ee = raw_power_precoder
@@ -401,24 +354,11 @@ def train_sac_energy_effiency(
                         * energy_efficiency_no_normalization_fixed
                     )
 
-                # Dinkelbach: reward = rate - lambda*power, lambda tracks achieved EE.
-                # Avoids the raw ratio's blowup near power->0 while targeting the same
-                # optimum as lambda converges. Same clip-only power path as
-                # 'energy_efficiency_no_normalization_fixed' (agent is free to transmit
-                # below budget). Power divided by power_constraint_watt below to keep
-                # lambda O(1) -- raw Watts made the power penalty too weak relative to
-                # rate's own noise for the agent to learn to reduce power.
+                # Dinkelbach reward: rate - lambda * power, with lambda tracking the
+                # achieved rate/power ratio. Power is normalized by the budget to keep
+                # lambda O(1).
                 if 'energy_efficiency_dinkelbach_adaptive' in config.config_learner.reward:
-                    # Same fix as 'energy_efficiency_no_normalization_fixed' above: rate
-                    # term uses the physically-valid clipped w_precoder, power term uses
-                    # raw_power_precoder UNCONDITIONALLY instead of collapsing to the
-                    # constant power_precoder whenever over budget -- that constant was
-                    # the actual reason the fixed-lambda sweep (jobs 145428-145433) showed
-                    # zero power response to lambda: post-clip power stays pinned near
-                    # budget regardless of lambda specifically because the reward's power
-                    # term went flat/gradient-dead in exactly the region the raw output
-                    # lived in (480-1700% of budget on ~98-99.8% of samples, see
-                    # preclip_power_diagnostic.py).
+                    # same clipped-rate / raw-power split as the branch above
                     w_precoder_dinkelbach = w_precoder
                     power_dinkelbach = raw_power_precoder
 
@@ -443,12 +383,7 @@ def train_sac_energy_effiency(
                     episode_metrics['dinkelbach_rate_per_step'][training_step_id] = sum_rate_reward_dinkelbach
                     episode_metrics['dinkelbach_power_per_step'][training_step_id] = total_power_dinkelbach
 
-                    # Optional fairness term, same calc_jain_fairness()/additive
-                    # pattern already used in train_sac.py et al. -- reused
-                    # as-is, not reimplemented. Evaluated on the same
-                    # (physically-valid, clipped) w_precoder_dinkelbach/channel
-                    # used for the rate term above, so it rewards the actual
-                    # per-user rate spread the agent is being scored on.
+                    # optional Jain's fairness bonus, computed on the same clipped precoder as the rate
                     if 'fairness' in config.config_learner.reward:
                         fairness_reward_dinkelbach = calc_jain_fairness(
                             channel_state=satellite_manager.channel_state_information,
@@ -499,11 +434,8 @@ def train_sac_energy_effiency(
 
                 step_experience['reward'] = reward
 
-                # snapshot the MMSE precoder/reward on the PRE-transition channel now
-                # (before update_sim() advances satellite_manager/user_manager below),
-                # but only assemble and add the experience once state_next for THIS
-                # transition is known further down -- pairing it with a leftover
-                # state_next from a previous env/step was the original bug here.
+                # snapshot the MMSE sample on the current channel before update_sim()
+                # advances it; the experience is only added once state_next is known
                 add_mmse_sample = config.rng.random() < config.config_learner.percentage_mmse_samples_added_to_exp_buffer
                 if add_mmse_sample:
                     w_mmse, reward_mmse = compute_mmse_action_and_reward()
@@ -524,10 +456,8 @@ def train_sac_energy_effiency(
 
                 sac.add_experience(experience=step_experience)
 
-                # now that state_next is correct for this transition, add the MMSE
-                # experience too (environment evolution is exogenous/action-independent,
-                # so the same state_next is valid for the hypothetical "MMSE instead of
-                # SAC" transition)
+                # transitions are action-independent, so the same state_next is valid
+                # for the hypothetical MMSE action
                 if add_mmse_sample and (
                         reward_mmse > reward or not config.config_learner.only_add_mmse_samples_with_greater_reward
                 ):
@@ -578,16 +508,7 @@ def train_sac_energy_effiency(
         if config.verbosity > 0:
             print('\r', end='')  # clear console for logging results
         progress_print(to_log=True)
-        # entropy_scale_alpha: never logged before this session -- also never
-        # persisted in the saved checkpoint (save_model_checkpoint only saves
-        # policy network weights), so this is the ONLY way to ever observe
-        # how far this codebase's ADAPTIVE alpha (standard Haarnoja et al.
-        # dual-gradient-descent entropy tuning against target_entropy) drifts
-        # from its initial value over training. The reference paper (Schroder
-        # et al., Table 4 "Entropy Scale zeta_e = 1.0") uses a FIXED entropy
-        # scale for the entire run, no adaptive tuning at all -- this log
-        # line is what lets that comparison actually be checked empirically
-        # instead of assumed.
+        # alpha isn't saved in checkpoints, so this log line is the only record of its drift
         current_entropy_scale_alpha = float(tf.exp(sac.log_entropy_scale_alpha).numpy())
         logger.info(
             f'Episode {training_episode_id}:'
@@ -600,11 +521,8 @@ def train_sac_energy_effiency(
         )
         logger.info(f'Starting training: name={config.config_learner.training_name}, reward={config.config_learner.reward}')
 
-        # checkpoint_score for Dinkelbach must be the achieved EE ratio (mean rate/mean
-        # power), not the raw reward: rate - lambda*power trends toward 0 as lambda
-        # converges (Dinkelbach fixed point), so a running max over raw reward always
-        # picks an early, undertrained episode instead. episode_mean_power below is in
-        # reward-scale units (/power_constraint_watt), not raw Watts.
+        # For Dinkelbach, score checkpoints by achieved EE (rate/power): the raw
+        # reward trends to 0 as lambda converges, so it can't rank episodes.
         checkpoint_score = episode_mean_reward
         if 'energy_efficiency_dinkelbach_adaptive' in config.config_learner.reward:
             episode_mean_rate = np.nanmean(episode_metrics['dinkelbach_rate_per_step'])
@@ -631,8 +549,7 @@ def train_sac_energy_effiency(
                         f'block mean power {block_mean_power:.4f} x budget '
                         f'= {block_mean_power * config.power_constraint_watt:.2f} W DC draw)'
                     )
-                    # reset for the next block -- fresh, non-blended batch,
-                    # not carried-over history computed under a stale lambda
+                    # start the next block with fresh stats
                     dinkelbach_block_rate_sum = 0.0
                     dinkelbach_block_power_sum = 0.0
                     dinkelbach_block_count = 0
@@ -682,82 +599,52 @@ if __name__ == '__main__':
     # env var lets multiple sbatch jobs select a reward variant off the same source
     reward_mode = os.environ.get('EE_REWARD_MODE')
 
-    # fixed CSIT error to train under (paper trains one model per fixed Delta-epsilon_aod
-    # rather than only at zero error); defaults to 0.0 for unchanged folder names
+    # fixed CSIT error bound to train under; 0.0 keeps legacy folder names
     error_bound = float(os.environ.get('EE_TRAIN_ERROR_BOUND', 0.0))
     cfg.config_error_model.error_rng_parametrizations['additive_error_on_cosine_of_aod']['args']['low'] = -error_bound
     cfg.config_error_model.error_rng_parametrizations['additive_error_on_cosine_of_aod']['args']['high'] = error_bound
     error_suffix = f'_aod{error_bound}' if error_bound != 0.0 else ''
 
-    # Dinkelbach lambda EMA window in steps, only used for the dinkelbach_adaptive reward.
-    # A window of 200 (less than one 960-step episode) diverged to NaN around episode
-    # ~1000; 5000 (wider than one episode) is smooth enough while still updating every step.
+    # Dinkelbach lambda EMA window in steps; windows shorter than one episode diverged
     dinkelbach_lambda_window_steps = int(os.environ.get('EE_DINKELBACH_LAMBDA_WINDOW_STEPS', 5000))
     cfg.dinkelbach_lambda_window_steps = dinkelbach_lambda_window_steps
 
-    # Block-update mode: hold lambda fixed for N consecutive episodes (fresh
-    # rate/power stats accumulated over exactly that block), then update once
-    # from the block average and reset -- matches the block/outer-loop
-    # alternation the classical Dinkelbach scheme and its inexact extensions
-    # actually require, instead of a continuous per-step EMA drifting on the
-    # same timescale as the actor/critic gradient updates. 0 (default)
-    # preserves the legacy EMA behavior above; when > 0 this takes over and
-    # EE_DINKELBACH_LAMBDA_WINDOW_STEPS is ignored.
+    # block mode: hold lambda fixed for N episodes, update once from the block
+    # average; 0 (default) keeps the per-step EMA
     dinkelbach_block_episodes = int(os.environ.get('EE_DINKELBACH_BLOCK_EPISODES', 0))
     cfg.dinkelbach_block_episodes = dinkelbach_block_episodes
 
-    # Fixed-lambda mode: hold lambda CONSTANT for the entire run, never updated
-    # (takes priority over both EMA and block modes above). Tests something
-    # more basic than either: does the power penalty term have any effect on
-    # the learned policy at all, for a given constant lambda -- before trusting
-    # any conclusion about how lambda should be updated over time. Unset
-    # (default) preserves whichever of the two modes above is selected. Uses a
-    # string sentinel (not a float env var defaulting to some number) because
-    # 0.0 is itself a value worth testing and must be distinguishable from
-    # "not set".
+    # fixed mode: hold lambda constant for the whole run (overrides both modes
+    # above); string sentinel so 0.0 is distinguishable from "not set"
     _dinkelbach_lambda_fixed_str = os.environ.get('EE_DINKELBACH_LAMBDA_FIXED')
     dinkelbach_lambda_fixed = (
         float(_dinkelbach_lambda_fixed_str) if _dinkelbach_lambda_fixed_str is not None else None
     )
     cfg.dinkelbach_lambda_fixed = dinkelbach_lambda_fixed
 
-    # PA efficiency override, for ablating eta_PA independently of system size (N, K)
-    # -- see config.py's pa_efficiency comment. Defaults to the config.py value so
-    # runs that don't set this env var are unaffected.
+    # PA efficiency override for eta ablations
     cfg.pa_efficiency = float(os.environ.get('EE_PA_EFFICIENCY', cfg.pa_efficiency))
 
-    # tag training_name with (N, K) so runs under different system sizes never share a folder
-    system_suffix = f'_N{cfg.sat_tot_ant_nr}K{cfg.user_nr}'
+    # tag training_name with (N, K) plus any non-legacy gain/power/elevation, so runs
+    # under different system parameters never share a checkpoint folder (legacy
+    # pre-2026-07-27 checkpoints were all trained at 20 dBi / 100 W / nadir)
+    gain_suffix = f'_satg{cfg.sat_gain_dBi:g}' if cfg.sat_gain_dBi != 20 else ''
+    power_suffix = f'_p{cfg.power_constraint_watt:g}' if cfg.power_constraint_watt != 100 else ''
+    _target_elevation_deg = os.environ.get('EE_TARGET_ELEVATION_DEG')
+    elevation_suffix = f'_elev{float(_target_elevation_deg):g}' if _target_elevation_deg is not None else ''
+    system_suffix = f'_N{cfg.sat_tot_ant_nr}K{cfg.user_nr}{gain_suffix}{power_suffix}{elevation_suffix}'
 
     # tag training_name with pa_efficiency so checkpoints trained under different eta never mix
     eta_suffix = f'_eta{cfg.pa_efficiency}'
 
-    # Probability [0.0, 1.0] per step of injecting the MMSE precoder (on the current
-    # erroneous channel) into the replay buffer as an expert demonstration -- see
-    # add_mmse_experience/compute_mmse_action_and_reward above. Testing whether bootstrapping
-    # from MMSE helps SAC actually reach MMSE's near-optimal performance at low CSIT
-    # error, instead of the flat, error-insensitive curve seen without it.
+    # probability per step of injecting an MMSE expert demonstration into the replay buffer
     mmse_inject_prob = float(os.environ.get('EE_MMSE_INJECT_PROB', 0.0))
     cfg.config_learner.percentage_mmse_samples_added_to_exp_buffer = mmse_inject_prob
     mmse_suffix = f'_mmse{mmse_inject_prob}' if mmse_inject_prob != 0.0 else ''
 
-    # Target entropy override -- tests the "entropy floor" hypothesis: is
-    # target_entropy=1.0 (config_sac_learner.py, fixed regardless of N/K;
-    # its own comment "SAC heuristic impl. = product of action_space.shape"
-    # suggests it was set for a much smaller action space and never rescaled)
-    # acting as a floor that prevents the policy from ever sharpening toward
-    # near-deterministic, near-optimal precoding at N16K3's much larger
-    # ~96-dim action space? Lower target_entropy lets alpha shrink over
-    # training (see soft_actor_critic.py's alpha_loss: alpha increases when
-    # actual policy entropy exceeds target_entropy, decreases when it falls
-    # below), permitting lower actual entropy -- i.e. less residual action
-    # noise -- once the value function no longer needs it. Must override
-    # BOTH training_args (for logging/consistency) and algorithm_args
-    # directly: algorithm_args is built once in _post_init() as
-    # {**training_args, ...}, a shallow copy of scalar values, so editing
-    # training_args alone after Config() construction would silently not
-    # take effect. Defaults to the config.py value (1.0, unset) so runs that
-    # don't set this env var are unaffected.
+    # target_entropy override (config default 1.0 was tuned for a much smaller
+    # action space); must set BOTH training_args and algorithm_args -- the
+    # latter is a shallow copy, so editing training_args alone wouldn't take
     target_entropy_override = os.environ.get('EE_TARGET_ENTROPY')
     if target_entropy_override is not None:
         target_entropy_value = float(target_entropy_override)
@@ -767,30 +654,9 @@ if __name__ == '__main__':
     else:
         entropy_suffix = ''
 
-    # Entropy-scale LR override -- tests the "adaptive-vs-fixed entropy
-    # scale" hypothesis, which is more precisely targeted than the
-    # target_entropy override above. The reference paper (Schroder et al.,
-    # Table 4: "Entropy Scale zeta_e = 1.0") uses a FIXED entropy scale for
-    # the ENTIRE training run (see the paper's Eq. 20: L_mu = L_mu,1 +
-    # exp(zeta_e)*L_mu,2, a constant balancing factor) -- no adaptive tuning
-    # against a target entropy at all, nowhere in the paper's SAC
-    # description. This codebase's actual soft_actor_critic.py instead
-    # implements standard Haarnoja et al. ADAPTIVE entropy tuning
-    # (log_entropy_scale_alpha is a trainable variable, updated every step
-    # via its own optimizer against target_entropy) -- a different algorithm
-    # than what the paper validated, even though both start at alpha=1.0.
-    # config_sac_learner.py's own comment on entropy_scale_optimizer_args
-    # ('LR=0.0 -> No adaptive entropy scale -> manually tune initial entropy
-    # scale') already flags that LR=0.0 recovers the paper's fixed-scale
-    # behavior -- but the actual default is 1e-3 (adaptive ON), not 0.0.
-    # Setting EE_ENTROPY_SCALE_LR=0.0 pins alpha at entropy_scale_alpha_initial
-    # (1.0, matching the paper's zeta_e exactly) for the whole run.
-    # entropy_scale_optimizer_args is a dict NESTED inside training_args, and
-    # algorithm_args's shallow copy shares that nested dict BY REFERENCE
-    # (unlike scalar values such as target_entropy) -- so mutating it via
-    # training_args alone is sufficient, no separate algorithm_args override
-    # needed here. Defaults to the config.py value (1e-3, unset) so runs that
-    # don't set this env var are unaffected.
+    # entropy-scale LR override; 0.0 pins alpha at its initial value (the
+    # reference paper's fixed-entropy-scale behavior). The nested optimizer
+    # dict is shared by reference, so editing training_args alone is enough.
     entropy_scale_lr_override = os.environ.get('EE_ENTROPY_SCALE_LR')
     if entropy_scale_lr_override is not None:
         entropy_scale_lr_value = float(entropy_scale_lr_override)
@@ -799,16 +665,7 @@ if __name__ == '__main__':
     else:
         entropy_scale_lr_suffix = ''
 
-    # Hidden layer width override -- tests the "network capacity" hypothesis:
-    # is hidden_layer_units=[512,512,512,512] (config_sac_learner.py, fixed
-    # regardless of N/K) under-capacity for N16K3's state/action space
-    # relative to N8K2's much smaller one? Comma-separated list of ints,
-    # applied to both the value and policy networks. cfg.config_learner.
-    # network_args is the SAME dict object referenced inside algorithm_args
-    # (_post_init does 'network_args': self.network_args, not a copy), so
-    # editing it here correctly propagates without a separate algorithm_args
-    # update. Defaults to unchanged so runs that don't set this env var are
-    # unaffected.
+    # hidden layer width override, comma-separated ints (network capacity ablation)
     hidden_layer_units_override = os.environ.get('EE_HIDDEN_LAYER_UNITS')
     if hidden_layer_units_override is not None:
         hidden_layer_units_value = [int(u) for u in hidden_layer_units_override.split(',')]
@@ -818,15 +675,8 @@ if __name__ == '__main__':
     else:
         capacity_suffix = ''
 
-    # Actor/critic learning rate override -- lets a run use the per-error-bound
-    # rates found by the Optuna searches (outputs/optuna_studies/
-    # energy_efficiency_dinkelbach_adaptive_aod{0.0,0.025,0.05}.db, see
-    # src/models/optuna_train_EE.py) instead of config_sac_learner.py's fixed
-    # defaults (shared across all three error bounds even though the searches
-    # found materially different optima for each). Both must be set together
-    # (a partial override would silently retrain with a hybrid the search
-    # never evaluated). Defaults to unset so runs that don't set these env
-    # vars are unaffected.
+    # actor/critic LR override for the Optuna-tuned per-error-bound rates;
+    # both must be set together
     lr_critic_override = os.environ.get('EE_LR_CRITIC')
     lr_actor_override = os.environ.get('EE_LR_ACTOR')
     if lr_critic_override is not None or lr_actor_override is not None:
@@ -841,34 +691,12 @@ if __name__ == '__main__':
     else:
         lr_suffix = ''
 
-    # Optional Jain's-fairness reward term (calc_jain_fairness, reused as-is
-    # from train_sac.py et al. -- see the 'fairness' branch inside the
-    # energy_efficiency_dinkelbach_adaptive reward block above). Off by
-    # default (weight 0.0 means the 'fairness' key is never added to
-    # cfg.config_learner.reward, so unset runs are bit-identical to before).
+    # optional Jain's-fairness reward weight; 0.0 (default) leaves the reward untouched
     fairness_weight = float(os.environ.get('EE_FAIRNESS_WEIGHT', 0.0))
     fairness_suffix = f'_fair{fairness_weight}' if fairness_weight != 0.0 else ''
 
-    # Action-bound-mode override -- tests the "unbounded actor output"
-    # hypothesis: PolicyNetworkSoft's output_layer_means (network_models.py)
-    # is a plain linear Dense layer with no squashing, and
-    # action_bound_mode defaults to None (config_sac_learner.py) -- nothing
-    # structurally keeps the raw precoder magnitude near the power budget's
-    # scale. Combined with clip-only precoding (norm_precoder.py's
-    # clip_precoder_to_power_budget) pinning both the TRANSMITTED power and
-    # the REWARD's power term to the budget whenever the raw output exceeds
-    # it -- true regardless of whether the raw output is 5x or 1700% over --
-    # there is no gradient pulling the raw magnitude back down once it
-    # drifts past the budget scale, and the pre-clip power diagnostic
-    # (src/energy_efficiency/preclip_power_diagnostic.py) confirmed the
-    # fixed-lambda checkpoints sit at 480-1700% of budget on average. This
-    # is fully-implemented, tested infrastructure (see
-    # src/models/helpers/bound_action.py's proper Haarnoja et al. tanh
-    # log-prob correction) that has simply never been turned on for any EE
-    # run. 'tanh' bounds actions to (-1, 1) per component BEFORE they become
-    # precoder weights, giving the raw output a fixed, finite ceiling
-    # instead of an unconstrained one. Defaults to the config.py value
-    # (None, unset) so runs that don't set this env var are unaffected.
+    # action_bound_mode override; 'tanh' bounds raw actor outputs to (-1, 1)
+    # so the raw precoder magnitude has a finite ceiling
     action_bound_mode_override = os.environ.get('EE_ACTION_BOUND_MODE')
     if action_bound_mode_override is not None:
         cfg.config_learner.action_bound_mode = action_bound_mode_override
@@ -877,15 +705,8 @@ if __name__ == '__main__':
     else:
         bound_suffix = ''
 
-    # Marks checkpoints trained under the fixed reward computation (power
-    # term uses raw_power_precoder unconditionally, see the
-    # energy_efficiency_no_normalization_fixed/energy_efficiency_dinkelbach_adaptive
-    # branches above) -- NOT an env var toggle, this is a permanent
-    # correctness fix applied to both reward modes from now on, but existing
-    # checkpoints under e.g. 'EE_dinkelbach_adaptive_aod0.5_lwin5000_N16K3_eta0.6'
-    # were trained under the OLD (gradient-dead-once-over-budget) reward and
-    # are not a fair comparison -- this suffix keeps new runs from silently
-    # landing in the same folder and getting mixed in with those.
+    # permanent marker for the raw-power reward fix -- keeps new runs out of the
+    # folders of old checkpoints trained on the gradient-dead reward
     rawpow_suffix = '_rawpow'
 
     if reward_mode == 'energy_efficiency':
@@ -898,9 +719,7 @@ if __name__ == '__main__':
         cfg.config_learner.reward = {'energy_efficiency_dinkelbach_adaptive': 1.0}
         if fairness_weight != 0.0:
             cfg.config_learner.reward['fairness'] = fairness_weight
-        # lambda_mode_suffix keeps EMA-window, block-update, and fixed-lambda
-        # runs (and different block sizes/windows/lambda values) from ever
-        # sharing a checkpoint folder
+        # keep EMA/block/fixed-lambda runs in separate checkpoint folders
         if dinkelbach_lambda_fixed is not None:
             lambda_mode_suffix = f'_lambdafixed{dinkelbach_lambda_fixed}'
         elif dinkelbach_block_episodes > 0:
