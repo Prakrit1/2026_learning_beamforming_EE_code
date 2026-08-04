@@ -1,58 +1,30 @@
 I'm working on RSMA/energy-efficiency beamforming for satellite downlink.
 This is a continuation session -- read this whole file before doing anything.
-This handoff REPLACES all previous ones (both the copy in this repo and the
-one in the sibling repo below) and has been trimmed to keep only what's
-still relevant. Current as of 2026-07-31, ~14:30 CEST (NEWEST: jobs
-155291-94 (the 2026-07-30 ema0.3+warmstart detlam retrains) all completed
-cleanly, but the full detlam eval suite run against them (jobs 155655-59)
-found NO IMPROVEMENT on the key matched-power-MMSE-gap question -- worse for
-aod=0.0, better for aod=0.05, net a wash, not the fix hoped for. Re-read
-docs/EE_formulation.tex closely per user request and found the deterministic-
-lambda ("detlam") line of work may have been solving the wrong problem: the
-doc's own Sec 6.3 identifies a non-annealed target_entropy as the documented
-cause of exactly the rollout-noise-inflation bias that motivated detlam in
-the first place, and prescribes ANNEALING target_entropy as the fix -- not
-changing lambda's estimator. Implemented target_entropy annealing (target_
-entropy is now a tf.Variable in soft_actor_critic.py with a set_target_
-entropy() setter, so mutating it mid-training actually reaches the already-
-@tf.function-traced train_graph -- a plain float would have silently no-
-opped), smoke-tested (job 155670, decisively confirmed working), and
-launched a pilot (job 155683: aod=0.05, back to the ORIGINAL lwin5000 lambda
-mode, target_entropy annealed 1.0->0.0 over the full 13,000-episode run) --
-RUNNING (node miami, episode ~4765/13000 as of handoff time). Separately,
-discussed and implemented a completely different side approach per user
-request: instead of pricing power in the reward (Dinkelbach), feed the power
-BUDGET to the actor as an extra state input (sampled log-uniform per
-transition), always rescale to exactly that budget, reward = pure rate --
-learns the rate-maximizing frontier r*(H,P) in one network, meant to let the
-EE-optimal point be found via a cheap OFFLINE grid search afterwards instead
-of a live concurrently-trained multiplier. New EE_REWARD_MODE=energy_
-efficiency_power_conditioned in EE_sac.py, smoke-tested (job 155695 caught a
-real bug -- a hardcoded reward-key whitelist didn't know the new key, fixed;
-job 155696 clean pass), launched as a pilot (job 155697: aod=0.05, budget
-log-uniform in [1,75] W) -- RUNNING (node airmont, episode ~2611/13000 as of
-handoff time, reward climbing 0.5->2.3). Both pilots run CONCURRENTLY and
-are independent; see the "2026-07-31 session" section below for full detail,
-including a minor non-fatal shared-log-file race condition (log.txt rotation
-collision) discovered from running two EE_sac.py jobs at once. Previous
-state, 2026-07-30 ~16:10: SIX 2026-07-29 detlam jobs resolved (four
-completed cleanly, aod=0.025 pair diverged, ignored per user instruction);
-the four completed checkpoints evaluated and found to underperform (matched-
-power MMSE beat SAC by 45-66%, worse than the pre-fix system's ~31%); log
-analysis showed aod=0.0 was undertrained (lambda/rate still rising at
-episode 13000); EMA smoothing + warm-start added to EE_sac.py and four
-retrains launched (jobs 155291-94) -- see the "2026-07-30 session" section.
-Previous state, 2026-07-29 ~10:30: the lambda/over-transmission decision was
-made -- FIX via deterministic-lambda mode, option (b) -- implemented in
-EE_sac.py and SIX nadir detlam training jobs launched; see the "2026-07-29
-session" section. Previous state, 2026-07-28: the two 3GPP training runs
-COMPLETED and were fully evaluated; matched-power MMSE comparison added;
-over-transmission/lambda finding; my_evaluation.py + my_plotting.py reworked
-to 3GPP-only per explicit user decisions; figure folder curated -- ALL in
-the big "2026-07-28 session" section below. The two 2026-07-27 sections
-cover the parameter check + launch; main body current as of 2026-07-23; the
-2026-07-24 distance sweep, job 153071, is on disk but not written up here
-beyond passing mentions).
+This handoff REPLACES all previous ones. Current as of 2026-08-04.
+
+**CURRENT STATE, in one paragraph:** the working line is plain `lwin5000`
+EMA-Dinkelbach SAC, 3GPP params (30 dBi / 75 W), **nadir** geometry. Two
+checkpoints exist: aod=0.0 (`EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_
+p75_eta0.6_rawpow`, job 156358) and aod=0.05
+(`EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow`,
+job 153655), plus the old "regular" always-100W baseline
+(`full_EE_aod0.5_N16K3_eta0.6`) kept for spatial/beampattern comparisons.
+Everything else this project tried between 2026-07-29 and 2026-07-31 --
+deterministic-lambda ("detlam"), EMA-smoothing + warm-start on top of it,
+target-entropy annealing ("tanneal"), and the power-conditioned reward mode
+-- was evaluated, found to NOT close the matched-power-MMSE gap (stayed in
+the 43-66% range throughout), and was **reverted and then deleted from disk**
+on 2026-08-03/08-04 (see those two sessions at the end of this file for why,
+and "Repo cleanup, 2026-08-04" for exactly what was removed). Likewise the
+elev30 geometry (structural dropped-user problem), the fairness-weight sweep,
+old pre-3GPP checkpoints, and Optuna LR-tuned variants were deleted -- they
+are NOT abandoned as findings (the reasoning/conclusions are kept below as
+history), but their checkpoints, gzips, and scripts no longer exist on disk.
+**Read the "Repo cleanup, 2026-08-04" section before trusting any specific
+file path, checkpoint name, or job number mentioned in the sessions below --
+most no longer exist; git history has them if ever needed.** The sessions
+2026-07-23 through 2026-08-03 are kept as narrative/reasoning history, not as
+an accurate map of current disk contents.
 
 ## IMPORTANT: this repo is now the canonical one -- work here, not in the sibling repo
 
@@ -67,28 +39,21 @@ git archaeology is ever needed. This repo was created as a `git worktree`
 off that repo (shares its `.git` object store/remote, NOT a separate
 clone), pushed to `origin` (github.com/Prakrit1/2026_learning_beamforming_EE_code).
 
-**What's committed to git here** (one commit so far, c805e90): the full
-transitive import closure from every EE entry-point script (src/energy_efficiency/*.py
-and *.slurm, EE_sac.py, optuna_train_EE.py, generate_beampatterns.py,
-plot_beam_patterns.py, and everything they import), PLUS src/config/config.py,
-config_error_model.py, config_sac_learner.py (force-included even though
-upstream-gitignored -- reproducibility requires the actual active N16K3/
-error-model config, not just .default templates), reference PDFs, docs/,
-reports/figures/pdf/, this handoff file, and root scaffolding. See that
-commit for the exhaustive inclusion/exclusion list if needed.
+**What's committed to git** (9 commits as of 2026-08-04, `git log` is
+authoritative): the full transitive import closure from every surviving EE
+entry-point script, config.py/config_error_model.py/config_sac_learner.py
+(force-included even though upstream-gitignored), reference PDFs, docs/,
+reports/figures/pdf/, this handoff file, and root scaffolding. The
+2026-08-04 cleanup deleted ~110 now-dead scripts/.slurm files from
+src/energy_efficiency/ as uncommitted working-tree changes (see "Repo
+cleanup, 2026-08-04") -- not yet committed as of this writing.
 
-**What's on disk but NOT in git** (gitignored, matches the original repo's
-convention): `models/` (checkpoints, ~2.3GB+) and `outputs/metrics/` +
-`outputs/optuna_studies/*.db`. Checkpoint sync from the original repo is
-MANUAL -- as of this handoff, models/ here has all three "final" EE
-checkpoints (aod=0.0/0.025/0.05) AND all four aod=0.05 fairness variants
-(baseline + fair0.5/1.5/3.0), freshly re-synced today (see "Today's work"
-below -- the fair0.5 copy from a prior session had actually been stale,
-copied mid-training before it converged; this was caught and fixed today).
-If a checkpoint you need isn't here, it needs an explicit
-`rsync -a --delete <source>/models/<name>/ <here>/models/<name>/` from the
-original repo -- don't assume it's already synced just because it's
-referenced in this file.
+**What's on disk but NOT in git** (gitignored): `models/` (checkpoints) and
+`outputs/metrics/` + `outputs/optuna_studies/`. After the 2026-08-04 cleanup,
+`models/` holds only the 3 checkpoints named above (~173M, down from
+~2.9G). Checkpoint sync from the original repo is still MANUAL if a
+checkpoint not listed above is ever needed again --
+`rsync -a --delete <source>/models/<name>/ <here>/models/<name>/`.
 
 **GitHub auth note**: this machine's stored git credential had an expired
 token when this branch was first pushed -- user generated a new PAT via
@@ -1107,169 +1072,82 @@ of efficiency" clarification (PA efficiency vs. antenna aperture
 efficiency vs. antenna radiation efficiency) live in the original repo's
 handoff/git history -- not reproduced here since unchanged and unactioned.
 
-## Current file states (this repo, updated 2026-07-31)
+## Current file states (updated 2026-08-04, post-cleanup -- see "Repo cleanup, 2026-08-04" at the end of this file for full detail)
 
-- **MODIFIED (uncommitted, growing): src/models/EE_sac.py** -- now carries
-  FIVE 2026-07-29/30/31 additions on top of the raw-power fix: (1) the
-  deterministic-lambda mode itself (option b, 2026-07-29), (2) optional EMA
-  smoothing of that mode's updates (`EE_LAMBDA_DET_EMA_ALPHA`, 2026-07-30),
-  (3) optional warm-start-from-checkpoint (`EE_WARM_START_MODEL_PATH`,
-  2026-07-30), (4) target_entropy annealing (`EE_TARGET_ENTROPY_ANNEAL_END`/
-  `_EPISODES`, 2026-07-31), (5) power-conditioned reward mode
-  (`EE_REWARD_MODE=energy_efficiency_power_conditioned` +
-  `EE_POWER_COND_MIN_WATT`/`_MAX_WATT`/`_SAMPLING`, 2026-07-31). See the
-  2026-07-29/30/31 sections.
-- **MODIFIED (uncommitted, NEW 2026-07-31): src/models/algorithms/
-  soft_actor_critic.py** -- first-ever edit to this file this project
-  (previous sessions deliberately kept lambda-mechanism changes scoped to
-  EE_sac.py). `target_entropy` changed from a plain float to a `tf.Variable`
-  + new `set_target_entropy()` setter -- required for annealing to actually
-  reach the already-`@tf.function`-traced `train_graph` (a plain float would
-  silently no-op after first trace). See the 2026-07-31 section.
-- **MODIFIED (uncommitted): my_evaluation.py, my_plotting.py** --
-  rewritten to 3GPP-only + benchmark plotting, see the 2026-07-28
-  section for exactly what and why (user-approved).
-- **NEW (untracked, 2026-07-31): `_ema_warmstart`-suffixed detlam eval set**
-  -- my_evaluation_detlam_ema_warmstart.py, my_plotting_detlam_ema_warmstart.py,
-  rate_power_detlam_ema_warmstart.py, mmse_matched_power_detlam_ema_warmstart.py,
-  beampattern_detlam_ema_warmstart.py + matching .slurm files (all in
-  src/energy_efficiency/) -- evaluated jobs 155291-94 against MMSE/pre-fix/
-  pre-ema-detlam, verdict: no improvement (see 2026-07-31 section).
-- **NEW (untracked, 2026-07-31): entropy-annealing set** --
-  smoke_test_target_entropy_anneal.py + .slurm (job 155670, passed);
-  EE_dinkelbach_rawpow_aod0.05_satg30_p75_nadir_tanneal1to0.slurm (launched
-  job 155683, RUNNING).
-- **NEW (untracked, 2026-07-31): power-conditioned set** --
-  smoke_test_power_conditioned.py + .slurm (jobs 155695 failed/caught a
-  bug, 155696 passed); EE_power_conditioned_aod0.05_satg30_p75_nadir_pilot.slurm
-  (launched job 155697, RUNNING).
-- **NEW (untracked, 2026-07-30): detlam evaluation script set** --
-  my_evaluation_detlam.py, my_plotting_detlam.py, rate_power_detlam.py,
-  mmse_matched_power_detlam.py, beampattern_detlam.py, and their .slurm
-  files (all in src/energy_efficiency/); plus smoke_test_detlam_ema_
-  warmstart.py + .slurm; plus the four new training .slurm files
-  (EE_dinkelbach_rawpow_aod{0.0,0.05}_satg30_p75_nadir_detlam_ema0.3_
-  warmstart[_fair1.5].slurm) that launched jobs 155291-94.
-- **NEW (untracked): the six 2026-07-29 detlam training .slurm files**
-  (EE_dinkelbach_rawpow_aod{0.0,0.025,0.05}_satg30_p75_nadir_detlam[_fair1.5].slurm) --
-  aod=0.025 pair produced diverged runs, not retried; the other four are
-  now superseded by the 2026-07-30 ema+warmstart retrains (which are
-  themselves now superseded-in-relevance by the 2026-07-31 entropy-anneal
-  pilot) but the files themselves are still on disk/untracked.
-- **NEW (untracked): the 2026-07-28 script set** -- rate_power_3gpp_pilots.py,
-  tx_power_3gpp_pilots.py, beampattern_3gpp_pilots.py,
-  ee_power_scaling_diagnostic.py, and their .slurm files, plus
-  my_evaluation_3gpp.slurm / my_plotting_3gpp.slurm; also still
-  untracked from earlier sessions: beampattern_full_comparison.py +
-  2 .slurm, the ported fairness_evaluation.py / beampattern_fairness_comparison.py
-  (+ .slurm) and extended beampattern_robustness_analysis.py, and the
-  2026-07-27 training .slurm pair.
-- **reports/figures/pdf/**: now also has error_sweep_detlam_vs_prefix_
-  sumrate.pdf, rate_power_detlam.pdf, beampattern_detlam_realization0.pdf
-  (2026-07-30) plus error_sweep_detlam_emaws_vs_prefix_sumrate.pdf,
-  rate_power_detlam_ema_warmstart.pdf, beampattern_detlam_emaws_realization0.pdf
-  (2026-07-31, all untracked) on top of the 2026-07-28 state: pdf/ = 2
-  figures only (from my_plotting.py) + these 6 new ones;
-  pdf_archive/ = 20 moved PDFs (untracked dir); 11 PDFs deleted
-  (regenerable) -- full prior detail in the 2026-07-28 section. Git sees
-  tracked-PDF deletions/moves as uncommitted changes.
-- **models/**: aod=0.0/0.025/0.05 finals, 4 fairness variants, the two
-  2026-07-27 3GPP checkpoints (..._satg30_p75_eta0.6_rawpow and
-  ..._satg30_p75_elev30_eta0.6_rawpow), the four completed 2026-07-29
-  detlam checkpoints (plain + fair1.5, aod0.0/aod0.05), partial/incomplete
-  checkpoints for the two diverged aod=0.025 detlam runs, and the four
-  completed 2026-07-30 `..._ema0.3..._warmstart` checkpoints (see 2026-07-30
-  section for exact folder names). Once jobs 155683/155697 finish: two more
-  checkpoints, `EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_
-  eta0.6_tanneal1to0_rawpow` and
-  `EE_power_conditioned_aod0.05_N16K3_satg30_p75_eta0.6_rawpow_pcond1to75log_uniform`.
-  All gitignored, disk-only.
-- **tx_power_distribution.py, classical_baselines_*.py,
-  channel_correlation_*.py, beampattern_ee_vs_regular.py,
-  beampattern_across_error_models.py**: untouched since curation; the
-  first still targets old checkpoints -- don't run it under the new
-  defaults (overwrite/validity, see 2026-07-28 section).
+- **src/models/EE_sac.py, src/models/algorithms/soft_actor_critic.py**:
+  reverted to plain `lwin5000` EMA-Dinkelbach mode on 2026-08-03 (commit
+  921ab66 state) -- no detlam/EMA-smoothing/warm-start/entropy-anneal/
+  power-conditioned code paths exist in either file anymore. The pre-revert
+  version is recoverable via `git stash list` if ever wanted back (see
+  2026-08-03 section).
+- **models/**: exactly 3 checkpoints -- the aod=0.0 nadir 3GPP checkpoint
+  (job 156358), the aod=0.05 nadir 3GPP checkpoint (job 153655), and the
+  old `full_EE_aod0.5_N16K3_eta0.6` 100W baseline. Gitignored, disk-only,
+  ~173M total.
+- **outputs/metrics/**: 8 subfolders -- eval data for the 3 kept
+  checkpoints, classical-baseline (MMSE/MRT/ZF) data, channel-correlation
+  physics validation, and the distance sweep. Gitignored, disk-only.
+- **src/energy_efficiency/**: 19 `.py` + 20 `.slurm` files remain (down
+  from ~150). Current pipeline: `my_evaluation.py`, `my_plotting.py`
+  (+ `my_evaluation_3gpp.slurm`, `my_plotting_3gpp.slurm`),
+  `rate_power_3gpp_pilots.py`, `tx_power_3gpp_pilots.py`,
+  `beampattern_3gpp_nadir_aod0.py`, `beampattern_3gpp_pilots.py`, the two
+  nadir training launchers (`EE_dinkelbach_rawpow_aod{0.0,0.05}_satg30_
+  p75_nadir.slurm`), classical-baseline/channel-correlation/distance-sweep
+  scripts, a handful of still-relevant smoke tests, and reference-doc
+  extractors. Everything tied only to detlam/EMA-warmstart/tanneal/
+  power-conditioned/elev30/fairness/old-system/Optuna-LR was deleted.
+- **reports/figures/pdf/parajuli.pdf**: still reflects the OLD detlam
+  checkpoint (last regenerated before the 2026-08-03 revert) -- NOT
+  regenerated against the current keeper checkpoints yet. No surviving
+  script currently points at the right checkpoints for this figure (all
+  three `parajuli_matched_power_check*.py` variants were deleted in the
+  cleanup, since none of them targeted the current lwin5000 checkpoints --
+  see "Repo cleanup, 2026-08-04"). A new script is needed.
 - **outputs/logs/log.txt**: shared across ALL concurrently-running
   EE_sac.py processes (not job-specific) -- can hit a benign rotation race
   (`FileNotFoundError` inside Python's logging module, caught internally,
-  does not crash training) when two jobs run at once. See 2026-07-31
-  section. Not fixed.
+  does not crash training) when two jobs run at once. Not fixed, low
+  priority.
 
-## What to do next (priority order, updated 2026-07-31)
+## What to do next (priority order, updated 2026-08-04)
 
-1. **First action on pickup: check jobs 155683 (entropy-anneal) and 155697
-   (power-conditioned).** Both were RUNNING cleanly as of this handoff
-   (155683 episode ~4765/13000 on node miami; 155697 episode ~2611/13000 on
-   node airmont -- see the "airmont driver state is ambiguous" note in the
-   2026-07-31 section before assuming a clean GPU without checking). Full
-   .out checklist for 155683: target_entropy descending toward 0.0 as
-   scheduled, no NaN/divergence, lambda plateau behavior in the final
-   ~2000-3000 episodes (compare det rate/lambda trend the same way the
-   2026-07-30 session's log analysis did). For 155697: sampled budgets
-   staying inside [1,75] W, episode mean reward continuing to climb,
-   Power-conditioned diagnostic lines present every episode.
-2. **Once 155683 finishes, evaluate it against the SAME matched-power-MMSE
-   / beampattern tests used on the detlam checkpoints** (rate-vs-error
-   sweep, rate_power sweep, matched-power MMSE, beampattern coverage/
-   offset) -- this is the real test of whether entropy annealing (paired
-   with the documented lwin5000 lambda mode) does what detlam/EMA/warmstart
-   could not: close the matched-power-MMSE gap (was 43-66% across all four
-   pre-ema/ema+warmstart-detlam checkpoints, essentially unchanged despite
-   two rounds of lambda-mechanism engineering) and fix beampattern aiming.
-   No eval scripts exist yet for this checkpoint -- write new ones (or
-   adapt my_evaluation_detlam.py's pattern) once training completes.
-3. **Once 155697 finishes, build the offline EE-optimal-P search this
-   approach depends on**: evaluate the trained network's rate at a grid of
-   power budgets (deterministic/mean-action calls, matching the existing
-   det-eval pattern in EE_sac.py's detlam block or my_evaluation.py's
-   deterministic-eval helpers), compute EE(P) = mean_rate(P) / P_total(P)
-   on that grid, find the argmax, and compare the resulting r*(P*) against
-   both the Dinkelbach checkpoints' achieved rate AND matched-power MMSE at
-   that same P*. This offline search is the entire point of the power-
-   conditioned approach (see 2026-07-31 section's rationale) -- without it,
-   the trained network alone doesn't answer the EE question.
-4. **Compare the two 2026-07-31 approaches against each other** once both
-   have results: does power-conditioning's offline-search operating point
-   beat entropy-annealed Dinkelbach's live-lambda operating point, at
-   comparable power levels? This is the actual question motivating running
-   both pilots concurrently.
-5. **Decide on aod=0.025**: currently ignored per user instruction (both
-   the plain and fair1.5 detlam variants diverged to NaN around episode
-   12,000-12,400, lambda_ee ~2.85-2.93). Revisit once the entropy-anneal
-   thread is validated -- the doc's diagnosis (non-annealed entropy bias)
-   may also explain the aod=0.025 divergence, or it may need its own
-   investigation. Not yet retried under either 2026-07-31 approach.
-6. **Decide elev30 fairness retrain** (recommended: yes, weight 1.5) --
-   the elev30 model structurally drops user 2 (28/3.6/26 W split); its
-   flat rate curve is partly an artifact of serving 2 users. Slurm
-   pattern exists (EE_FAIRNESS_WEIGHT=1.5 + the elev30 3GPP slurm). Not
-   yet acted on -- lower priority than the two threads above.
-7. **Regenerate the deleted 2026-07-28 figures** once the user confirms
-   the compact legend style: apply the same legend treatment (short
-   labels, fontsize 6, tight padding) to rate_power_3gpp_pilots.py,
-   tx_power_3gpp_pilots.py, beampattern_3gpp_pilots.py,
-   ee_power_scaling_diagnostic.py, then re-run each via its .slurm. Old
-   benchmark PDFs: `git checkout` them back (tracked) or leave to the
-   archive. **Still not done as of 2026-07-31** -- `my_plotting_3gpp.slurm`'s
-   pending legend-label re-render ('SAC ... (train err 0.05)') remains
-   unrendered.
-8. **Commit everything** -- config.py/EE_sac.py 3GPP + lambda-mode +
-   entropy-anneal + power-conditioned changes (2026-07-27 through
-   2026-07-31), the first-ever soft_actor_critic.py edit, the rewritten
-   my_evaluation.py/my_plotting.py, all untracked scripts/.slurm
-   (2026-07-28 through 2026-07-31 sets), figure moves/deletions, and this
-   handoff. Suggest separate commits per session/theme rather than one
-   giant commit. Needs user go-ahead. The uncommitted pile is now FIVE
-   sessions deep -- see "Git state" below.
-9. **Fix the shared log.txt rotation race** if concurrent EE_sac.py jobs
-   become routine (see 2026-07-31 section) -- make the log path job/PID-
-   specific. Low priority (non-fatal, only lost one log line so far), but
-   will only get more likely to bite as more concurrent jobs run.
-10. **Older open items:** fairness weight for the final OLD-system
-    checkpoint set (weight 1.5 favored; superseded in urgency by the
-    3GPP/entropy-anneal/power-conditioned threads); pa_efficiency
-    0.60-vs-0.185 sensitivity sweep; optional elevation-sweep evaluation;
-    repo sync cadence with the original 2025 repo (still ad hoc).
+1. **Regenerate `parajuli.pdf` (and any other matched-power-MMSE figure)
+   against the current keeper checkpoints** -- aod=0.0 job 156358 and
+   aod=0.05 job 153655, both `lwin5000`/3GPP-native. This is the natural
+   next step: it gives a clean lwin5000-vs-lwin5000 matched-power
+   comparison instead of the stale detlam-based one currently in the repo.
+   Base it on `my_evaluation.py`'s checkpoint-selection pattern
+   (`get_best_model_path`) rather than reviving a deleted script.
+2. **Commit the working tree** -- the 2026-08-03 revert of EE_sac.py/
+   soft_actor_critic.py, the `docs/EE_formulation.tex` Section 6 rewrite,
+   and the 2026-08-04 cleanup (deletion of ~48 model checkpoints, matching
+   outputs/metrics subfolders, and ~110 dead scripts/.slurm files) are all
+   still uncommitted as of this writing. Needs user go-ahead; suggest
+   separate commits (revert, docs rewrite, cleanup) rather than one giant
+   commit.
+3. **Decide whether to keep investigating the matched-power-MMSE gap at
+   all**, now that the mechanism-engineering line (detlam/EMA/tanneal/
+   power-conditioned) is closed out. Options from the 2026-07-28 section's
+   original three-way framing are still on the table: (a) a minimal lambda
+   tweak, (b) a more careful lambda estimator (tried and reverted), or (c)
+   reframe the paper's story around "EE at useful rates" rather than
+   closing the gap to MMSE. See docs/EE_formulation.tex Section 6 for the
+   current honest state of the theory (open, not closed).
+4. **aod=0.025** has no working checkpoint at 3GPP params in either the old
+   or the lwin5000 line -- every aod=0.025 attempt (Optuna-tuned old-system,
+   detlam) either predates the 3GPP alignment or diverged. Would need a
+   fresh `lwin5000`/3GPP-native training run if ever wanted, mirroring the
+   aod=0.0/aod=0.05 launchers.
+5. **elev30 geometry** was dropped (structural dropped-user problem,
+   checkpoint deleted in cleanup) -- revisit only if elevation-angle
+   robustness becomes a paper requirement again; would need a fresh
+   retrain (with fairness weighting, per the earlier finding) from scratch.
+6. **Older open items:** pa_efficiency 0.60-vs-0.185 sensitivity sweep;
+   `sat_gain_dBi` Set-1 vs Set-2 (30 vs 24 dBi) still unresolved per the
+   3GPP parameter check; repo sync cadence with the original 2025 repo
+   (still ad hoc); GhadimiLan2013/2016 citations in EE_formulation.tex are
+   still only abstract-verified, not full-text (see 2026-08-03 section).
 
 ## Process notes (still relevant)
 
@@ -1297,24 +1175,18 @@ handoff/git history -- not reproduced here since unchanged and unactioned.
   (Schroder et al., IEEE Open J. Comm. Soc. 2025). Fig. 3 (N=16/K=3,
   d_K=100km) is the scenario this whole investigation targets.
 
-## Git state (this repo, branch energy-efficiency-standalone, updated 2026-07-31)
+## Git state (this repo, branch energy-efficiency-standalone, updated 2026-08-04)
 
-Still only three commits: c805e90 (initial curation), 46711f7 (6-way
-beampattern + distance sweep + ported fairness eval), 921ab66 (3GPP TR
-38.821 Set-1 parameter alignment + the two training .slurm files). No
-commits since 2026-07-27 despite FIVE full sessions of work (2026-07-28
-eval rework, 2026-07-29 lambda fix, 2026-07-30 detlam eval + ema/warmstart
-reconsideration, 2026-07-31 formulation-doc re-read + entropy-annealing +
-power-conditioned reward mode) -- the uncommitted pile is now substantial:
-rewritten my_evaluation.py + my_plotting.py, THRICE-modified EE_sac.py
-(deterministic-lambda mode, then EMA + warm-start, then entropy annealing +
-power-conditioned mode), the first-ever edit to soft_actor_critic.py
-(target_entropy tf.Variable), this handoff file, the tracked-PDF deletions/
-moves in reports/figures/pdf/, and all the untracked scripts/.slurm from
-2026-07-28/29/30/31 listed in "Current file states". This is now the
-single biggest risk to the repo's state -- see "What to do next" item 8.
-models/ and outputs/metrics/ remain gitignored, disk-only.
-GitHub-push token note near the top of this file still applies.
+9 commits as of this writing (`git log --oneline` is authoritative;
+newest: `5c6d6de` merge, `ed9ff5f` beampattern diagnostic for job 156358,
+`cd93c35` DATA_SYNC_MANIFEST.txt, `7c5d3d4` point eval/plot at native
+aod=0.0 checkpoint + EE_formulation Sec 6 rewrite, `2840d08` figure
+curation). **Uncommitted as of this writing**: the 2026-08-03 revert of
+EE_sac.py/soft_actor_critic.py, and the 2026-08-04 cleanup -- `git status
+--short` shows ~98 deletions (dead scripts/.slurm under
+src/energy_efficiency/) and no other changes. `models/` and
+`outputs/metrics/` remain gitignored, disk-only. GitHub-push token note
+near the top of this file still applies.
 
 ## 2026-08-03 session: EE_sac.py reverted (detlam/EMA/warmstart/entropy-anneal/
 power-conditioned stashed), aod=0.0 3GPP retrain launched, docs/EE_formulation.tex
@@ -1414,3 +1286,61 @@ what triggered the whole EE_sac.py revert above). It has NOT yet been
 regenerated against job 156358's checkpoint once that finishes -- worth
 doing once it completes, to get a clean lwin5000-vs-lwin5000 matched-power
 comparison instead of the detlam one currently in the file.
+
+## Repo cleanup, 2026-08-04: deleted the abandoned-line checkpoints, outputs, and scripts
+
+Following the 2026-08-03 revert decision, user confirmed (in conversation,
+not a separate handoff-worthy investigation) that the working line is
+**nadir-geometry, `lwin5000`-mode SAC** -- the two checkpoints named in the
+top summary -- and asked for the repo to be cleared down to what's
+necessary. Executed as three passes, all disk-state changes (git-tracked
+files show as deletions in `git status`, not yet committed):
+
+**`models/`** (2.9G -> 173M): deleted all 48 checkpoint dirs outside the 3
+kept (aod=0.0 job 156358, aod=0.05 job 153655, `full_EE_aod0.5_N16K3_eta0.6`
+baseline) -- covers every detlam/EMA-warmstart/tanneal/power-conditioned
+checkpoint, the elev30 checkpoint, the fairness-weight sweep (0.5/1.5/3.0),
+the `lambdafixed`/`block1`/old-aod0.5-ablation family, the pre-3GPP
+aod=0.0/0.025/0.05 trio (with and without Optuna-tuned LR), and other one-
+off ablations (N8K2, hidden1024x4, escalelr0.0, tent0.0, no_norm_fixed,
+without_normalization).
+
+**`outputs/metrics/`**: pruned to 8 subfolders matching the kept
+checkpoints, MMSE/MRT/ZF classical baselines, channel-correlation physics
+validation, and the distance sweep. `outputs/optuna_studies/` (LR-search
+DBs) deleted outright.
+
+**`src/energy_efficiency/`** (~150 -> 39 code files): deleted every
+`.py`/`.slurm` whose sole purpose was training/evaluating one of the
+abandoned lines above -- all `*detlam*`, `*tanneal*`, `*ema_warmstart*`,
+`*power_conditioned*`/`*pcond*`, `*fairness*`, `*elev30*`, `*lambdafixed*`
+files, the pre-3GPP/Optuna-LR training launchers and their evaluation
+slurms, and stale replot scripts whose target `.py` was itself deleted.
+Notably, all three `parajuli_matched_power_check*.py` variants were deleted
+-- despite one being named "_3gpp_native", none of them actually targeted
+the current `lwin5000` keeper checkpoints (checked via `grep` on each
+script's `SAC_AOD0_TRAINING_NAME`: the base one used the old 20dBi/100W
+system, `_3gpp` used the old checkpoint out-of-distribution at 30dBi/75W,
+`_native` used the detlam checkpoint) -- all three were superseded
+stepping-stones toward `parajuli.pdf`, not the final form. Kept: the
+current eval/plot pipeline (`my_evaluation.py`, `my_plotting.py`,
+`rate_power_3gpp_pilots.py`, `tx_power_3gpp_pilots.py`,
+`beampattern_3gpp_nadir_aod0.py`, `beampattern_3gpp_pilots.py`), classical-
+baseline/channel-correlation/distance-sweep scripts (general physics
+validation, not tied to any abandoned RL line), reference-PDF extractors,
+and smoke tests for still-active mechanisms (`rawpow` reward, action bound,
+fixed alpha, Optuna persistence).
+
+Also deleted (separate, earlier request same session): all 121 `*.out`/
+`*.err` SLURM job logs at the repo root plus `docs/EE_formulation.out` (a
+LaTeX build artifact) -- none were git-tracked, so this was a pure disk
+cleanup with no git-history impact.
+
+**Consequence worth flagging**: this means the detailed session-by-session
+narrative earlier in this file (2026-07-23 through 2026-08-03) now
+describes work whose artifacts mostly no longer exist on disk. The
+reasoning and conclusions in those sections are still valid history (why
+detlam was tried, why it failed, why entropy-annealing didn't fix it
+either) -- but don't expect to find the checkpoints, gzips, or scripts they
+name. Git history (`git show <commit>` or `git log -- <path>`) still has
+everything if it's ever needed back.
