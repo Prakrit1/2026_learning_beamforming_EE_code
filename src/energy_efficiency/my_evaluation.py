@@ -1,15 +1,22 @@
 "test script to evaluate learned performance of SAC"
+import gzip
+import os
+import pickle
+
 import numpy as np
 from src.config.config import Config
 from pathlib import Path
 from src.analysis.helpers.test_learned_precoder import test_sac_precoder_clip_only_error_sweep
+from src.analysis.helpers.test_precoder_error_sweep import test_precoder_error_sweep
+from src.data.calc_sum_rate import calc_sum_rate
+from src.utils.get_precoding import get_precoding_mmse
 
 
 error_sweep_range = np.linspace(0, 0.10, 11)
 monte_carlo_iterations = 10000
 
 def get_best_model_path(trained_models_path, training_name):
-   
+
     import os
 
     base_path = Path(trained_models_path, training_name, 'base')
@@ -59,107 +66,131 @@ def get_best_model_path(trained_models_path, training_name):
 
 
 # ---------------------------------------------------------------------------
-config_rawpow_aod0 = Config()
-config_rawpow_aod0.config_learner.training_name = 'EE_dinkelbach_adaptive_lwin5000_N16K3_eta0.6_rawpow'
-model_path_rawpow_aod0 = get_best_model_path(
-    config_rawpow_aod0.trained_models_path, 'EE_dinkelbach_adaptive_lwin5000_N16K3_eta0.6_rawpow'
-)
-test_sac_precoder_clip_only_error_sweep(
-    config=config_rawpow_aod0,
-    model_path=model_path_rawpow_aod0,
-    error_sweep_parameter='additive_error_on_cosine_of_aod',
-    error_sweep_range=error_sweep_range,
-    monte_carlo_iterations=monte_carlo_iterations,
-    metrics=['sumrate']
-)
-
-
+# Current checkpoint set: the two 3GPP Set-1 models (jobs 153655 nadir /
+# 153656 elev30, trained 2026-07-27), evaluated at the CURRENT config
+# defaults (30 dBi / 75 W). The elev30 block sets EE_TARGET_ELEVATION_DEG=30
+# so users are placed in the geometry that checkpoint was trained for. MMSE
+# is evaluated alongside in each geometry as the reference -- every MMSE
+# gzip from before 2026-07-27 was generated at the old 20 dBi / 100 W link
+# budget and cannot be reused at the current parameters.
+#
+# The pre-2026-07-27 checkpoint evaluations that used to live in this file
+# (aod=0.0/0.025/0.05 + lr-tuned variants) were REMOVED, not merely skipped:
+# their correct results are already on disk under
+# outputs/metrics/<training_name>/error_sweep/ and serve as the benchmark
+# curves in my_plotting.py; re-running them against the current 3GPP
+# defaults would overwrite those gzips with numbers from a link budget those
+# models were never trained for. See git history for the removed blocks if
+# they ever need re-running (they then need the EE_SAT_GAIN_DBI=20 /
+# EE_POWER_BUDGET_WATT=100 environment pins to reproduce their own system).
 # ---------------------------------------------------------------------------
-config_rawpow_aod005 = Config()
-config_rawpow_aod005.config_learner.training_name = 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_eta0.6_rawpow'
-model_path_rawpow_aod005 = get_best_model_path(
-    config_rawpow_aod005.trained_models_path, 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_eta0.6_rawpow'
+
+# ---- 3GPP Set-1, nadir, error=0.0 training bound --------------------------
+# Points at job 156358's checkpoint (aod=0.0, lwin5000, natively trained at
+# 30 dBi/75 W) -- the checkpoint that fills the "clean lwin5000-vs-lwin5000"
+# gap noted in the 2026-08-03 handoff section, replacing the previous
+# aod=0.05 nadir block. If re-pointing this file at a different training
+# bound again, double check EVERY block below that reads training_name --
+# it is easy to change this one and miss a downstream dependency (see the
+# matched-power block removed just below, which broke exactly this way).
+os.environ.pop('EE_SAT_GAIN_DBI', None)
+os.environ.pop('EE_POWER_BUDGET_WATT', None)
+os.environ.pop('EE_TARGET_ELEVATION_DEG', None)
+
+NADIR_TRAINING_NAME = 'EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow'
+
+config_3gpp_nadir = Config()
+config_3gpp_nadir.config_learner.training_name = NADIR_TRAINING_NAME
+print(f'[3gpp_nadir] sat_gain_dBi={config_3gpp_nadir.sat_gain_dBi}, '
+      f'budget={config_3gpp_nadir.power_constraint_watt} W, '
+      f'user_center_aod_earth_deg={config_3gpp_nadir.user_center_aod_earth_deg:.2f}')
+model_path_3gpp_nadir = get_best_model_path(
+    config_3gpp_nadir.trained_models_path, NADIR_TRAINING_NAME
 )
 test_sac_precoder_clip_only_error_sweep(
-    config=config_rawpow_aod005,
-    model_path=model_path_rawpow_aod005,
+    config=config_3gpp_nadir,
+    model_path=model_path_3gpp_nadir,
     error_sweep_parameter='additive_error_on_cosine_of_aod',
     error_sweep_range=error_sweep_range,
     monte_carlo_iterations=monte_carlo_iterations,
     metrics=['sumrate']
 )
+# MMSE reference, same geometry/system; its gzip lands in this model's folder
+test_precoder_error_sweep(
+    config=config_3gpp_nadir,
+    error_sweep_parameter='additive_error_on_cosine_of_aod',
+    error_sweep_range=error_sweep_range,
+    precoder_name='mmse',
+    monte_carlo_iterations=monte_carlo_iterations,
+    get_precoder_func=get_precoding_mmse,
+    calc_reward_funcs=[calc_sum_rate],
+)
+
+# MMSE at MATCHED power: rescaled per error level to the transmit power the
+# aod=0.0 nadir SAC actually used there (measured means from
+# rate_power_3gpp_pilots.py's 2026-08-04 rerun, ~28.6-34.9 W of the 75 W
+# budget -- see that script's '3gpp_nadir' entry, now correctly the aod=0.0
+# checkpoint's own power after being re-run against it). Full-budget MMSE
+# above shows what 75 W buys; only this equal-power version isolates
+# whether SAC's beamforming itself competes.
+_rate_power_gzip = Path(config_3gpp_nadir.output_metrics_path,
+                        'EE_3gpp_pilots_rate_power_sweep', 'rate_power_3gpp_pilots.gzip')
+with gzip.open(_rate_power_gzip, 'rb') as _file:
+    _rate_power_data = pickle.load(_file)
+if not np.allclose(_rate_power_data['error_sweep_range'], error_sweep_range):
+    raise ValueError(f'error grid mismatch between {_rate_power_gzip} and this sweep')
+_sac_nadir_power_by_error = {
+    round(float(err), 6): float(power)
+    for err, power in zip(_rate_power_data['error_sweep_range'],
+                          _rate_power_data['results']['3gpp_nadir']['mean_power'])
+}
+
+def get_precoding_mmse_sac_power(cfg, user_manager, satellite_manager):
+    w_mmse = get_precoding_mmse(cfg, user_manager, satellite_manager)
+    current_error = cfg.config_error_model.error_rng_parametrizations[
+        'additive_error_on_cosine_of_aod']['args']['high']
+    target_power = _sac_nadir_power_by_error[round(float(current_error), 6)]
+    current_power = np.real(np.trace(np.matmul(w_mmse.conj().T, w_mmse)))
+    return w_mmse * np.sqrt(target_power / current_power)
+
+test_precoder_error_sweep(
+    config=config_3gpp_nadir,
+    error_sweep_parameter='additive_error_on_cosine_of_aod',
+    error_sweep_range=error_sweep_range,
+    precoder_name='mmse_sacpower',
+    monte_carlo_iterations=monte_carlo_iterations,
+    get_precoder_func=get_precoding_mmse_sac_power,
+    calc_reward_funcs=[calc_sum_rate],
+)
 
 
-# ---------------------------------------------------------------------------
-config_rawpow_aod0025 = Config()
-config_rawpow_aod0025.config_learner.training_name = 'EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_eta0.6_rawpow'
-model_path_rawpow_aod0025 = get_best_model_path(
-    config_rawpow_aod0025.trained_models_path, 'EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_eta0.6_rawpow'
+# ---- 3GPP Set-1, target elevation 30 deg ----------------------------------
+os.environ['EE_TARGET_ELEVATION_DEG'] = '30'
+
+config_3gpp_elev30 = Config()
+config_3gpp_elev30.config_learner.training_name = 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_elev30_eta0.6_rawpow'
+print(f'[3gpp_elev30] sat_gain_dBi={config_3gpp_elev30.sat_gain_dBi}, '
+      f'budget={config_3gpp_elev30.power_constraint_watt} W, '
+      f'user_center_aod_earth_deg={config_3gpp_elev30.user_center_aod_earth_deg:.2f}')
+model_path_3gpp_elev30 = get_best_model_path(
+    config_3gpp_elev30.trained_models_path, 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_elev30_eta0.6_rawpow'
 )
 test_sac_precoder_clip_only_error_sweep(
-    config=config_rawpow_aod0025,
-    model_path=model_path_rawpow_aod0025,
+    config=config_3gpp_elev30,
+    model_path=model_path_3gpp_elev30,
     error_sweep_parameter='additive_error_on_cosine_of_aod',
     error_sweep_range=error_sweep_range,
     monte_carlo_iterations=monte_carlo_iterations,
     metrics=['sumrate']
 )
-
-
-# ---------------------------------------------------------------------------
-# Tuned-LR checkpoints (jobs 152303/152304/152305), using each error bound's
-# best lr_critic/lr_actor found by the Optuna searches (147529/147530/147531,
-# OOM-killed at 65-67/100 trials -- see handoff). training_name suffix
-# _lrc..._lra... distinguishes these from the default-LR checkpoints above.
-config_lrtuned_aod0 = Config()
-config_lrtuned_aod0.config_learner.training_name = 'EE_dinkelbach_adaptive_lwin5000_N16K3_eta0.6_rawpow_lrc4.14e-05_lra2.50e-07'
-model_path_lrtuned_aod0 = get_best_model_path(
-    config_lrtuned_aod0.trained_models_path, 'EE_dinkelbach_adaptive_lwin5000_N16K3_eta0.6_rawpow_lrc4.14e-05_lra2.50e-07'
-)
-test_sac_precoder_clip_only_error_sweep(
-    config=config_lrtuned_aod0,
-    model_path=model_path_lrtuned_aod0,
+test_precoder_error_sweep(
+    config=config_3gpp_elev30,
     error_sweep_parameter='additive_error_on_cosine_of_aod',
     error_sweep_range=error_sweep_range,
+    precoder_name='mmse',
     monte_carlo_iterations=monte_carlo_iterations,
-    metrics=['sumrate']
+    get_precoder_func=get_precoding_mmse,
+    calc_reward_funcs=[calc_sum_rate],
 )
 
-
-# ---------------------------------------------------------------------------
-config_lrtuned_aod005 = Config()
-config_lrtuned_aod005.config_learner.training_name = 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_eta0.6_rawpow_lrc2.50e-06_lra7.22e-05'
-model_path_lrtuned_aod005 = get_best_model_path(
-    config_lrtuned_aod005.trained_models_path, 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_eta0.6_rawpow_lrc2.50e-06_lra7.22e-05'
-)
-test_sac_precoder_clip_only_error_sweep(
-    config=config_lrtuned_aod005,
-    model_path=model_path_lrtuned_aod005,
-    error_sweep_parameter='additive_error_on_cosine_of_aod',
-    error_sweep_range=error_sweep_range,
-    monte_carlo_iterations=monte_carlo_iterations,
-    metrics=['sumrate']
-)
-
-
-# ---------------------------------------------------------------------------
-# CAUTION: this checkpoint's entropy_scale_alpha diverged during training
-# (bounded ~0-1 for the first ~8500 episodes, then exploded exponentially to
-# ~1e19 by episode ~11000, still ~1e17 at the end -- see job 152304's log).
-# Training completed without a NaN crash (so the existing RuntimeError
-# divergence guard never triggered), but the actor's loss was almost
-# certainly dominated by the entropy term for the back half of training --
-# expect this checkpoint to perform poorly/erratically below.
-config_lrtuned_aod0025 = Config()
-config_lrtuned_aod0025.config_learner.training_name = 'EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_eta0.6_rawpow_lrc1.82e-06_lra1.17e-06'
-model_path_lrtuned_aod0025 = get_best_model_path(
-    config_lrtuned_aod0025.trained_models_path, 'EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_eta0.6_rawpow_lrc1.82e-06_lra1.17e-06'
-)
-test_sac_precoder_clip_only_error_sweep(
-    config=config_lrtuned_aod0025,
-    model_path=model_path_lrtuned_aod0025,
-    error_sweep_parameter='additive_error_on_cosine_of_aod',
-    error_sweep_range=error_sweep_range,
-    monte_carlo_iterations=monte_carlo_iterations,
-    metrics=['sumrate']
-)
+os.environ.pop('EE_TARGET_ELEVATION_DEG', None)

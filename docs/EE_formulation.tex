@@ -228,9 +228,12 @@ evaluated directly as a ratio. Numerically fragile as
 $P_{\text{total}}\to MNP_c$ from below is bounded (Section~\ref{sec:our-extension}),
 but the ratio's gradient can still be poorly scaled for online SGD.
 
-\paragraph{Scheme III --- Dinkelbach-reformulated reward, free power.}
-Precoder \eqref{eq:clip-only}; reward is the Dinkelbach subtractive transform
-of the fractional program,
+\paragraph{Scheme III --- adaptively-priced reward, free power.}
+Precoder \eqref{eq:clip-only}; reward uses the algebraic form of the
+Dinkelbach transform \cite{Dinkelbach1967} --- $R(\mathbf{W})-\lambda
+P_{\text{total}}(\mathbf{W})$ turns a ratio objective into a subtractive one,
+which is what makes it usable as an RL reward at all --- but not the
+Dinkelbach \emph{algorithm}:
 
 \begin{equation}
   \mathrm{reward}_t = R(\mathbf{W}_t) - \lambda_t\, P_{\text{total}}(\mathbf{W}_t),
@@ -239,52 +242,110 @@ of the fractional program,
   \label{eq:dinkelbach}
 \end{equation}
 
-the classical fixed-point reformulation \cite{Dinkelbach1967}:
-$F(\lambda) = \max_{\mathbf{W}} \left[R(\mathbf{W}) - \lambda P_{\text{total}}(\mathbf{W})\right]$,
-with $F(\lambda^\star)=0 \iff \lambda^\star = \mathrm{EE}(\mathbf{W}^\star)$.
-Framing \eqref{eq:dinkelbach} as a running stochastic-approximation update
-(rather than solving each $\lambda$-subproblem to optimality before updating,
-as the textbook alternating scheme prescribes) is a deliberate relaxation for
-the online RL setting, made explicit here rather than left implicit.
+where $\lambda_t$ is a running EMA of realized rate/power, updated every
+transition, concurrently with a policy that is never frozen for any inner
+solve. The classical scheme alternates: solve
+$F(\lambda)=\max_{\mathbf{W}}[R(\mathbf{W})-\lambda P_{\text{total}}(\mathbf{W})]$
+to exact global optimality for a \emph{fixed} $\lambda$, \emph{then} update
+$\lambda$ from $F(\lambda^\star)=0 \iff \lambda^\star =
+\mathrm{EE}(\mathbf{W}^\star)$. Neither half of that is what
+\eqref{eq:dinkelbach} does. This is not a relaxation of Dinkelbach's method
+in the sense of an inexact version of the same algorithm --- it is a
+structurally different object (a continuously co-adapting price and policy)
+that borrows the transform's algebra without either the exact inner solve or
+the alternation. Section~\ref{sec:dinkelbach-rigor} treats it on those terms.
 
-\section{Theoretical grounding for the online Dinkelbach update}
+\section{What can and cannot currently be said about the online update}
 \label{sec:dinkelbach-rigor}
 
-Framing~\eqref{eq:dinkelbach} as a running stochastic-approximation update was
-flagged in Section~\ref{sec:schemes} as a deliberate relaxation of the
-classical scheme, in which $\lambda$ is updated only after the inner problem
-$\max_{\mathbf{W}}[R(\mathbf{W})-\lambda P_{\text{total}}(\mathbf{W})]$ is
-solved to its exact global optimum \cite{Dinkelbach1967}. SAC does neither:
-its inner solve is approximate, local, and updated concurrently with
-$\lambda$ rather than beforehand. This section asks, and answers, whether
-that relaxation has any rigorous grounding, without changing the underlying
-algorithm.
+An earlier version of this section tried to show that
+\eqref{eq:dinkelbach} is a rigorously-justified \emph{inexact instance} of
+Dinkelbach's method, via a three-condition inexact-fractional-programming
+theorem from Jin et al.\ \cite{JinTangZhangWang2023}. Re-reading that paper
+in full, and re-checking the codebase and the other cited results directly
+rather than relying on how they are usually summarized, that argument does
+not hold up. This section replaces it with what is actually true: two
+structural facts that hold regardless of what the mechanism is called
+(Sections~\ref{sec:bandit-fact}--\ref{sec:smooth-fact}), one honest but
+weaker positive result (Section~\ref{sec:fixedpoint}), empirical evidence
+bearing on --- but not proving --- whether training settles at all
+(Section~\ref{sec:empirical-evidence}), and a direct statement of what
+remains open (Section~\ref{sec:open}).
 
-\subsection{What the closest existing results do and do not cover}
+\subsection{Why \eqref{eq:dinkelbach} is not Dinkelbach's method, even inexactly}
 
-Four adjacent literatures combine a fractional (ratio) objective with a
-learned/iterative policy, and none directly covers a concurrently-updated
-outer multiplier with function approximation. The classical beamforming
-literature \cite{HaEtAl2024,DengEtAl2023} uses Dinkelbach's method with the
-inner problem solved to full, certified convergence (convex optimization or
-tabular Q-learning re-solved exactly each step) before $\lambda$ is touched.
-Risk-sensitive RL results for ratio objectives such as the Sharpe ratio
-\cite{SharpeRatioMDP2025} use the same exact block/outer-loop pattern.
-Safe/constrained RL does have real convergence proofs for genuinely
-\emph{concurrent} primal-dual updates \cite{Paternain2019,DingZhangBasar2020},
-but only for a softmax policy over a finite action space --- not for
-continuous actions or neural function approximation. The one result that
-formally extends Dinkelbach's method to an \emph{inexact} inner solve,
-Jin et al.\ \cite{JinTangZhangWang2023}, requires (a) an explicit,
-per-iteration approximation-error bound $\epsilon_i$ that (b) shrinks over
-iterations, and (c) convexity of the inner value function in $\lambda$. As
-implemented, EE\_sac.py satisfies none of the three as stated for a general
-MDP. The remainder of this section shows that, for this specific
-environment, (c) holds unconditionally, (a) is obtainable from standard
-nonconvex stochastic-optimization theory, and (b) is the one genuine gap ---
-closable by a training-schedule change, not an architectural one.
+Dinkelbach's method alternates: solve
+$F(\lambda)=\max_{\mathbf{W}}[R(\mathbf{W})-\lambda P_{\text{total}}(\mathbf{W})]$
+to exact global optimality for a \emph{fixed} $\lambda$, then update
+$\lambda$ from that optimum. \eqref{eq:dinkelbach}'s active update path does
+neither half: $\lambda$ updates every transition, unconditionally, via an
+EMA with fixed window (constant blend factor
+$2/(5000+1)\approx 4\times 10^{-4}$, never decayed), and the policy is never
+frozen for any inner solve at any $\lambda$. This is a continuously
+co-adapting price-and-policy system that borrows the transform's algebra,
+not the algorithm.
 
-\subsection{The environment is a contextual bandit}
+Checking whether Jin et al.\ \cite{JinTangZhangWang2023} nonetheless covers
+this: it does not. Their linear-convergence theorem (their Theorem 1) is
+proven exclusively for a \emph{tabular} Fractional Q-Learning algorithm over
+a finite state-action space, whose shrinking inner-loop error bound is
+enforced by a tabular sub-routine (Speedy Q-Learning, a known-convergent
+tabular method) with its own established convergence rate. The paper
+separately proposes a deep-RL extension (D3QN + DDPG for their hybrid
+discrete/continuous action space) for its experiments --- structurally the
+closest thing to SAC anywhere in the paper --- but states no convergence
+theorem for it; that extension is validated only empirically, via a results
+figure, and the paper itself notes the resulting convergence curve "may
+sometimes change non-monotonically." Mapping SAC onto the paper's three
+conditions targets a theorem that was never proven for a continuous-action,
+neural-function-approximated policy --- the paper leaves that case exactly
+as open as this document does.
+
+Two further citations require correction. This document previously
+justified skipping the concurrent primal-dual RL literature
+\cite{Paternain2019,DingZhangBasar2020} on the grounds that it "only"
+applies to a softmax policy over a finite action space. Read directly,
+neither paper says that. Paternain et al.\ \cite{Paternain2019} formulate
+their constrained-RL setting over compact \emph{continuous} action spaces
+from the outset, and separately prove their zero-duality-gap result extends
+to neural-network policy parametrizations, with optimality loss "made
+arbitrarily small" for near-universal approximators. The arXiv identifier
+previously cited for Ding, Zhang, and Ba\c{s}ar (2020) in fact resolves to a
+later, five-author journal extension \cite{DingZhangBasar2020} of that
+conference paper; that extended paper's strongest, dimension-free rate is
+for softmax specifically, but it separately establishes sublinear
+convergence for "general smooth policy parametrizations" --- which would
+include neural policies --- up to a function-approximation-error term.
+Neither paper is a drop-in fit here (both are constrained RL, with a
+Lagrange multiplier enforcing a hard constraint, not a Dinkelbach-style
+ratio objective), but the stated reason for setting them aside was
+incorrect, and on reflection they look like a more promising home for a
+future rigor pass than the tabular result this section leaned on instead.
+
+Finally, the two citations offered as "an explicit, checkable route" to a
+shrinking approximation-error bound, Ghadimi--Lan \cite{GhadimiLan2013} and
+Ghadimi--Lan--Zhang \cite{GhadimiLanZhang2016}, prove convergence of
+projected stochastic gradient methods to a \emph{stationary point} of a
+\emph{fixed, time-invariant} objective. Neither condition transfers:
+stationarity does not imply near-global-optimality for a nonconvex
+objective, and $f_\lambda(\mathbf{W})=R(\mathbf{W})-\lambda
+P_\text{total}(\mathbf{W})$ genuinely is nonconvex in $\mathbf{W}$ ---
+\texttt{calc\_sum\_rate.py} computes exactly the standard interference-coupled
+SINR sum, the textbook source of MU-MIMO sum-rate's non-concavity, and
+Lemma~\ref{lem:smooth} below proves only smoothness, never convexity, in
+$\mathbf{W}$. Both theorems also require $\lambda$ held fixed while the
+optimization runs, which the active EMA never does.
+
+Ha et al.\ \cite{HaEtAl2024}, by contrast, is accurately characterized here:
+its Algorithm 1 genuinely alternates --- solve the inner problem, update
+$\eta$, repeat to convergence --- the textbook Dinkelbach structure, and a
+useful contrast case for what \eqref{eq:dinkelbach} is not. Deng et al.\
+\cite{DengEtAl2023} is a real, correctly-attributed paper; its precise
+inner-solve mechanism was not independently re-verified for this revision
+and should be treated as unconfirmed rather than as supporting evidence.
+
+\subsection{What holds regardless of the mechanism's name}
+\label{sec:bandit-fact}
 
 \begin{lemma}[Action-independent transitions collapse temporal credit assignment]
 \label{lem:bandit}
@@ -316,30 +377,46 @@ $\mathbf{W}_t$ SAC outputs, the channel realization at step $t+1$ is drawn
 from the same exogenous process regardless. There is no delayed consequence
 of a precoding decision anywhere in this environment --- it is a per-sample
 stochastic optimization problem wearing an RL interface, not a genuine
-sequential MDP. This is precisely why a concurrently-updated $\lambda$ is not
-automatically ruled out here the way it is in the general MDP results of
-Section~\ref{sec:dinkelbach-rigor} above: there is no real temporal credit
-assignment to get wrong.
+sequential MDP.
+
+A second, independent fact makes this stronger than the environment's
+structure alone requires: \texttt{config\_sac\_learner.py} sets
+\texttt{future\_reward\_discount\_gamma}$\,=0$, and \texttt{train\_graph}
+gates its entire next-state-bootstrapping branch behind $\gamma>0$. With
+$\gamma=0$ that branch never executes --- the critic's regression target is
+literally \texttt{target\_q = rewards}, not a bootstrapped return. The
+critic is not learning a discounted value function that Lemma~\ref{lem:bandit}
+happens to simplify; by this configuration choice alone, and regardless of
+whether the environment is action-independent, it is directly regressing
+immediate reward. Lemma~\ref{lem:bandit} explains why that choice costs
+nothing relative to the general (bootstrapped) case; it is not needed to
+establish what the trained critic's target actually is.
 \end{remark}
 
-\subsection{Convexity and smoothness on the constraint set}
+\begin{remark}[What this does and does not license]
+Lemma~\ref{lem:bandit} removes temporal credit assignment as a concern. It
+says nothing about whether a concurrently-updated $\lambda$ converges to
+anything in particular, nor about whether SAC's inner optimization (for
+whatever $\lambda$ it currently faces) reaches a good solution. Those
+questions are addressed, and left partly open, in
+Sections~\ref{sec:fixedpoint}--\ref{sec:open}.
+\end{remark}
 
-\begin{lemma}[Automatic convexity of the Dinkelbach value function]
-\label{lem:convex}
-Define $F(\lambda) = \max_{\mathbf{W}\in\mathcal{W}}\big[R(\mathbf{W}) -
-\lambda P_{\text{total}}(\mathbf{W})\big]$ for the feasible ball
-$\mathcal{W}=\{\mathbf{W}:\|\mathbf{W}_m\|_F^2\le P/M\ \forall m\}$. Then $F$
-is convex in $\lambda$ on $\mathbb{R}$, regardless of the specific form of
-$R$ or $P_{\text{total}}$.
-\end{lemma}
-\begin{proof}
-For each fixed $\mathbf{W}\in\mathcal{W}$, $\lambda\mapsto
-R(\mathbf{W})-\lambda P_{\text{total}}(\mathbf{W})$ is affine in $\lambda$.
-$F$ is a pointwise supremum of affine functions of $\lambda$, hence convex.
-$\blacksquare$
-\end{proof}
+\subsection{Smoothness of the fixed-$\lambda$ reward surface}
+\label{sec:smooth-fact}
 
-This discharges condition (c) of \cite{JinTangZhangWang2023} unconditionally.
+For a fixed $\lambda$, $F(\lambda) =
+\max_{\mathbf{W}\in\mathcal{W}}[R(\mathbf{W})-\lambda P_{\text{total}}(\mathbf{W})]$
+--- the value of the \emph{exact}, globally-solved inner problem --- is
+convex in $\lambda$ on $\mathbb{R}$ (a pointwise supremum of functions affine
+in $\lambda$ is convex, regardless of the form of $R$ or $P_{\text{total}}$).
+This is a real property of the idealized optimization landscape and is
+worth recording, but it characterizes $F(\lambda)$ itself, not anything SAC
+computes: SAC never solves the inner problem to global optimality, so this
+convexity-in-$\lambda$ fact does not, by itself, say anything about the
+policy the training procedure actually reaches. The property that does
+bear on the trained policy is smoothness \emph{in $\mathbf{W}$}, for fixed
+$\lambda$:
 
 \begin{lemma}[Smoothness of the per-step Dinkelbach surface]
 \label{lem:smooth}
@@ -366,94 +443,148 @@ $\mathbf{W}_{\text{raw}}\mapsto f_\lambda(\Pi_{\mathcal{W}}(\mathbf{W}_{\text{ra
 viewed as a function of the unconstrained actor output, has a discontinuous
 Jacobian exactly on the sphere $\|\mathbf{W}_{\text{raw}}\|_F^2=P/M$ ---
 $\Pi_{\mathcal{W}}$ itself is what is non-smooth there, not $f_\lambda$. This
-is exactly the setting nonconvex \emph{projected}-stochastic-gradient theory
-is built for: convergence is stated via the gradient mapping
-$G_\lambda(\mathbf{W}) = \big(\mathbf{W}-\Pi_{\mathcal{W}}(\mathbf{W}+\alpha\nabla
+is the setting nonconvex \emph{projected}-stochastic-gradient theory is
+built for \emph{when $\lambda$ is fixed}: convergence there is stated via
+the gradient mapping $G_\lambda(\mathbf{W}) =
+\big(\mathbf{W}-\Pi_{\mathcal{W}}(\mathbf{W}+\alpha\nabla
 f_\lambda(\mathbf{W}))\big)/\alpha$ rather than the raw gradient
 \cite{GhadimiLanZhang2016}, sidestepping the projection boundary's
-non-smoothness instead of requiring it away. Lemma~\ref{lem:smooth} is
-exactly the hypothesis on $f_\lambda$ that framework needs.
+non-smoothness instead of requiring it away. Lemma~\ref{lem:smooth} is the
+hypothesis on $f_\lambda$ that framework needs --- but the framework itself,
+per \cite{GhadimiLan2013,GhadimiLanZhang2016}, additionally requires
+$\lambda$ to be held fixed while it runs, and the active per-step EMA in
+\eqref{eq:dinkelbach} never freezes $\lambda$. Lemma~\ref{lem:smooth} is
+therefore evidence that gradient-based training is locally well-behaved
+\emph{at any instant}, not a license to invoke this convergence framework
+as stated.
 \end{remark}
 
-\subsection{The one remaining gap: an unshrinking entropy bias}
+\subsection{A weak, honest positive result: self-consistency, not optimality}
+\label{sec:fixedpoint}
 
-Under Lemma~\ref{lem:bandit}, SAC's actor/critic are --- in effect ---
-running stochastic projected-gradient ascent directly on $f_\lambda$, so the
-gradient-mapping norm after $T$ inner steps admits the standard $O(1/\sqrt{T})$
-rate \cite{GhadimiLan2013,GhadimiLanZhang2016}: an explicit, checkable route
-to condition (a) of \cite{JinTangZhangWang2023}, in place of an
-unquantifiable ``training plateaued.'' What this does \emph{not} yet secure
-is condition (b), that the inner-solve error actually shrinks over training
-rather than plateauing at a nonzero floor.
+One argument can be made without borrowing convergence machinery that
+does not apply. Suppose the joint process $(\lambda_t,\theta_t)$ ($\theta$
+the policy parameters) reaches a stationary point: $\lambda$ stops moving,
+the policy stops changing. Two things are then true \emph{by construction},
+not by assumption: $\lambda$ must equal the realized $R(\theta)/P_\text{total}(\theta)$
+exactly, since $\lambda$ is defined as an EMA tracking that ratio and an EMA
+of a constant sequence converges to that constant; and the policy must be a
+(soft) maximizer of $R-\lambda P_\text{total}$, since that is what SAC's
+training objective pushes toward for a stationary reward. Together these are
+exactly Dinkelbach's fixed-point condition, $\lambda^\star =
+R(\mathbf{W}^\star)/P_\text{total}(\mathbf{W}^\star)$ at a maximizer of
+$R-\lambda^\star P_\text{total}$ --- so \emph{if} the dynamics settle
+anywhere, they settle somewhere self-consistent with the Dinkelbach
+optimality condition.
 
-SAC's maximum-entropy objective is exactly such a floor. The auto-tuned
-temperature $\alpha_{\text{SAC}}$ is adjusted throughout training to hold the
-policy's entropy at \texttt{target\_entropy}, fixed at $1.0$ for the entire
-run in \texttt{config\_sac\_learner.py} and never annealed. The soft-optimal
-policy therefore maximizes $\mathbb{E}[Q(s,a)]+\alpha_{\text{SAC}}\mathcal{H}(\pi(\cdot\mid s))$,
-not $\mathbb{E}[Q(s,a)]$ alone, and the resulting gap from the true argmax is
-bounded by a term of order $\alpha_{\text{SAC}}$ that does not shrink from
-episode $0$ to episode $13{,}000$ under the current schedule --- the one
-condition of \cite{JinTangZhangWang2023} not currently met.
-
-\begin{remark}[The resulting recommendation, and why it does not require abandoning SAC]
-Annealing \texttt{target\_entropy} (or decaying $\alpha_{\text{SAC}}$) over
-training turns this floor into a term that vanishes as training proceeds,
-which is exactly what condition (b) requires. This is a schedule change to
-the existing training loop, not an architectural one: actor, critic, and
-replay buffer are unchanged. That matters because, while the environment is
-action-\emph{independent} (Lemma~\ref{lem:bandit}), it is not
-\emph{stationary} over the mission timeline --- the satellite's motion drifts
-the channel statistics continuously. An offline ``learning-to-optimize''
-alternative (a feed-forward network trained once by ordinary backpropagation
-against a fixed, i.i.d.-sampled batch of channel realizations) would satisfy
-Lemma~\ref{lem:smooth} equally well, but would need an explicit
-retraining/adaptation mechanism to track that drift, which SAC's online
-training loop provides for free. This is why the object being justified here
-is the existing online SAC formulation, not a replacement for it.
+\begin{remark}[What this does not show]
+This is a characterization of self-consistency, not of optimality, and it
+is important not to overstate it. Dinkelbach's classical equivalence between
+$F(\lambda^\star)=0$ and global ratio-optimality relies on $\mathbf{W}^\star$
+being the \emph{global} maximizer of $R-\lambda^\star P_\text{total}$; here
+$\theta$ is at best a local stationary point of a nonconvex training
+objective. A policy that transmits at the circuit-power floor with near-zero
+rate is, in this weak sense, just as much a "fixed point" as a good one ---
+$\lambda\to 0$ and $R-\lambda P_\text{total}\approx 0$ are self-consistent
+too. This argument establishes that $\lambda$ correctly describes whatever
+the policy ends up doing; it says nothing about why the policy ends up doing
+something good, which is a separate, much harder claim this document does
+not make. It is also unclear the premise is ever exactly satisfied: both
+optimizer learning rates in \texttt{config\_sac\_learner.py} are constant
+(no decay schedule is active), and constant-step-size stochastic
+optimization generically settles into a noisy neighborhood rather than a
+literal fixed point.
 \end{remark}
 
-A related, purely empirical stabilization technique is worth noting
-separately: the $\lambda$ update in \eqref{eq:dinkelbach} is, mathematically,
-a pure integral controller on the rate/power gap, which is known from
-control theory to be prone to oscillation and overshoot. PID-Lagrangian
-methods from safe RL \cite{StookeAchiamAbbeel2020} add proportional and
-derivative terms to exactly this kind of update to damp such oscillation.
-This is a complementary, cheap engineering fix for training stability; unlike
-the entropy-annealing schedule above, it comes with no convergence proof of
-its own and does not by itself close any of the three conditions discussed
-above.
+\subsection{Empirical evidence, honestly bounded}
+\label{sec:empirical-evidence}
 
-\subsection{Summary of the argument}
+Two checks against an active training run (job with the current, reverted
+\texttt{EE\_sac.py}, plain \texttt{lwin5000} mode) bear on, without proving,
+whether the dynamics in Section~\ref{sec:fixedpoint} settle in practice.
 
-Lemma~\ref{lem:bandit} reduces the relevant question from general-MDP
-convergence --- where every concurrently-updated primal-dual scheme found in
-the literature either requires a discrete/softmax policy
-\cite{Paternain2019,DingZhangBasar2020} or an exactly-solved inner problem
-\cite{HaEtAl2024,DengEtAl2023} --- to bandit-level convergence, which is far
-better understood. Lemma~\ref{lem:convex} discharges condition (c) of
-\cite{JinTangZhangWang2023} unconditionally. Lemma~\ref{lem:smooth}, combined
-with projected-SGD gradient-mapping bounds
-\cite{GhadimiLan2013,GhadimiLanZhang2016}, gives an explicit route to
-condition (a). What remains open is condition (b), currently blocked only by
-a fixed, non-annealed entropy target. Annealing that target is therefore the
-single concrete change needed to make the online, reward-embedded Dinkelbach
-update \eqref{eq:dinkelbach} a rigorously justified instance of an
-established inexact-fractional-programming convergence theorem, rather than
-an unjustified heuristic --- without departing from the SAC architecture used
-throughout this work. Whether entropy annealing changes the trained policy's
-realized $\mathrm{EE}(\mathbf{W})$ in practice is a separate, still-open
-empirical question.
+\emph{Timescale separation is real but not asymptotic.} Episode-to-episode,
+$\lambda$'s mean relative change is consistently about $4\times$ smaller
+than that of the realized $R/P_\text{total}$ ratio it tracks, stable across
+three non-overlapping windows spanning roughly $4000$ episodes (ratios
+$4.03$, $3.91$, $4.03$). This is genuine evidence of practical separation ---
+not asserted from the EMA window size, measured from training logs --- but
+it is a constant ratio, not one diverging toward the
+$a(n)/b(n)\to 0$ condition classical two-timescale stochastic-approximation
+theory needs. $\lambda$'s and the realized ratio's episode means also track
+each other almost exactly throughout (e.g.\ $2.679$ vs.\ $2.682$ early,
+$3.299$ vs.\ $3.300$ late), which is closer to $\lambda$ being a smoothed
+shadow of one signal than to two variables settling into separately-decoupled
+equilibria.
+
+\emph{The entropy-driven bias described below is not shrinking, and by one
+measure is still growing.} $\alpha_\text{SAC}$ (the auto-tuned entropy
+temperature) rises monotonically across the full range checked so far
+(episode-window means $0.32\to 7.77\to 8.85\to 9.20$ over roughly $5100$ of
+$13{,}000$ episodes), with shrinking but nonzero variance --- not the plateau
+a first glance at a handful of adjacent episodes suggests. This is
+consistent with, and does not contradict, the entropy-bias diagnosis below;
+if anything it shows the bias is still actively evolving well into training,
+not settled at a constant floor.
+
+\subsection{The entropy-related bias, and what remains open}
+\label{sec:open}
+
+SAC's maximum-entropy objective introduces a real bias independent of all of
+the above: the auto-tuned temperature $\alpha_{\text{SAC}}$ is adjusted to
+hold the policy's entropy at \texttt{target\_entropy}, fixed at $1.0$ for
+the entire run in \texttt{config\_sac\_learner.py} and never annealed in the
+code this document currently describes. The soft-optimal policy therefore
+maximizes $\mathbb{E}[Q(s,a)]+\alpha_{\text{SAC}}\mathcal{H}(\pi(\cdot\mid s))$,
+not $\mathbb{E}[Q(s,a)]$ alone, and the gap from the true argmax is bounded
+by a term of order $\alpha_{\text{SAC}}$ that Section~\ref{sec:empirical-evidence}
+shows is not shrinking. Annealing \texttt{target\_entropy} (or decaying
+$\alpha_\text{SAC}$) is a plausible, minimally-invasive fix --- a training
+schedule change, not an architectural one --- but whether it closes this gap
+in practice, and whether closing it changes the trained policy's realized
+$\mathrm{EE}(\mathbf{W})$, are both untested: an earlier pilot run with
+annealing enabled was launched but its outcome was never checked before the
+code was reverted to the non-annealed version described here.
+
+A related, purely empirical stabilization idea is worth noting separately:
+the $\lambda$ update in \eqref{eq:dinkelbach} is, mathematically, a pure
+integral controller on the rate/power gap, known from control theory to be
+prone to oscillation and overshoot. PID-Lagrangian methods from safe RL
+\cite{StookeAchiamAbbeel2020} add proportional and derivative terms to
+exactly this kind of update to damp such oscillation. This is a cheap
+engineering fix for training stability; it comes with no convergence proof
+of its own.
+
+What would be needed for a genuine rigor result, beyond what is established
+here: either (i) a local, KKT-style optimality characterization at a joint
+stationary point (weaker than global optimality but provable, and a more
+promising target than what was attempted before), or (ii) an algorithmic
+change --- replacing the fixed-window EMA with a diminishing-step-size
+update for $\lambda$ --- that would make the asymptotic separation classical
+two-timescale theory needs actually hold, at the cost of $\lambda$ becoming
+less responsive late in training. The corrected reading of
+\cite{Paternain2019,DingZhangBasar2020} in
+Section~\ref{sec:dinkelbach-rigor} above is the more promising literature
+home for either direction than the tabular result this section originally
+relied on. Neither is carried out here; both are left as concrete,
+well-specified future work rather than as claims this document makes.
 
 \section{Related work}
 \label{sec:related}
 
 The reference paper \cite{Schroder2025} itself continues an earlier
-single-objective (sum-rate only) line of work by the same group
-\cite{Gracla2024}, which introduced the flexible SAC-based precoding
-framework this note builds on. Outside that lineage, three adjacent bodies
-of work are relevant, and it is worth being precise about what each does and
-does not share with the extension proposed here.
+single-objective (sum-rate only) line of work by the same group, starting
+with the first application of SAC to this exact robust-precoding problem
+\cite{GraclaICASSP2023} and its extension to a flexible multi-scenario
+framework \cite{Gracla2024}, which together introduced the SAC-based
+precoding framework this note builds on. The same group has also directly
+compared RSMA against SDMA and OMA precoding on this system under CSIT
+error \cite{SchroderRSMA2023}, though without an energy-efficiency
+objective --- relevant given the RSMA framing of the codebase this note
+documents, but a separate multiple-access question from the EE one this
+note addresses. Outside that lineage, three adjacent bodies of work are
+relevant, and it is worth being precise about what each does and does not
+share with the extension proposed here.
 
 \textbf{Energy-efficient beamforming via deep RL.} DRL has been applied
 directly to EE-objective beamforming design, e.g.\ uplink beamforming for
@@ -468,8 +599,13 @@ beamforming, UAV positioning, and rate-splitting for RSMA-based LEO links
 assisted by an active reconfigurable intelligent surface
 \cite{YeganehBehroozi2025}, and a risk-aware (CVaR-based) DRL framework for
 robust hybrid beamforming in massive-MIMO LEO systems that also targets
-energy efficiency \cite{RiskAwareLEO2024}. Both combine EE, robustness, and
-LEO satellites as we do, but in materially larger/different system
+energy efficiency \cite{RiskAwareLEO2024}. The latter extends an earlier,
+non-learned CVaR-based robust beamforming formulation by an overlapping
+author group \cite{AlsenwiCVaR2023}, which solves the same risk-aware
+hybrid-precoding problem via alternating optimization (no DRL) and targets
+data-rate QoS under worst-case channel variation rather than an explicit
+energy-efficiency objective. Together, these three combine EE, robustness,
+and LEO satellites as we do, but in materially larger/different system
 architectures (RIS- and UAV-assisted, or massive-MIMO hybrid precoding) and
 via a different robustness mechanism (risk measures rather than training
 under a CSIT error distribution).
@@ -533,11 +669,15 @@ constraint & \textbf{New.} Every paper precoder instead implements
 Dinkelbach reward reformulation \eqref{eq:dinkelbach} with an online,
 windowed $\lambda$ update & \textbf{New.} Not a fractional program in the
 paper at all. \\
-Rigorous grounding for the online $\lambda$ update
-(Section~\ref{sec:dinkelbach-rigor}) & \textbf{New.} Reduces the question to
-a bandit-convergence argument with an automatically-convex, provably-smooth
-inner surface; identifies one concrete remaining gap (a non-annealed entropy
-target) and its fix, without changing the SAC architecture. \\
+Honest theoretical accounting for the online $\lambda$ update
+(Section~\ref{sec:dinkelbach-rigor}) & \textbf{New.} Establishes what
+genuinely holds (bandit reduction, strengthened by $\gamma=0$; smoothness of
+the fixed-$\lambda$ surface; a self-consistency-not-optimality fixed-point
+argument) and corrects an earlier draft's overclaimed convergence argument,
+which misapplied a tabular-only theorem and mischaracterized two other
+papers' actual (partially continuous-action) scope. Identifies the
+entropy-driven bias as real and currently unresolved, not fixed, and states
+two concrete open directions rather than a closed result. \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -552,8 +692,11 @@ is a separate, still-open empirical question, addressed by evaluation rather
 than by the formulation itself. Section~\ref{sec:dinkelbach-rigor} addresses
 a different open question --- not whether the trained policy performs well,
 but whether the training procedure itself has a defensible theoretical basis
---- and identifies exactly one concrete, not-yet-implemented change
-(entropy-target annealing) needed to close it.
+--- and, on correction, establishes less than an earlier draft claimed:
+self-consistency of the $(\lambda,\theta)$ fixed point, not its optimality,
+plus two concrete, not-yet-implemented directions (entropy-target annealing;
+a diminishing-step-size $\lambda$ update) that remain untested rather than
+a closed result.
 
 \begin{thebibliography}{99}
 
@@ -566,7 +709,19 @@ arXiv:2510.25393.
 \bibitem{Gracla2024}
 A.~Schr\"oder, S.~Gracla, M.~R\"oper, D.~W\"ubben, C.~Bockelmann, and
 A.~Dekorsy, ``Flexible Robust Beamforming for Multibeam Satellite Downlink
-using Reinforcement Learning,'' arXiv:2402.16563, 2024.
+using Reinforcement Learning,'' \emph{2024 IEEE International Conference on
+Communications (ICC)}, 2024. DOI: 10.1109/ICC51166.2024.10622707.
+
+\bibitem{GraclaICASSP2023}
+S.~Gracla, C.~Bockelmann, A.~Schr\"oder, D.~W\"ubben, M.~R\"oper, and
+A.~Dekorsy, ``Learning Model-Free Robust Precoding for Cooperative
+Multibeam Satellite Communications,'' submitted to \emph{IEEE International
+Conference on Acoustics, Speech and Signal Processing (ICASSP)}, 2023.
+
+\bibitem{SchroderRSMA2023}
+A.~Schr\"oder, M.~R\"oper, D.~W\"ubben, B.~Matthiesen, P.~Popovski, and
+A.~Dekorsy, ``A Comparison between RSMA, SDMA, and OMA in Multibeam LEO
+Satellite Systems,'' \emph{WSA \& SCC 2023}, Braunschweig, Germany, 2023.
 
 \bibitem{Auer2011}
 G.~Auer, V.~Giannini, C.~Desset, I.~Godor, P.~Skillermark, M.~Olsson,
@@ -600,10 +755,16 @@ Communications Assisted by UAV-Mounted BD-Active RIS: A DRL Approach,''
 arXiv:2505.04148, 2025.
 
 \bibitem{RiskAwareLEO2024}
-``Robust Beamforming for Massive MIMO LEO Satellite Communications: A
-Risk-Aware Learning Framework,'' \emph{IEEE} [venue/author details to be
-verified before citing in a manuscript --- not independently confirmed],
-IEEE Xplore document 10336551.
+M.~Alsenwi, E.~Lagunas, and S.~Chatzinotas, ``Robust Beamforming for
+Massive MIMO LEO Satellite Communications: A Risk-Aware Learning
+Framework,'' \emph{IEEE Transactions on Vehicular Technology}, vol.~73,
+no.~5, pp.~6560--6572, May 2024.
+
+\bibitem{AlsenwiCVaR2023}
+M.~Alsenwi, E.~Lagunas, H.~Al-Hraishawi, and S.~Chatzinotas, ``CVaR-based
+Robust Beamforming Framework for Massive MIMO LEO Satellite
+Communications,'' \emph{2023 IEEE Global Communications Conference
+(GLOBECOM)}, 2023. DOI: 10.1109/GLOBECOM54140.2023.10437857.
 
 \bibitem{JiaoFangDing2022}
 S.~Jiao, F.~Fang, and Z.~Ding, ``Joint Robust Beamforming Design for

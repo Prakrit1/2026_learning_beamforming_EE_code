@@ -2,11 +2,57 @@ I'm working on RSMA/energy-efficiency beamforming for satellite downlink.
 This is a continuation session -- read this whole file before doing anything.
 This handoff REPLACES all previous ones (both the copy in this repo and the
 one in the sibling repo below) and has been trimmed to keep only what's
-still relevant. Current as of 2026-07-27, ~12:45 CEST (38.821 parameter
-check + 3GPP alignment decisions + two pilot training jobs launched, see
-the two 2026-07-27 sections below; main body current as of 2026-07-23;
-the 2026-07-24 distance sweep, job 153071, is on disk but not yet written
-up here beyond passing mentions).
+still relevant. Current as of 2026-07-31, ~14:30 CEST (NEWEST: jobs
+155291-94 (the 2026-07-30 ema0.3+warmstart detlam retrains) all completed
+cleanly, but the full detlam eval suite run against them (jobs 155655-59)
+found NO IMPROVEMENT on the key matched-power-MMSE-gap question -- worse for
+aod=0.0, better for aod=0.05, net a wash, not the fix hoped for. Re-read
+docs/EE_formulation.tex closely per user request and found the deterministic-
+lambda ("detlam") line of work may have been solving the wrong problem: the
+doc's own Sec 6.3 identifies a non-annealed target_entropy as the documented
+cause of exactly the rollout-noise-inflation bias that motivated detlam in
+the first place, and prescribes ANNEALING target_entropy as the fix -- not
+changing lambda's estimator. Implemented target_entropy annealing (target_
+entropy is now a tf.Variable in soft_actor_critic.py with a set_target_
+entropy() setter, so mutating it mid-training actually reaches the already-
+@tf.function-traced train_graph -- a plain float would have silently no-
+opped), smoke-tested (job 155670, decisively confirmed working), and
+launched a pilot (job 155683: aod=0.05, back to the ORIGINAL lwin5000 lambda
+mode, target_entropy annealed 1.0->0.0 over the full 13,000-episode run) --
+RUNNING (node miami, episode ~4765/13000 as of handoff time). Separately,
+discussed and implemented a completely different side approach per user
+request: instead of pricing power in the reward (Dinkelbach), feed the power
+BUDGET to the actor as an extra state input (sampled log-uniform per
+transition), always rescale to exactly that budget, reward = pure rate --
+learns the rate-maximizing frontier r*(H,P) in one network, meant to let the
+EE-optimal point be found via a cheap OFFLINE grid search afterwards instead
+of a live concurrently-trained multiplier. New EE_REWARD_MODE=energy_
+efficiency_power_conditioned in EE_sac.py, smoke-tested (job 155695 caught a
+real bug -- a hardcoded reward-key whitelist didn't know the new key, fixed;
+job 155696 clean pass), launched as a pilot (job 155697: aod=0.05, budget
+log-uniform in [1,75] W) -- RUNNING (node airmont, episode ~2611/13000 as of
+handoff time, reward climbing 0.5->2.3). Both pilots run CONCURRENTLY and
+are independent; see the "2026-07-31 session" section below for full detail,
+including a minor non-fatal shared-log-file race condition (log.txt rotation
+collision) discovered from running two EE_sac.py jobs at once. Previous
+state, 2026-07-30 ~16:10: SIX 2026-07-29 detlam jobs resolved (four
+completed cleanly, aod=0.025 pair diverged, ignored per user instruction);
+the four completed checkpoints evaluated and found to underperform (matched-
+power MMSE beat SAC by 45-66%, worse than the pre-fix system's ~31%); log
+analysis showed aod=0.0 was undertrained (lambda/rate still rising at
+episode 13000); EMA smoothing + warm-start added to EE_sac.py and four
+retrains launched (jobs 155291-94) -- see the "2026-07-30 session" section.
+Previous state, 2026-07-29 ~10:30: the lambda/over-transmission decision was
+made -- FIX via deterministic-lambda mode, option (b) -- implemented in
+EE_sac.py and SIX nadir detlam training jobs launched; see the "2026-07-29
+session" section. Previous state, 2026-07-28: the two 3GPP training runs
+COMPLETED and were fully evaluated; matched-power MMSE comparison added;
+over-transmission/lambda finding; my_evaluation.py + my_plotting.py reworked
+to 3GPP-only per explicit user decisions; figure folder curated -- ALL in
+the big "2026-07-28 session" section below. The two 2026-07-27 sections
+cover the parameter check + launch; main body current as of 2026-07-23; the
+2026-07-24 distance sweep, job 153071, is on disk but not written up here
+beyond passing mentions).
 
 ## IMPORTANT: this repo is now the canonical one -- work here, not in the sibling repo
 
@@ -378,16 +424,26 @@ checkpoints need no env vars -- the defaults ARE the 3GPP values.**
   one-sentence disclosure in the paper, not simulator changes -- constant
   offsets common to all compared precoders.
 
-**Pilot training jobs launched 2026-07-27 ~12:40 CEST (both RUNNING at
-handoff time, ~3 days expected, aod=0.05 / Dinkelbach adaptive / lwin5000,
-identical except geometry):**
-- Job 153621 (nadir, node monaco): slurm
-  src/energy_efficiency/EE_dinkelbach_rawpow_aod0.05_satg30_p75_nadir.slurm,
-  expected checkpoint
-  EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow.
-- Job 153622 (30 deg elevation, node montevideo): slurm ..._elev30.slurm,
-  expected checkpoint ..._N16K3_satg30_p75_elev30_eta0.6_rawpow.
-- Logs at repo root: EE_3gpp_nadir_153621.*, EE_3gpp_elev30_153622.*.
+**Pilot training jobs (aod=0.05 / Dinkelbach adaptive / lwin5000,
+identical except geometry, ~3 days expected) -- BOTH COMPLETED CLEANLY
+2026-07-27 evening (~5-7 h, not 3 days); outcomes + all evaluation in
+the "2026-07-28 session" section below:**
+- FIRST ATTEMPT (jobs 153621 nadir / 153622 elev30, launched ~12:40 CEST)
+  DIED ~15:33 CEST: nodes monaco/montevideo had an NVIDIA driver mismatch
+  (libcuda 580.173.2 vs kernel 580.159.3 -> cuInit failed -> both ran on
+  CPU), then the jobs vanished without traceback -- consistent with the
+  nodes being rebooted to fix exactly that. Partial CPU-run checkpoint
+  folders were wiped before resubmission.
+- RESUBMITTED ~16:10 CEST as jobs 153655 (nadir) / 153656 (elev30) with
+  --exclude=monaco,montevideo; pending at resubmission time. **On pickup:
+  verify each job's .out shows a real GPU detected (the first attempt's
+  logs looked normal apart from the cuInit error in .err!) and the
+  expected training_name.**
+- Slurms: src/energy_efficiency/EE_dinkelbach_rawpow_aod0.05_satg30_p75_{nadir,elev30}.slurm.
+  Expected checkpoints:
+  EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow
+  and ..._satg30_p75_elev30_eta0.6_rawpow.
+- Logs at repo root: EE_3gpp_nadir_153655.*, EE_3gpp_elev30_153656.*.
 - These are the FIRST training runs launched from THIS repo (all previous
   training .slurm files cd into the original 2025 repo; these two cd here).
 - **First thing to verify on pickup: each .out prints the expected
@@ -398,6 +454,646 @@ identical except geometry):**
   channels) -> expect lower rate, possibly different power operating
   point. If its Dinkelbach lambda trajectory looks pathological (NaN /
   power collapse), that geometry stress is the first suspect.
+
+## 2026-07-28 session: 3GPP training outcomes, full evaluation, lambda/over-transmission finding, eval-suite rework, figure curation
+
+**TERMINOLOGY (user instruction): do NOT call the two new checkpoints
+"pilots"** -- the user read that as pilot SIGNALS (nothing in the physical
+layer changed). Say "3GPP nadir model" / "3GPP elev30 model". Several
+script/figure filenames still contain `3gpp_pilots`; a rename was offered
+but not yet confirmed.
+
+### Training outcome (jobs 153655 nadir / 153656 elev30)
+
+Both completed cleanly in ~5-7 h (parallel-env speedup; the ~3-day
+estimate was way off), full 13,000 episodes, real GPUs confirmed (3090 on
+funkia / 4090), training_names EXACTLY as the new suffix logic predicted
+-- that logic's first live test passed. Best snapshots: nadir 2.174,
+elev30 2.036 (models/ in this repo). Lambda trajectories healthy: ~0.4 ->
+stable plateau 2.09 (nadir) / 1.86 (elev30), no NaN/power collapse.
+
+**LOG-READING FOOTGUN discovered: the training log's "mean power X x
+budget" is the STOCHASTIC rollout's raw pre-clip power in normalized DC
+units.** The 96-dim exploration noise inflates the squared norm to ~2x
+budget even when the deterministic policy transmits ~53% of budget. Do
+not read training logs as the policy's real power draw -- only
+deterministic evaluation shows that. (This misread caused a false
+"pinned at full power" alarm mid-session before evaluation corrected it.)
+
+### Evaluation results (all sbatch; jobs 154052/53/56, 154111-154114, 154118, 154120/21)
+
+Rate/power error sweep (0-0.10, 11 pts, 10k MC each, each model in ITS
+OWN geometry/system; old control reproduced the known 56.6-59% numbers,
+validating the pipeline):
+- 3GPP nadir: rate 6.60@0 -> 5.89@0.05 -> 4.37@0.10; power 39.6-40.8 W
+  = 53-54% of 75 W budget, 100% of samples below budget. Per-user power
+  split near-perfectly even (13.3/13.2/13.1 W).
+- 3GPP elev30: rate FLAT ~4.74 across the whole error range; power
+  57.5-57.9 W = 77%. **Structural dropped user: per-user means
+  28.0 / 3.6 / 26.0 W -- user 2 gets 6% of total, on AVERAGE, not in
+  outlier realizations.** The flat rate curve is largely explained by it
+  effectively serving 2 users (error-robust by construction). Tight
+  angular spread (0.14 rad vs 0.49 nadir) -> highly correlated channels
+  -> policy sacrifices the middle user. RECOMMENDATION (open decision):
+  retrain elev30 with the fairness term (weight 1.5 was the old-system
+  sweet spot) before treating elev30 numbers as final.
+- MMSE at the new system: 12.17@0 (nadir) -- this is EXPECTED physics:
+  +10 dB sat gain - 1.25 dB budget cut ~= +8.75 dB SNR, ~4 bps/Hz/user;
+  elev30 MMSE only 6.18@0 (+5 dB slant-range loss + correlation).
+- **Matched-power MMSE (the fair comparison, user-requested): MMSE
+  rescaled per error level to the nadir SAC's own measured power
+  (~40 W): 9.62@0, 8.45@0.02, 5.69@0.04, 4.01@0.06, 2.57@0.10. SAC
+  crosses it around error ~0.03 and leads by ~70% at 0.10 (4.38 vs
+  2.57) at IDENTICAL transmit power** -- the robustness claim survives
+  with the power advantage removed. Implemented in my_evaluation.py as
+  precoder_name='mmse_sacpower' (power targets read from the saved
+  rate_power gzip with an error-grid consistency check).
+- Beampatterns (30 realizations, err 0.05, handoff item 4c): nadir bw
+  2.85 deg / coverage 0.629; elev30 bw 3.47 deg / coverage 0.774 --
+  **both inside the ~2-4.5 deg Set-1-consistent range, item 4c DONE.**
+  elev30 sweep window had to be dynamically centered: its users sit at
+  AoD ~2.40-2.54 rad, far outside the usual 1.2-1.9 window.
+
+### Over-transmission / lambda finding (ee_power_scaling_diagnostic.py, NEW)
+
+Post-hoc scaling test: take each checkpoint's clipped precoder, scale by
+s in (0.1..1.0], measure EE = R/(s^2 P/eta + 16 W) on paired samples.
+- old aod0.05 control: EE peak s=0.75 (+4.2%) -- near-optimal, validates test.
+- 3GPP nadir: EE peak s=0.60 -> 14.7 W, **+18.6% EE** vs its own 40.8 W.
+- 3GPP elev30: EE peak s=0.55 -> 17.5 W, **+26.1% EE** vs its 57.7 W.
+So both new models transmit 2-3x above the pure-EE-optimal power.
+Mechanism hypothesis (quantified): the adaptive lambda is updated from
+the NOISE-INFLATED rollout raw power (see footgun above), so it
+converged to ~2.09 while the deterministic policy's true R/P ratio is
+~3.8 -- power is priced at roughly half its true cost, so the policy
+rationally over-buys it. OPEN DECISION, three ways: (a) 1-line: update
+lambda from clipped/transmitted power (partial fix, ~2.09->~2.3); (b)
+clean: estimate lambda from periodic deterministic (no-entropy-sampling)
+episodes; (c) reframe: pure-EE optimum costs half the rate (5.9->3.4
+bps/Hz at nadir) -- if the paper's story is "EE at useful rates" (plus
+min-rate/fairness), current checkpoints may be defensible as-is.
+Recommended: (b) as a nadir retrain to test the mechanism -- but decide
+(c)-vs-fix first.
+
+### Eval-suite rework -- USER DECISIONS, do not re-litigate
+
+- **User explicitly rejected any EE_SAT_GAIN_DBI=20 / EE_POWER_BUDGET_WATT=100
+  pins appearing in the eval scripts** (asked twice "why 100, our budget
+  is 75"). Resolution adopted: old checkpoints are NEVER re-simulated;
+  their existing gzips on disk are the benchmark, loaded read-only.
+  (If an old checkpoint ever MUST be re-run, it still physically
+  requires those pins -- explain first, the user wants reasons before
+  code.)
+- **my_evaluation.py REWRITTEN (3GPP-only, user approved "go with your
+  recommendation")**: evaluates 3GPP nadir + elev30 SAC (clip-only),
+  MMSE per geometry, and matched-power MMSE (nadir), all at current
+  defaults (30 dBi / 75 W; elev30 block sets EE_TARGET_ELEVATION_DEG=30).
+  The six old-checkpoint blocks were REMOVED (git history has them);
+  rationale in the file's header comment: re-running them under new
+  defaults is physically meaningless AND overwrites the good old gzips.
+- **my_plotting.py REWRITTEN to exactly 2 figures**:
+  error_sweep_3gpp_models_sumrate.pdf (5 curves: MMSE nadir @75W, MMSE
+  nadir eq.pow, SAC nadir, MMSE elev30, SAC elev30) and
+  error_sweep_benchmark_old_system_sumrate.pdf (old aod 0.0/0.025/0.05
+  vs old MMSE, plotted from existing old gzips). Compact legends per
+  user (old legends covered the curves): short labels, fontsize 6,
+  tight padding. **PENDING: the very last edit (legend now says
+  'SAC nadir (train err 0.05)' etc.) is in the .py but NOT yet
+  rendered -- the re-plot submission was interrupted by the user; first
+  action on pickup: `sbatch src/energy_efficiency/my_plotting_3gpp.slurm`
+  (plot-only, seconds).**
+- New scripts + .slurm, ALL UNTRACKED: rate_power_3gpp_pilots.py
+  (benchmark curve loaded from its own gzip, MMSE added, % -of-own-budget
+  power panels), tx_power_3gpp_pilots.py (power distributions, imports
+  the plot functions from tx_power_distribution.py), beampattern_3gpp_pilots.py
+  (dynamic sweep window + beamwidth/coverage stats), ee_power_scaling_diagnostic.py,
+  my_evaluation_3gpp.slurm, my_plotting_3gpp.slurm, plus rate_power_3gpp_pilots.slurm,
+  tx_power_3gpp_pilots.slurm, beampattern_3gpp_pilots.slurm,
+  ee_power_scaling_diagnostic.slurm. tx_power_distribution.py itself
+  UNCHANGED (still the old-checkpoint script; do not run it under new
+  defaults for the same overwrite/validity reasons).
+- New data on disk (outputs/metrics/): per-3GPP-model error_sweep/
+  testing_{learned,mmse,mmse_sacpower}_sweep_0.0_0.1.gzip;
+  EE_3gpp_pilots_rate_power_sweep/rate_power_3gpp_pilots.gzip (contains
+  the old_aod0.05 benchmark entry + both models + both MMSE curves);
+  EE_beampattern_3gpp_{nadir,elev30}_N16K3_aod0.05/;
+  EE_beampattern_3gpp_pilots_stats.gzip; EE_power_scaling_diagnostic/.
+
+### Figure folder state (user-driven curation, 2026-07-28)
+
+- reports/figures/pdf/ contains ONLY the two my_plotting.py figures
+  (with the pre-train-err-label legends until the pending re-plot runs).
+- 20 pre-session PDFs MOVED to reports/figures/pdf_archive/ (kept, not
+  deleted).
+- The other 11 (incl. the newly generated rate_power_3gpp_pilots.pdf,
+  power_savings_{comparison,bars}_3gpp_pilots.pdf, beampattern_3gpp_*,
+  ee_power_scaling_diagnostic.pdf, beampattern_full_comparison_*, and
+  the kept old benchmarks) were DELETED on user instruction ("delete all
+  the curves, regenerate with smaller legend, first only plotting.py").
+  All are regenerable: new-script figures by re-running their scripts
+  (rate/power + tx-power re-run Monte Carlo, ~10 min each; beampattern
+  full comparison has --plot-only against its gzip), old benchmark PDFs
+  via `git checkout -- reports/figures/pdf/<name>` (they are tracked).
+  **Regeneration of everything beyond my_plotting.py is WAITING on the
+  user approving the compact-legend style; then apply the same legend
+  treatment to the other scripts BEFORE regenerating.**
+
+### Cluster note
+
+funchal (and previously monaco/montevideo) has the NVIDIA driver
+mismatch (kernel 580.159.3 vs libcuda 580.173.2): jobs landing there run
+on CPU silently -- fine numerically for evaluation (154056/154111 did),
+fatal for training throughput. Symptom in .err: "kernel version ... does
+not match DSO version". Check before long training runs; --exclude if
+needed.
+
+## 2026-07-29 session: lambda fix implemented (option b), SIX detlam trainings launched
+
+**Decision made (user, explicit): FIX the lambda/over-transmission bug,
+not reframe** -- option (b) from the 2026-07-28 section (deterministic-
+episode lambda estimation), implemented and launched. Option (c)
+("EE at useful rates") stays in the back pocket if the fixed models'
+rates come out too low.
+
+**Implementation -- ALL in src/models/EE_sac.py, soft_actor_critic.py
+deliberately untouched (user instruction: keep the change in the file
+that owns the reward/lambda logic):**
+- New 4th mutually exclusive Dinkelbach lambda mode
+  `dinkelbach_deterministic_lambda`, env-gated: EE_LAMBDA_DETERMINISTIC=1,
+  optional EE_LAMBDA_DET_EVAL_STEPS (default 512) and
+  EE_LAMBDA_DET_EVAL_EVERY (default 1, episodes).
+- Per-step: rollout rate/power accumulate NOTHING in this mode (the
+  rollout raw power is the noise-inflated signal being removed).
+- At each episode boundary: noise-free eval -- 8 batched groups x 64
+  parallel envs = 512 fresh channel realizations, mean actions via
+  sac.networks['policy'][0]['primary'].call() (same call the eval
+  scripts use) + sac.bound_actions(), precoder clipped to budget exactly
+  like the training loop, then lambda = mean rate / mean total DC power
+  (transmit/eta + circuit, budget-normalized). Textbook Dinkelbach
+  iteration on the policy the checkpoint is actually evaluated with.
+  Log line per episode prints BOTH det and rollout rate/power, so the
+  bias gap is visible in the .out.
+- training_name lambda-mode slot becomes `_detlam512` (replaces
+  `_lwin5000`); checkpoint warmup extended to cover det_eval_every.
+- Mode precedence: lambdafixed > detlam > block > lwin (EMA).
+
+**SIX training jobs submitted 2026-07-29 (~10:00-10:15 CEST), all nadir
+geometry, 3GPP defaults (30 dBi / 75 W), EE_LAMBDA_DETERMINISTIC=1,
+all PENDING at handoff time (GPU pool busy):**
+
+| job | aod bound | fairness | LR | expected checkpoint folder |
+|---|---|---|---|---|
+| 154760 | 0.0 | -- | default | EE_dinkelbach_adaptive_detlam512_N16K3_satg30_p75_eta0.6_rawpow |
+| 154761 | 0.025 | -- | Optuna (lrc1.82e-06/lra1.17e-06) | ..._aod0.025_detlam512..._rawpow_lrc1.82e-06_lra1.17e-06 |
+| 154762 | 0.05 | -- | default | ..._aod0.05_detlam512..._rawpow |
+| 154783 | 0.0 | 1.5 | default | ..._detlam512..._rawpow_fair1.5 |
+| 154784 | 0.025 | 1.5 | Optuna | ..._aod0.025_detlam512..._rawpow_lrc..._lra..._fair1.5 |
+| 154785 | 0.05 | 1.5 | default | ..._aod0.05_detlam512..._rawpow_fair1.5 |
+
+Purpose: 154760-62 mirror the old-system final trio (no fairness) with
+the lambda fix as the ONLY methodological change -- 154762 is the direct
+mechanism test against job 153655 (rollout-lambda nadir, lambda 2.09,
+~40.8 W). 154783-85 are the fairness companions (EE_FAIRNESS_WEIGHT=1.5,
+the old-system sweet spot), identical otherwise, so detlam-vs-rollout
+and fairness-vs-none can each be isolated. Slurms:
+src/energy_efficiency/EE_dinkelbach_rawpow_aod{0.0,0.025,0.05}_satg30_p75_nadir_detlam[_fair1.5].slurm.
+Each .slurm has a py_compile guard (fails in seconds on syntax error)
+and states its expected training_name in a comment.
+
+**CLUSTER: funkia is now ALSO on the broken-driver list.** First
+submission (154755-57) landed on funkia and hit "Failed to initialize
+NVML: Driver/library version mismatch" (NVML 595.84) -- would have
+silently trained on CPU; canceled within a minute and resubmitted with
+--exclude=funchal,monaco,montevideo,funkia (now in all six .slurm files).
+Significant because funkia hosted the previous SUCCESSFUL nadir run.
+
+**On pickup, per .out file check:** (1) no NVML/driver error, real GPU
+in nvidia-smi output; (2) training_name matches the table above (first
+live test of the detlam suffix); (3) per-episode line "Dinkelbach lambda
+updated (deterministic eval, 512 samples) to ..."; fairness jobs
+additionally print reward {'energy_efficiency_dinkelbach_adaptive': 1.0,
+'fairness': 1.5} at startup. **Hypothesis check: lambda should plateau
+near ~3-4 (vs 2.09 rollout-lambda) and deterministic power should drop
+well below ~40 W toward the ~15-20 W EE-optimum.** If lambda still sits
+~2, the noise-inflation mechanism story is wrong -- do not write it up.
+
+**Also this session (no code impact yet):** read the WCNC 2025 paper
+(Kung & Hsieh, Energy-Efficient Beamforming Based on Statistical CSI...,
+in src/energy_efficiency/) -- their Fig. 5's 12 bps/Hz @ 30 dB SNR uses
+only ~3.4 W total (back-computed from EE=rate*BW/P), but with a 41.7 dBi
+UT dish + synthetic SNR axis it is NOT comparable to our handheld
+system; useful instead as citable precedent for Dinkelbach-EE-with-
+min-rate-QoS ("EE at useful rates") and for the RL-motivation argument
+(their pipeline = Dinkelbach x CCCP x interior-point per channel
+realization). Also discussed uniform-vs-Gaussian AoD error modeling
+(Schroder et al. Sec II.C, Eq. 6: uniform on cos(AoD), positioning-
+mismatch rationale, robust-SLNR baseline needs the distribution known);
+conclusion: keep uniform primary, cheap first step if revisited =
+eval-only ablation of existing checkpoints under variance-matched
+Gaussian (sigma = bound/sqrt(3)). No config change made.
+
+## 2026-07-30 session: detlam evaluation (rate/power/matched-MMSE/beampattern), undertraining finding, EMA-smoothing + warm-start reconsideration, four retrains launched
+
+### Six 2026-07-29 detlam jobs: outcome
+
+Checked all six jobs from the prior handoff (154760-62 pure EE, 154783-85
+fair1.5; aod 0.0/0.025/0.05). FOUR completed cleanly through the full
+13,000 episodes on real GPUs (RTX 6000 Ada / RTX 4090, no driver issues):
+154760 (aod0.0), 154762 (aod0.05), 154783 (aod0.0 fair1.5), 154785 (aod0.05
+fair1.5). TWO diverged: 154761 and 154784 (both aod=0.025, plain and
+fair1.5) hit `RuntimeError: Non-finite reward (nan)` around episode
+12,011/12,376 of 13,000, lambda_ee ~2.85-2.93 at divergence. Partial
+checkpoints exist (best snapshot ~3.478 for the plain variant) but nothing
+final. **User instruction: ignore aod=0.025 for now.**
+
+### Evaluation of the four completed checkpoints
+
+New scripts (mirroring the existing my_evaluation.py/my_plotting.py/
+rate_power_3gpp_pilots.py/beampattern_3gpp_pilots.py patterns), all run via
+sbatch:
+- `my_evaluation_detlam.py` (+.slurm, job 154879): rate-vs-error sweep
+  (0-0.10, 11 pts, 10k MC) for the four checkpoints; MMSE reused from the
+  existing 3GPP nadir gzip (system-only, doesn't depend on the SAC
+  checkpoint).
+- `my_plotting_detlam.py` (+.slurm, job 154880, chained afterok): plots the
+  four detlam curves vs. MMSE and the pre-fix (rollout-lambda) SAC nadir
+  checkpoint. Figure: `error_sweep_detlam_vs_prefix_sumrate.pdf`.
+- `rate_power_detlam.py` (+.slurm, job 154882): fresh rate+power Monte
+  Carlo sweep for the four checkpoints (MMSE/pre-fix power reused from
+  `rate_power_3gpp_pilots.gzip`, not re-simulated). Figure:
+  `rate_power_detlam.pdf`. Prints a power-savings summary.
+- `mmse_matched_power_detlam.py` (+.slurm, job 154897): MMSE rescaled per
+  error level to EACH checkpoint's own measured power (from
+  rate_power_detlam.gzip) -- the actual sanity check the user asked for
+  (does SAC sit close to what MMSE achieves at the SAME power?).
+- `beampattern_detlam.py` (+.slurm, job 154995): all 6 precoders (MMSE,
+  pre-fix SAC nadir, 4 detlam checkpoints) generated from ONE
+  generate_beampatterns() call (shared channel realizations), plus
+  beamwidth/coverage/offset stats. Figure:
+  `beampattern_detlam_realization0.pdf`.
+
+**Rate-vs-error results** (bps/Hz @ error 0.00/0.05/0.10):
+MMSE nadir 12.17/5.89/3.36; SAC pre-fix (rollout-lambda aod0.05)
+6.59/5.89/4.34; SAC detlam aod0.0 3.89/2.43/1.85; SAC detlam aod0.05
+2.52/2.47/2.17; SAC detlam aod0.0 fair1.5 4.00/2.57/1.98; SAC detlam
+aod0.05 fair1.5 2.64/2.50/2.22. Degradation over the full range: pre-fix
+34%, detlam aod0.0 ~51-52%, detlam aod0.05 ~14-16% (notably flatter/more
+error-robust than both pre-fix and aod0.0, consistent with the project's
+established higher-training-error-degrades-more-gracefully pattern).
+Fairness=1.5 gives a small consistent rate improvement over baseline at
+every error point and both aod targets, replicating the pre-fix system's
+finding under the new lambda dynamics too.
+
+**Power results** (mean over the full error sweep, of 75 W budget):
+detlam aod0.0 19.4 W (25.8%, 74% saved vs. budget, +52% saved vs. pre-fix's
+40.5 W); aod0.05 21.9 W (29.2%, 71% saved, +46% vs. pre-fix); aod0.0
+fair1.5 21.1 W (28.1%, 72% saved, +48% vs. pre-fix); aod0.05 fair1.5 22.7 W
+(30.3%, 70% saved, +44% vs. pre-fix). Confirms the lambda fix achieved its
+goal directionally: all four checkpoints transmit well below even the
+pre-fix model's already-reduced power.
+
+**Matched-power MMSE finding -- THE KEY CONCERN, user-flagged and
+CONFIRMED real (not a plotting artifact).** Initial detlam plot only had
+full-BUDGET MMSE (75 W) vs. the detlam checkpoints (~19-23 W) -- an
+apples-to-oranges comparison the user correctly caught by eye ("in 3gpp it
+looks normal... the detlam pdf tells a different story"). Built the
+matched-power MMSE curve properly (mmse_matched_power_detlam.py): at
+error=0, matched-power MMSE beats detlam SAC by **45-66%** (e.g. aod0.05:
+SAC=2.53 vs MMSE=7.46) -- much worse than the pre-fix system's ~31% gap at
+error=0 (SAC=6.6 vs MMSE-eq.pow=9.6). Gap closes and flips positive by
+error~=0.08-0.10 (SAC overtakes matched MMSE there in all four checkpoints,
+same robustness-crossover shape as before) but the low-error regime is
+worse than expected -- not just "lower power -> lower rate" but a real
+efficiency/optimality regression at the operating point.
+
+**Beampattern corroboration** (all at CSIT error=0.05, 30 realizations,
+job 154995): pre-fix SAC nadir has coverage 0.601 / mean aiming offset
+1.28 deg; all four detlam checkpoints have coverage ~0.466-0.478 (notably
+lower) / offset 1.85-2.71 deg (notably higher) -- similar beamwidths
+across all models (~2.5-2.8 deg), so this isn't "wider beams," it's worse
+AIMING. Independently corroborates the matched-power MMSE finding: the
+fixed checkpoints aim less accurately at their operating power than the
+pre-fix model did.
+
+### Root-cause investigation: training-log analysis (episode-sampled lambda/rate trajectory)
+
+Sampled lambda and the deterministic (rate, power) pair every 1000
+episodes from each of the four completed .out files. **aod=0.0 (both
+plain and fair1.5): lambda and rate were STILL RISING at episode 13,000,
+not plateaued** -- e.g. plain: lambda 7.84(ep1000)->9.85(ep13000), det
+rate 2.78->3.39 (~22% rise, still climbing at the very end). **aod=0.05
+(both variants): lambda/rate noisier but roughly flat** (lambda oscillating
+4.5-5.5, rate 1.75-2.05, no clear trend) -- looks converged-but-noisy
+rather than still-improving. Working hypothesis: lambda had to climb
+~20-25x from its 0.4 starting point for the new mechanism (vs ~5x, to
+2.09, for the old rollout-lambda system) -- the actor/critic need more
+time to re-adapt each time the reward's power-penalty scale shifts this
+much, and 13,000 episodes (the old budget) may not be enough, especially
+for aod=0.0.
+
+### Reconsidering the deterministic-lambda mechanism (user decision, 2026-07-30)
+
+Compared the fix's own hard-replace-every-episode update (`lambda_ee =
+det_rate_sum / det_power_sum`, no memory of the previous value) against
+the OLD mechanism's continuous per-step EMA (`lwin5000`, a 5000-*step*
+smoothing window) -- structurally different, not just "less noisy."
+User chose: **keep evaluating every episode (still noise-free, 512
+samples) but EMA-smooth the update instead of hard-replacing it**, over
+alternatives of (a) evaluating every N episodes (saves compute, doesn't
+fix jitter, adds staleness) or (b) both.
+
+**Implementation, all in `src/models/EE_sac.py` (matches the file that
+already owns the reward/lambda logic per the 2026-07-29 session's
+instruction):**
+- New optional env var `EE_LAMBDA_DET_EMA_ALPHA` (float; unset = disabled
+  = original hard-replace behavior, fully backward compatible with the
+  four completed detlam checkpoints). When set, each per-episode
+  deterministic-eval update blends: `lambda_ee += alpha * (new_estimate -
+  lambda_ee)` instead of a hard jump. The very first update still hard-
+  sets (nothing to blend with lambda's 0.0 init).
+- Checkpoint folder gets an `_ema{alpha}` suffix appended after
+  `_detlam{steps}[e{every}]`, so smoothed and unsmoothed runs never
+  collide.
+- Log line now prints the alpha in use.
+- **Also added, same session: warm-start.** New optional env var
+  `EE_WARM_START_MODEL_PATH` -- if set, loads the SAVED checkpoint's
+  policy weights into `sac.networks['policy'][0]['primary']` right after
+  `SoftActorCritic()` construction (network is already built/compiled by
+  then), then calls `sac.update_target_networks(tau_target_update_
+  momentum=1.0)` to hard-copy into the policy target too (matching
+  `__init__`'s own initial hard copy). **Only the actor is seeded --
+  `save_model_checkpoint()` only ever saved the policy 'primary' network's
+  weights (see its own comment), so critics/target-value-networks/
+  optimizer state have nothing saved to load and start fresh regardless.**
+  Checkpoint folder gets a `_warmstart` suffix.
+- Motivation for warm start: the aod=0.0 checkpoints showed clear evidence
+  of undertraining (lambda/rate still rising) -- continuing from the
+  existing policy rather than restarting from scratch should reach the
+  new (much higher) lambda regime faster within the same 13,000-episode
+  budget.
+
+**Verification before committing to multi-day jobs:** `smoke_test_detlam_
+ema_warmstart.py` (+.slurm, job 155290, 3 tiny episodes, CPU): (1) no
+crash -- `load_weights()` succeeded against the real aod=0.0 detlam
+checkpoint, confirming architecture match (benign Keras warning: "Skipping
+variable loading for optimizer 'Adam'..." -- expected, since the fresh
+optimizer hasn't been built yet at load time, so only the actor weights
+transfer, optimizer stays fresh as intended); (2) EMA math confirmed
+numerically correct (episode 1's logged lambda 5.8740 = 5.9013 + 0.3 *
+(5.8107 - 5.9013), matching the hard-set-then-blend formula exactly).
+
+**Four new retrain jobs submitted 2026-07-30 (~16:05 CEST), all nadir,
+3GPP defaults (30 dBi / 75 W), EE_LAMBDA_DETERMINISTIC=1,
+EE_LAMBDA_DET_EMA_ALPHA=0.3, warm-started from each checkpoint's OWN prior
+run, same 13,000-episode budget. Status as of handoff time (~16:35 CEST):
+155291 RUNNING on node airmont (~27 min elapsed); 155292/93/94 still
+QUEUED (resources/priority):**
+
+| job | aod bound | fairness | warm-started from | expected checkpoint folder |
+|---|---|---|---|---|
+| 155291 | 0.0 | -- | job 154760's best snapshot (3.033) | EE_dinkelbach_adaptive_detlam512_ema0.3_N16K3_satg30_p75_eta0.6_rawpow_warmstart |
+| 155292 | 0.05 | -- | job 154762's best snapshot (1.971) | ..._aod0.05_detlam512_ema0.3..._rawpow_warmstart |
+| 155293 | 0.0 | 1.5 | job 154783's best snapshot (2.959) | ..._detlam512_ema0.3..._rawpow_fair1.5_warmstart |
+| 155294 | 0.05 | 1.5 | job 154785's best snapshot (1.943) | ..._aod0.05_detlam512_ema0.3..._rawpow_fair1.5_warmstart |
+
+Slurms: `src/energy_efficiency/EE_dinkelbach_rawpow_aod{0.0,0.05}_satg30_
+p75_nadir_detlam_ema0.3_warmstart[_fair1.5].slurm`. Each has a py_compile
+guard and states its expected training_name in a comment. **On pickup:
+check each .out for (1) the "Warm-started policy network from..." log
+line near the start; (2) the "ema alpha=0.3" tag on every lambda-update
+log line; (3) whether lambda/rate for the aod=0.0 pair have actually
+plateaued this time (vs. the prior run's still-rising trend) -- that's
+the direct test of whether warm-start + EMA fixed the undertraining
+finding.** aod=0.025 intentionally NOT retried (user: ignore for now).
+
+## 2026-07-31 session: ema+warmstart eval verdict (no improvement), formulation-doc re-read (bug reframed as documented design gap), target_entropy annealing implemented + piloted, power-conditioned reward mode implemented + piloted
+
+### Jobs 155291-94 outcome + full eval suite against them
+
+All four 2026-07-30 ema0.3+warmstart retrains (155291-94) COMPLETED cleanly,
+full 13,000 episodes, real GPUs (RTX 6000 Ada / RTX 4090 x2 / Quadro RTX
+8000), correct warm-start log line + "ema alpha=0.3" tag confirmed in every
+.out. **aod=0.0 (plain) plateaued this time** -- det rate flat ~3.3-3.35 for
+the last ~6 sampled points, unlike the prior run's still-rising trend.
+aod=0.0 fair1.5 was closer to plateaued but still inching up slightly at the
+end (diminishing increments). aod=0.05 (both variants) unchanged/still
+noisy-but-converged, as expected since that pair was never the undertrained
+case.
+
+**Built a full parallel eval suite** (new scripts, `_ema_warmstart`-suffixed
+so the pre-ema detlam gzips/checkpoints are never overwritten, matching this
+project's established per-checkpoint-set-gets-its-own-script convention):
+`my_evaluation_detlam_ema_warmstart.py`, `my_plotting_detlam_ema_warmstart.py`,
+`rate_power_detlam_ema_warmstart.py` (also loads and overlays the OLD
+pre-ema detlam curves from `rate_power_detlam.gzip` for direct before/after
+comparison), `mmse_matched_power_detlam_ema_warmstart.py`,
+`beampattern_detlam_ema_warmstart.py` (also diffs against
+`EE_beampattern_detlam_stats.gzip`), all + matching `.slurm` files. Chained
+via `--dependency=afterok`: eval (155655) -> plot (155658); rate_power
+(155656) -> mmse matched-power (155659); beampattern (155657) independent.
+All five completed cleanly, no errors.
+
+**Verdict: NO real improvement, and a regression on the case it was meant to
+fix.** Matched-power MMSE gap at error=0 (pre-ema -> ema+warmstart):
+
+| checkpoint | pre-ema (2026-07-30) | ema+warmstart (2026-07-31) |
+|---|---|---|
+| aod=0.0 | -45.3% | **-62.5% (WORSE)** |
+| aod=0.05 | -66.0% | -49.3% (better) |
+| aod=0.0, fair1.5 | -46.0% | **-62.9% (WORSE)** |
+| aod=0.05, fair1.5 | -65.2% | -43.0% (better) |
+
+The gap stayed in the same 43-66% range overall -- no case closed it, and
+aod=0.0 (the specifically-undertrained case EMA+warmstart targeted) is now
+FURTHER from MMSE, not closer. Beampattern corroborates: aod=0.0 mean aiming
+offset roughly DOUBLED (1.85->4.43 deg plain, 2.10->3.23 deg fair1.5) and
+coverage dropped (0.478->0.393, 0.466->0.386); aod=0.05 improved slightly on
+both. Rate/power (mean over full error sweep): aod=0.0 rate -16.3%, power
++32.4% (worse on both counts); aod=0.05 rate -27.8%, power collapsed -69.7%
+(21.91W pre-ema -> 6.64W ema+ws) -- power dropping to
+~7W is a 3x change from the pre-ema value and from what the training log's
+own deterministic-eval estimated at the end of training (~27-28W), a bigger
+train-vs-eval mismatch than the ~25% gap seen on pre-ema checkpoints --
+flagged but not further investigated this session. **Conclusion: EMA
+smoothing + warm-starting fixed the SYMPTOM (lambda/rate plateauing) but not
+the underlying problem (SAC still trades badly against MMSE at the same
+power) -- this pointed toward the deterministic-lambda mechanism itself
+being the wrong fix, prompting the formulation-doc re-read below.**
+
+### Formulation-doc re-read: the "bug" may be a documented design choice
+
+User asked to re-read `docs/EE_formulation.tex`'s RL/Dinkelbach section
+closely and compare against what EE_sac.py actually implements. Key finding:
+
+**The doc's own Dinkelbach update** (Eq. labeled `dinkelbach`, Sec 5):
+lambda_{t+1} = R-bar_window / P-bar_total,window, computed from a RUNNING
+WINDOWED AVERAGE OF THE ACTUAL ROLLOUT stream -- i.e., R(W_t) and
+P_total(W_t) from whatever precoder SAC actually output at training step t,
+under exploration noise. The doc explicitly frames this as "a deliberate
+relaxation for the online RL setting" of textbook Dinkelbach. **This is
+almost exactly the ORIGINAL `lwin5000` mechanism** (5000-step EMA over
+rollout samples) -- the one the 2026-07-29 session decided was buggy and
+replaced with `detlam` (a structurally different estimator: periodic
+noise-free deterministic-policy evaluation, decoupled from the training
+rollout entirely).
+
+**The doc's own diagnosis of why the rollout-based lambda looks biased**
+(Sec 6.3, "The one remaining gap: an unshrinking entropy bias"): SAC's
+`target_entropy` is fixed at 1.0 for the ENTIRE 13,000-episode run (never
+annealed) -- `config_sac_learner.py:59`, confirmed still true, no annealing
+schedule existed anywhere in the codebase before this session. Non-annealed
+exploration is exactly what inflates the rollout-measured power used in
+lambda. But the doc's prescribed fix is: *"Annealing target_entropy (or
+decaying alpha_SAC) over training turns this floor into a term that
+vanishes as training proceeds... a schedule change to the existing training
+loop, not an architectural one."* **None of the sessions from 2026-07-27
+through 2026-07-30 tried this** -- all the engineering effort went into
+changing lambda's estimator (detlam, then EMA+warmstart on top of detlam)
+instead. The doc's Sec 6 rigor argument (convexity/smoothness/bandit-
+structure lemmas) is built specifically around the online rollout-window
+form of the update; it doesn't cover the deterministic-eval variant, which
+has no theoretical backing in this doc. **Reframing: the "over-transmission
+bug" may not be a mechanism-level bug at all -- it may be the documented,
+anticipated entropy-floor artifact, with an already-specified fix
+(entropy annealing) that had never been tried.**
+
+### target_entropy annealing implemented
+
+**`src/models/algorithms/soft_actor_critic.py`**: `self.target_entropy` was
+a plain Python float, read inside `train_graph()` (which is
+`@tf.function`-decorated). This is a real footgun: a plain float gets baked
+into the traced graph as a CONSTANT at first call -- mutating it later would
+have silently had NO EFFECT on training, only on what gets logged. Changed
+to a `tf.Variable` (mirroring how `log_entropy_scale_alpha` already had to
+be one, for the same reason), plus a new `set_target_entropy(value)` setter
+using `.assign()` (which DOES reach an already-traced graph, since Variables
+are captured by reference).
+
+**`src/models/EE_sac.py`**: new env-gated linear schedule, off by default
+(bit-identical to before if unused):
+- `EE_TARGET_ENTROPY_ANNEAL_END` -- presence enables it (gate, mirrors
+  `EE_DINKELBACH_LAMBDA_FIXED`'s presence-as-sentinel pattern)
+- `EE_TARGET_ENTROPY_ANNEAL_EPISODES` -- episodes to anneal over (default:
+  full run)
+- Start value = current `target_entropy` (config default 1.0, or
+  `EE_TARGET_ENTROPY` if also set)
+- Applied once per episode via `sac.set_target_entropy(...)`, held at the
+  end value after annealing completes; checkpoint folder gets a
+  `_tanneal{start}to{end}[over{episodes}]` suffix; per-episode log line now
+  also prints `target_entropy` alongside `entropy_scale_alpha`.
+
+**Smoke-tested (job 155670, `smoke_test_target_entropy_anneal.py`/.slurm)**:
+deliberately extreme schedule (1.0 -> -50.0 over 2 episodes) to make the
+effect unambiguous. Result was decisive: episode 0
+`entropy_scale_alpha=0.9933` (target_entropy=1.0, unchanged), episode 1
+`entropy_scale_alpha=0.0021` (target_entropy=-50.0, crashed immediately),
+episodes 2-3 fully collapsed to 0.0000. Proves the tf.Variable fix actually
+reaches the compiled graph, not just that training doesn't crash.
+
+### Entropy-anneal pilot launched: job 155683
+
+Paired with the ORIGINAL/documented `lwin5000` lambda mode (NOT `detlam` --
+the doc's argument is specifically about the rollout-windowed update),
+target_entropy annealed 1.0 -> 0.0 linearly over the full 13,000-episode
+run (`EE_TARGET_ENTROPY_ANNEAL_EPISODES` left unset). Same error bound/
+geometry/system as the original over-transmission-finding checkpoint (job
+153655) for direct comparability -- only new variable is entropy annealing.
+Slurm: `EE_dinkelbach_rawpow_aod0.05_satg30_p75_nadir_tanneal1to0.slurm`.
+Expected/confirmed training_name:
+`EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_tanneal1to0_rawpow`.
+**RUNNING as of handoff time** (node miami, episode ~4765/13000,
+target_entropy currently ~0.63 and descending as scheduled,
+entropy_scale_alpha ~4.2-4.4). No crashes, no NVML/driver issues.
+
+### Side experiment: power-conditioned reward mode (user-proposed, implemented + piloted)
+
+User's idea: instead of pricing power inside the reward (Dinkelbach's
+lambda), give the power BUDGET to the actor as an extra state input
+(sampled fresh per transition), always rescale the precoder to EXACTLY that
+budget (Scheme I's always-rescale logic, generalized from a hardcoded
+constant to a variable input), reward = pure rate, no power term at all.
+Rationale discussed at length: this doesn't eliminate the rate/power
+tradeoff, it RELOCATES it -- the network learns the rate-maximizing frontier
+r*(H,P) for every budget in one pass; finding the EE-optimal P becomes a
+cheap OFFLINE grid search over a converged, non-training network afterward
+(`EE(P) = E[r*(H,P)]/P_total(P)` on a grid), instead of a live concurrently-
+trained multiplier -- sidesteps every lambda-instability issue this project
+has hit (undertraining, rollout-noise-inflation, entropy bias, EMA/warm-
+start tuning) by construction, since there's no in-loop lambda at all. Open
+risks flagged: harder representation problem (network must generalize
+across P, not just one fixed point), reward-scale dynamic range across P
+needs care, P-sampling distribution matters (log-uniform chosen over
+uniform since the EE-optimal region is likely well below the 75W budget,
+per the power-scaling-diagnostic finding of ~15-20W optima). This is a SIDE
+experiment run ALONGSIDE the Dinkelbach/entropy-anneal thread, not a
+replacement for it.
+
+**Implementation, `src/models/EE_sac.py`**: new reward mode
+`EE_REWARD_MODE=energy_efficiency_power_conditioned`. Env vars
+`EE_POWER_COND_MIN_WATT` (default 1.0), `EE_POWER_COND_MAX_WATT` (default =
+`power_constraint_watt`), `EE_POWER_COND_SAMPLING` (`uniform` or
+`log_uniform`, default `log_uniform`). Mechanism: `network_args['size_state']`
+bumped +1 (power feature); a per-env `power_cond_watt_list` is threaded the
+same way `state_next_list` is -- sampled and appended (normalized into
+roughly [-1,1] analytically from the KNOWN sampling distribution, no
+empirical norm-factor pass needed) whenever a new state is built, read back
+(BEFORE being resampled for the next state) when computing that state's
+reward, so the budget the actor saw when choosing an action is the same one
+its reward gets evaluated against. Reward branch mirrors Scheme I's
+always-rescale logic but rescales to the sampled budget instead of the
+config constant, and is pure `calc_sum_rate` (no power term). New per-
+episode diagnostic log line: "Power-conditioned: episode mean sampled
+budget X W ..., mean achieved rate Y". Checkpoint folder suffix:
+`_pcond{min}to{max}{sampling}`. Training_name:
+`EE_power_conditioned{...}_pcond1to75log_uniform` pattern. All changes
+gated behind the new reward mode; every other mode is bit-identical.
+
+**Smoke-tested twice**: job 155695 FAILED with `ValueError: No valid reward
+provided` -- caught a real, pre-existing hardcoded `valid_reward_keys`
+whitelist inside `train_sac_energy_effiency` that didn't know about the new
+key; fixed by adding `'energy_efficiency_power_conditioned'` to that list.
+Retry job 155696 passed cleanly: `size_state` correctly 96->97, sampled
+budgets landed inside [1,75] W (log-uniform, episode means ~16-18W over
+1200 samples/episode -- consistent with the distribution), and
+`episode_mean_reward` exactly matched the logged mean achieved rate,
+confirming the reward is genuinely pure rate with no unexpected scaling.
+
+**Pilot launched: job 155697** (`EE_power_conditioned_aod0.05_satg30_p75_
+nadir_pilot.slurm`), same aod=0.05/nadir/3GPP-defaults as the Dinkelbach
+pilot for later comparability, budget log-uniform in [1,75] W. Landed on
+node `airmont`, which had NOT previously been on the broken-driver exclude
+list and had run cleanly just the day before (job 155291) -- but this time
+`srun nvidia-smi` failed with "Failed to initialize NVML: Driver/library
+version mismatch" (NVML 580.173). **Unlike prior occurrences of this
+symptom, TensorFlow's own CUDA path was UNAFFECTED and picked up a real
+GPU independently** (`Using GPU: [PhysicalDevice(...)]` in the .out,
+confirmed by pace: 2611 episodes in ~83 min, consistent with genuine GPU
+speed, not CPU fallback). Expected/confirmed training_name:
+`EE_power_conditioned_aod0.05_N16K3_satg30_p75_eta0.6_rawpow_pcond1to75log_uniform`.
+**RUNNING as of handoff time**, episode ~2611/13000, reward climbing
+steadily (episode 0 ~0.5 -> episode ~2600 ~2.2-2.3), sampled budgets
+averaging ~17-18W per episode as expected. **airmont's driver state is now
+ambiguous (worked 07-30, NVML-broken-but-CUDA-fine 07-31) -- don't assume
+it's clean on future pickup without checking, and don't assume an NVML
+failure alone means the job is dead; check for the "Using GPU" / TF device
+line and episode pace before concluding CPU fallback.**
+
+**Minor non-fatal finding: shared log-file race condition.** Running
+155683 and 155697 concurrently for the first time in a while surfaced a
+single `--- Logging error --- FileNotFoundError` in job 155697's `.err`:
+both jobs' Python logging setups write to the SAME global
+`outputs/logs/log.txt` (a size-based `RotatingFileHandler`, ~10MB
+threshold), and one job's rotation (`log.txt` -> `log.txt.1`) can yank the
+source file out from under the other job's own rotation attempt. Python's
+logging module catches this internally (prints the traceback, does NOT
+crash the caller) -- confirmed both jobs kept training normally afterward,
+and the one dropped message was still written to job 155697's own SLURM
+`.out` via its separate stdout handler, so nothing relevant to per-job
+monitoring was lost. Pre-existing architectural gap (log path isn't job/PID-
+specific), not something this session's changes caused; only surfaced now
+because two `EE_sac.py` jobs happened to run at once. NOT fixed this
+session -- worth a job/PID-specific log path if concurrent jobs become
+routine.
 
 ## Satellite hardware parameter cross-check (older summary, superseded by the 38.821 section above)
 
@@ -411,71 +1107,169 @@ of efficiency" clarification (PA efficiency vs. antenna aperture
 efficiency vs. antenna radiation efficiency) live in the original repo's
 handoff/git history -- not reproduced here since unchanged and unactioned.
 
-## Current file states (this repo)
+## Current file states (this repo, updated 2026-07-31)
 
-- **src/energy_efficiency/beampattern_full_comparison.py** (NEW today):
-  6-way beampattern comparison + dropped-user diagnostic. See "Today's
-  work" above. NOT yet committed.
-- **src/energy_efficiency/beampattern_full_comparison.slurm**,
-  **beampattern_full_comparison_plotonly.slurm** (NEW today): NOT yet
-  committed.
-- **reports/figures/pdf/beampattern_full_comparison_realization{0,11}.pdf**
-  (NEW today): NOT yet committed.
-- **models/**: has aod=0.0/0.025/0.05 final checkpoints (from initial
-  curation) PLUS all 4 aod=0.05 fairness variants (baseline was already
-  here; fair0.5/1.5/3.0 freshly synced today, fair0.5 corrected from a
-  stale copy). Gitignored, disk-only, as established.
-- **Everything else**: as of the initial c805e90 commit -- see that
-  commit or the original repo's now-superseded handoff for the full
-  pre-2026-07-23 file-by-file state (my_evaluation.py, my_plotting.py,
-  tx_power_distribution.py, classical_baselines_*.py,
+- **MODIFIED (uncommitted, growing): src/models/EE_sac.py** -- now carries
+  FIVE 2026-07-29/30/31 additions on top of the raw-power fix: (1) the
+  deterministic-lambda mode itself (option b, 2026-07-29), (2) optional EMA
+  smoothing of that mode's updates (`EE_LAMBDA_DET_EMA_ALPHA`, 2026-07-30),
+  (3) optional warm-start-from-checkpoint (`EE_WARM_START_MODEL_PATH`,
+  2026-07-30), (4) target_entropy annealing (`EE_TARGET_ENTROPY_ANNEAL_END`/
+  `_EPISODES`, 2026-07-31), (5) power-conditioned reward mode
+  (`EE_REWARD_MODE=energy_efficiency_power_conditioned` +
+  `EE_POWER_COND_MIN_WATT`/`_MAX_WATT`/`_SAMPLING`, 2026-07-31). See the
+  2026-07-29/30/31 sections.
+- **MODIFIED (uncommitted, NEW 2026-07-31): src/models/algorithms/
+  soft_actor_critic.py** -- first-ever edit to this file this project
+  (previous sessions deliberately kept lambda-mechanism changes scoped to
+  EE_sac.py). `target_entropy` changed from a plain float to a `tf.Variable`
+  + new `set_target_entropy()` setter -- required for annealing to actually
+  reach the already-`@tf.function`-traced `train_graph` (a plain float would
+  silently no-op after first trace). See the 2026-07-31 section.
+- **MODIFIED (uncommitted): my_evaluation.py, my_plotting.py** --
+  rewritten to 3GPP-only + benchmark plotting, see the 2026-07-28
+  section for exactly what and why (user-approved).
+- **NEW (untracked, 2026-07-31): `_ema_warmstart`-suffixed detlam eval set**
+  -- my_evaluation_detlam_ema_warmstart.py, my_plotting_detlam_ema_warmstart.py,
+  rate_power_detlam_ema_warmstart.py, mmse_matched_power_detlam_ema_warmstart.py,
+  beampattern_detlam_ema_warmstart.py + matching .slurm files (all in
+  src/energy_efficiency/) -- evaluated jobs 155291-94 against MMSE/pre-fix/
+  pre-ema-detlam, verdict: no improvement (see 2026-07-31 section).
+- **NEW (untracked, 2026-07-31): entropy-annealing set** --
+  smoke_test_target_entropy_anneal.py + .slurm (job 155670, passed);
+  EE_dinkelbach_rawpow_aod0.05_satg30_p75_nadir_tanneal1to0.slurm (launched
+  job 155683, RUNNING).
+- **NEW (untracked, 2026-07-31): power-conditioned set** --
+  smoke_test_power_conditioned.py + .slurm (jobs 155695 failed/caught a
+  bug, 155696 passed); EE_power_conditioned_aod0.05_satg30_p75_nadir_pilot.slurm
+  (launched job 155697, RUNNING).
+- **NEW (untracked, 2026-07-30): detlam evaluation script set** --
+  my_evaluation_detlam.py, my_plotting_detlam.py, rate_power_detlam.py,
+  mmse_matched_power_detlam.py, beampattern_detlam.py, and their .slurm
+  files (all in src/energy_efficiency/); plus smoke_test_detlam_ema_
+  warmstart.py + .slurm; plus the four new training .slurm files
+  (EE_dinkelbach_rawpow_aod{0.0,0.05}_satg30_p75_nadir_detlam_ema0.3_
+  warmstart[_fair1.5].slurm) that launched jobs 155291-94.
+- **NEW (untracked): the six 2026-07-29 detlam training .slurm files**
+  (EE_dinkelbach_rawpow_aod{0.0,0.025,0.05}_satg30_p75_nadir_detlam[_fair1.5].slurm) --
+  aod=0.025 pair produced diverged runs, not retried; the other four are
+  now superseded by the 2026-07-30 ema+warmstart retrains (which are
+  themselves now superseded-in-relevance by the 2026-07-31 entropy-anneal
+  pilot) but the files themselves are still on disk/untracked.
+- **NEW (untracked): the 2026-07-28 script set** -- rate_power_3gpp_pilots.py,
+  tx_power_3gpp_pilots.py, beampattern_3gpp_pilots.py,
+  ee_power_scaling_diagnostic.py, and their .slurm files, plus
+  my_evaluation_3gpp.slurm / my_plotting_3gpp.slurm; also still
+  untracked from earlier sessions: beampattern_full_comparison.py +
+  2 .slurm, the ported fairness_evaluation.py / beampattern_fairness_comparison.py
+  (+ .slurm) and extended beampattern_robustness_analysis.py, and the
+  2026-07-27 training .slurm pair.
+- **reports/figures/pdf/**: now also has error_sweep_detlam_vs_prefix_
+  sumrate.pdf, rate_power_detlam.pdf, beampattern_detlam_realization0.pdf
+  (2026-07-30) plus error_sweep_detlam_emaws_vs_prefix_sumrate.pdf,
+  rate_power_detlam_ema_warmstart.pdf, beampattern_detlam_emaws_realization0.pdf
+  (2026-07-31, all untracked) on top of the 2026-07-28 state: pdf/ = 2
+  figures only (from my_plotting.py) + these 6 new ones;
+  pdf_archive/ = 20 moved PDFs (untracked dir); 11 PDFs deleted
+  (regenerable) -- full prior detail in the 2026-07-28 section. Git sees
+  tracked-PDF deletions/moves as uncommitted changes.
+- **models/**: aod=0.0/0.025/0.05 finals, 4 fairness variants, the two
+  2026-07-27 3GPP checkpoints (..._satg30_p75_eta0.6_rawpow and
+  ..._satg30_p75_elev30_eta0.6_rawpow), the four completed 2026-07-29
+  detlam checkpoints (plain + fair1.5, aod0.0/aod0.05), partial/incomplete
+  checkpoints for the two diverged aod=0.025 detlam runs, and the four
+  completed 2026-07-30 `..._ema0.3..._warmstart` checkpoints (see 2026-07-30
+  section for exact folder names). Once jobs 155683/155697 finish: two more
+  checkpoints, `EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_
+  eta0.6_tanneal1to0_rawpow` and
+  `EE_power_conditioned_aod0.05_N16K3_satg30_p75_eta0.6_rawpow_pcond1to75log_uniform`.
+  All gitignored, disk-only.
+- **tx_power_distribution.py, classical_baselines_*.py,
   channel_correlation_*.py, beampattern_ee_vs_regular.py,
-  beampattern_across_error_models.py, beampattern_robustness_analysis.py
-  -- none of these have been touched in THIS repo since curation; the
-  fairness-evaluation extensions described above were made in the
-  ORIGINAL repo only and have NOT been ported here yet).
+  beampattern_across_error_models.py**: untouched since curation; the
+  first still targets old checkpoints -- don't run it under the new
+  defaults (overwrite/validity, see 2026-07-28 section).
+- **outputs/logs/log.txt**: shared across ALL concurrently-running
+  EE_sac.py processes (not job-specific) -- can hit a benign rotation race
+  (`FileNotFoundError` inside Python's logging module, caught internally,
+  does not crash training) when two jobs run at once. See 2026-07-31
+  section. Not fixed.
 
-## What to do next (priority order)
+## What to do next (priority order, updated 2026-07-31)
 
-1. **DONE 2026-07-27 (during the original-repo cleanup):** the
-   fairness-evaluation extensions are now ported here --
-   `fairness_evaluation.py` + `.slurm`, `beampattern_fairness_comparison.py`
-   + `.slurm` (both previously original-repo-only), the EXTENDED
-   `beampattern_robustness_analysis.py` (overwrote this repo's older
-   baseline-vs-fair0.5-only copy), plus the UAV-IoT reference PDF. The
-   ported .slurm files' cd/PYTHONPATH were rewritten to THIS repo. All
-   untracked, not yet committed. NOTE: these eval scripts predate the
-   3GPP parameter change -- running them against OLD checkpoints now
-   requires the EE_SAT_GAIN_DBI=20 / EE_POWER_BUDGET_WATT=100 exports
-   (see the 3GPP section above). The original repo was cleaned the same
-   day: all EE-side untracked duplicates, ~110 SLURM job logs, the
-   superseded handoff copy, and duplicated docs/ files deleted there
-   (models/, outputs/, tracked code, reports/, and the unrelated
-   docs/problem6_* files kept).
-2. **Decide the fairness weight for the "final" checkpoint set.** Data
-   points to weight=1.5 (best rate/fairness tradeoff, not just highest
-   fairness), not 0.5 (weakest evidence) or 3.0 (trades rate away). If
-   adopted: decide whether to retrain aod=0.0 and aod=0.025 with fairness
-   too (only aod=0.05 has been tried so far), and propagate the decision
-   through my_evaluation.py, my_plotting.py, tx_power_distribution.py, etc.
-3. **Commit today's new files** (beampattern_full_comparison.py + both
-   .slurm files + the two new PDFs) once the user confirms they're
-   final/wanted in git history -- currently untracked.
-4. **3GPP alignment: mostly DECIDED AND IN FLIGHT as of 2026-07-27** --
-   see the "3GPP alignment decisions" section above. Remaining from this
-   thread: (a) monitor/verify pilot jobs 153621 (nadir) + 153622 (elev30),
-   first check = training_name in each .out; (b) once converged, evaluate
-   both (rate/power/beampattern) -- REMEMBER the old-checkpoint env-var
-   footgun when comparing against pre-2026-07-27 checkpoints; (c) confirm
-   the learned beamwidth at the new link budget stays in the ~2-4.5 deg
-   Set-1-consistent range; (d) optional elevation-sweep evaluation later;
-   (e) pa_efficiency 0.60-vs-0.185 sensitivity sweep still unactioned;
-   (f) commit the config.py/EE_sac.py changes + 2 new .slurm files to git.
-5. **Establish a real sync cadence** between the two repos, or fully
-   commit to this repo as canonical and stop treating the original repo
-   as a source of new work at all -- currently ad hoc (this session's
-   fairness-eval work happened in the original repo first, then some but
-   not all of it ported here).
+1. **First action on pickup: check jobs 155683 (entropy-anneal) and 155697
+   (power-conditioned).** Both were RUNNING cleanly as of this handoff
+   (155683 episode ~4765/13000 on node miami; 155697 episode ~2611/13000 on
+   node airmont -- see the "airmont driver state is ambiguous" note in the
+   2026-07-31 section before assuming a clean GPU without checking). Full
+   .out checklist for 155683: target_entropy descending toward 0.0 as
+   scheduled, no NaN/divergence, lambda plateau behavior in the final
+   ~2000-3000 episodes (compare det rate/lambda trend the same way the
+   2026-07-30 session's log analysis did). For 155697: sampled budgets
+   staying inside [1,75] W, episode mean reward continuing to climb,
+   Power-conditioned diagnostic lines present every episode.
+2. **Once 155683 finishes, evaluate it against the SAME matched-power-MMSE
+   / beampattern tests used on the detlam checkpoints** (rate-vs-error
+   sweep, rate_power sweep, matched-power MMSE, beampattern coverage/
+   offset) -- this is the real test of whether entropy annealing (paired
+   with the documented lwin5000 lambda mode) does what detlam/EMA/warmstart
+   could not: close the matched-power-MMSE gap (was 43-66% across all four
+   pre-ema/ema+warmstart-detlam checkpoints, essentially unchanged despite
+   two rounds of lambda-mechanism engineering) and fix beampattern aiming.
+   No eval scripts exist yet for this checkpoint -- write new ones (or
+   adapt my_evaluation_detlam.py's pattern) once training completes.
+3. **Once 155697 finishes, build the offline EE-optimal-P search this
+   approach depends on**: evaluate the trained network's rate at a grid of
+   power budgets (deterministic/mean-action calls, matching the existing
+   det-eval pattern in EE_sac.py's detlam block or my_evaluation.py's
+   deterministic-eval helpers), compute EE(P) = mean_rate(P) / P_total(P)
+   on that grid, find the argmax, and compare the resulting r*(P*) against
+   both the Dinkelbach checkpoints' achieved rate AND matched-power MMSE at
+   that same P*. This offline search is the entire point of the power-
+   conditioned approach (see 2026-07-31 section's rationale) -- without it,
+   the trained network alone doesn't answer the EE question.
+4. **Compare the two 2026-07-31 approaches against each other** once both
+   have results: does power-conditioning's offline-search operating point
+   beat entropy-annealed Dinkelbach's live-lambda operating point, at
+   comparable power levels? This is the actual question motivating running
+   both pilots concurrently.
+5. **Decide on aod=0.025**: currently ignored per user instruction (both
+   the plain and fair1.5 detlam variants diverged to NaN around episode
+   12,000-12,400, lambda_ee ~2.85-2.93). Revisit once the entropy-anneal
+   thread is validated -- the doc's diagnosis (non-annealed entropy bias)
+   may also explain the aod=0.025 divergence, or it may need its own
+   investigation. Not yet retried under either 2026-07-31 approach.
+6. **Decide elev30 fairness retrain** (recommended: yes, weight 1.5) --
+   the elev30 model structurally drops user 2 (28/3.6/26 W split); its
+   flat rate curve is partly an artifact of serving 2 users. Slurm
+   pattern exists (EE_FAIRNESS_WEIGHT=1.5 + the elev30 3GPP slurm). Not
+   yet acted on -- lower priority than the two threads above.
+7. **Regenerate the deleted 2026-07-28 figures** once the user confirms
+   the compact legend style: apply the same legend treatment (short
+   labels, fontsize 6, tight padding) to rate_power_3gpp_pilots.py,
+   tx_power_3gpp_pilots.py, beampattern_3gpp_pilots.py,
+   ee_power_scaling_diagnostic.py, then re-run each via its .slurm. Old
+   benchmark PDFs: `git checkout` them back (tracked) or leave to the
+   archive. **Still not done as of 2026-07-31** -- `my_plotting_3gpp.slurm`'s
+   pending legend-label re-render ('SAC ... (train err 0.05)') remains
+   unrendered.
+8. **Commit everything** -- config.py/EE_sac.py 3GPP + lambda-mode +
+   entropy-anneal + power-conditioned changes (2026-07-27 through
+   2026-07-31), the first-ever soft_actor_critic.py edit, the rewritten
+   my_evaluation.py/my_plotting.py, all untracked scripts/.slurm
+   (2026-07-28 through 2026-07-31 sets), figure moves/deletions, and this
+   handoff. Suggest separate commits per session/theme rather than one
+   giant commit. Needs user go-ahead. The uncommitted pile is now FIVE
+   sessions deep -- see "Git state" below.
+9. **Fix the shared log.txt rotation race** if concurrent EE_sac.py jobs
+   become routine (see 2026-07-31 section) -- make the log path job/PID-
+   specific. Low priority (non-fatal, only lost one log line so far), but
+   will only get more likely to bite as more concurrent jobs run.
+10. **Older open items:** fairness weight for the final OLD-system
+    checkpoint set (weight 1.5 favored; superseded in urgency by the
+    3GPP/entropy-anneal/power-conditioned threads); pa_efficiency
+    0.60-vs-0.185 sensitivity sweep; optional elevation-sweep evaluation;
+    repo sync cadence with the original 2025 repo (still ad hoc).
 
 ## Process notes (still relevant)
 
@@ -503,10 +1297,120 @@ handoff/git history -- not reproduced here since unchanged and unactioned.
   (Schroder et al., IEEE Open J. Comm. Soc. 2025). Fig. 3 (N=16/K=3,
   d_K=100km) is the scenario this whole investigation targets.
 
-## Git state (this repo, branch energy-efficiency-standalone)
+## Git state (this repo, branch energy-efficiency-standalone, updated 2026-07-31)
 
-One commit so far: c805e90 (initial curation). Today's new files
-(beampattern_full_comparison.py + 2 .slurm files + 2 new PDFs) are
-UNTRACKED, not committed -- see "Current file states" above. models/ and
-outputs/metrics/ remain gitignored, disk-only, synced manually from the
-original repo as needed.
+Still only three commits: c805e90 (initial curation), 46711f7 (6-way
+beampattern + distance sweep + ported fairness eval), 921ab66 (3GPP TR
+38.821 Set-1 parameter alignment + the two training .slurm files). No
+commits since 2026-07-27 despite FIVE full sessions of work (2026-07-28
+eval rework, 2026-07-29 lambda fix, 2026-07-30 detlam eval + ema/warmstart
+reconsideration, 2026-07-31 formulation-doc re-read + entropy-annealing +
+power-conditioned reward mode) -- the uncommitted pile is now substantial:
+rewritten my_evaluation.py + my_plotting.py, THRICE-modified EE_sac.py
+(deterministic-lambda mode, then EMA + warm-start, then entropy annealing +
+power-conditioned mode), the first-ever edit to soft_actor_critic.py
+(target_entropy tf.Variable), this handoff file, the tracked-PDF deletions/
+moves in reports/figures/pdf/, and all the untracked scripts/.slurm from
+2026-07-28/29/30/31 listed in "Current file states". This is now the
+single biggest risk to the repo's state -- see "What to do next" item 8.
+models/ and outputs/metrics/ remain gitignored, disk-only.
+GitHub-push token note near the top of this file still applies.
+
+## 2026-08-03 session: EE_sac.py reverted (detlam/EMA/warmstart/entropy-anneal/
+power-conditioned stashed), aod=0.0 3GPP retrain launched, docs/EE_formulation.tex
+Section 6 rewritten after a full reference audit -- one citation pair verified
+only via abstract summary, not full-text read
+
+**EE_sac.py / soft_actor_critic.py reverted to last commit (921ab66), stashed
+not deleted.** User concluded the detlam-family checkpoints' large gap vs.
+matched-power MMSE (45-66%, see 2026-07-30 section) meant the whole
+detlam/EMA-smoothing/warm-start/entropy-anneal/power-conditioned pile of
+2026-07-29 through 07-31 work was the wrong direction, not just unproven.
+`git stash push -m "pre-revert snapshot..."` on `src/models/EE_sac.py` and
+`src/models/algorithms/soft_actor_critic.py` before reverting -- recoverable
+via `git stash list` / `git stash pop` if wanted back. Both files now
+byte-identical to the 2025 repo's versions (confirmed via `diff -q`), i.e.
+plain `lwin5000` EMA Dinkelbach mode only, no detlam/warmstart/entropy-anneal/
+power-conditioned code paths exist in the working tree anymore.
+
+**New training job launched to fill the resulting gap**: no clean
+`lwin5000`-mode, 3GPP-parameter (30 dBi/75W) checkpoint existed for aod=0.0
+(only the now-stashed detlam-mode one did). Job 156358 (`EE_dinkelbach_rawpow_
+aod0.0_satg30_p75_nadir.slurm`, `EE_TRAIN_ERROR_BOUND=0.0`, no lambda-mode env
+vars set -> defaults to lwin5000) launched to pair cleanly with the existing
+aod=0.05 3GPP nadir checkpoint (job 153655, also lwin5000). As of this
+writing job 156358 was running on node hildesheim, ~26-40% through 13,000
+episodes, no errors; not yet checked to completion.
+
+**docs/EE_formulation.tex Section 6 fully rewritten** (previously "Theoretical
+grounding for the online Dinkelbach update", now "What can and cannot
+currently be said about the online update"). The old version claimed the
+online lambda-EMA mechanism was a rigorously-justified inexact instance of
+Dinkelbach's method via a 3-condition theorem from Jin et al. On actually
+reading the cited papers (not just their abstracts/titles), that argument
+did not hold: Jin et al.'s convergence theorem is proven only for tabular
+Fractional Q-Learning, their own deep-RL extension is unproven (validated
+only by a results figure); Paternain2019 and DingZhangBasar2020 were cited
+as "softmax/finite-action only" to justify not using them directly, but both
+actually extend toward continuous actions and neural parametrizations (with
+caveats) -- the opposite of what was claimed; GhadimiLan2013 and
+GhadimiLanZhang2016 require a FIXED objective for their stationary-point
+convergence guarantee, but the active lambda-EMA never freezes lambda.
+DingZhangBasar2020's arXiv ID also pointed to the wrong (2025 JMLR extended,
+5-author) paper rather than the actual 2020 NeurIPS one it was attributed to.
+Section 6 now keeps only what survived: the bandit-reduction lemma
+(strengthened with a newly-found second reason -- `future_reward_discount_
+gamma=0.0` in config_sac_learner.py means the critic never bootstraps at all,
+independent of the environment's action-independence), the smoothness lemma,
+a new honestly-caveated self-consistency-not-optimality fixed-point argument,
+and an empirical-evidence subsection (a real but non-asymptotic ~4x
+timescale-separation ratio between lambda and realized EE, stable across
+~4000 episodes of job 156358's log; and `entropy_scale_alpha` still rising,
+not plateaued, through ~40% of that same run -- confirms the entropy-bias
+diagnosis is unresolved, not fixed, especially since the annealing fix isn't
+even in the code currently training). Two open directions stated instead of
+a closed claim: a local/KKT-style optimality characterization, or replacing
+the fixed-window EMA with a diminishing-step-size lambda update. Also touched:
+Section 5's Scheme III description (no longer calls it "Dinkelbach", states
+explicitly it borrows only the transform's algebra) and the final summary
+table + closing paragraph (previously overclaimed the same way Section 6 did).
+
+**Verification-depth caveat, worth flagging on pickup**: every reference
+above was checked against the actual paper this session -- Jin et al.,
+Paternain2019, DingZhangBasar2020, and HaEtAl2024 were verified by fetching
+and reading the actual PDF pages (via WebFetch -> saved PDF -> Read tool with
+the `pages` parameter), not just abstracts. **GhadimiLan2013 and
+GhadimiLanZhang2016 were the exception**: only their abstracts were checked,
+via WebFetch's own summarization of the arXiv abstract page, not a direct
+read of the full paper text the way the other four were verified. The
+specific claims used from them (convergence to a stationary point, not a
+global optimum, for a nonconvex but FIXED/time-invariant objective) are
+consistent with well-established general knowledge of that literature and
+are very likely correct, but they carry a lower verification tier than
+everything else Section 6 now states. If this section's claims are ever
+treated as load-bearing for something more consequential than this document
+(e.g. cited in the actual paper submission), pull and read the full PDFs for
+these two the same way the other four were read before relying on them.
+
+**Beamforming/ reference-papers folder reorganized** (separate from the
+repo, at `/home/parajuli/repos/Beamforming/`, 40 papers). Created a
+`tier_one/` subfolder containing the five papers most directly relevant:
+the Schroder2025 reference paper itself, Gracla2024 (ICC), the GraclaICASSP2023
+precursor ("LEARNING MODEL-FREE ROBUST PRECODING FOR COOPERATIVE MULTIBEAM
+SATELLITE COMMUNICATIONS"), SchroderRSMA2023 (RSMA/SDMA/OMA comparison), and
+HaEtAl2024 (the ICC energy-efficiency one, added on explicit user request to
+include all ICC+EE papers regardless of research group). `EE_formulation.tex`'s
+bibliography also gained three new entries this session (GraclaICASSP2023,
+SchroderRSMA2023, AlsenwiCVaR2023) plus a fix to RiskAwareLEO2024's
+previously-placeholder venue details, now the verified real IEEE TVT citation.
+
+**parajuli.pdf** (`reports/figures/pdf/parajuli.pdf`) went through several
+iterations this session before landing on the current version: old-system
+(20dBi/100W) checkpoints matched-power vs MMSE -> same checkpoints
+re-evaluated out-of-distribution at 30dBi/75W (found they saturate the
+budget, not meaningful) -> the natively-trained detlam checkpoints at
+30dBi/75W (the version currently in the file, gap vs. matched-power MMSE is
+what triggered the whole EE_sac.py revert above). It has NOT yet been
+regenerated against job 156358's checkpoint once that finishes -- worth
+doing once it completes, to get a clean lwin5000-vs-lwin5000 matched-power
+comparison instead of the detlam one currently in the file.

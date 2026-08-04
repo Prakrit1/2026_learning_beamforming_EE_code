@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2024.12.5)  9 JUL 2026 09:37
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (TeX Live 2023/Debian) (preloaded format=pdflatex 2024.12.5)  3 AUG 2026 15:31
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -450,61 +450,109 @@ LaTeX Font Info:    Trying to load font information for U+msb on input line 19.
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 ) [1
 
-{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}] [2] [3] [4]
-Overfull \hbox (12.41557pt too wide) in paragraph at lines 329--334
-[]\OT1/cmr/bx/n/10.95 Lemma 3 \OT1/cmr/m/n/10.95 (Au-to-matic con-vex-ity of th
-e Dinkel-bach value func-tion)\OT1/cmr/bx/n/10.95 . \OT1/cmr/m/it/10.95 De-fine
- $\OML/cmm/m/it/10.95 F\OT1/cmr/m/n/10.95 (\OML/cmm/m/it/10.95 ^^U\OT1/cmr/m/n/
-10.95 ) = [][] []\OML/cmm/m/it/10.95 R\OT1/cmr/m/n/10.95 (\OT1/cmr/bx/n/10.95 W
-\OT1/cmr/m/n/10.95 ) \OMS/cmsy/m/n/10.95 ^^@
- []
+{/var/lib/texmf/fonts/map/pdftex/updmap/pdftex.map}] [2] [3]
 
-[5] [6]
-Underfull \hbox (badness 5652) in paragraph at lines 521--522
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\hbox' on input line 275.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\mathsurround' on input line 275.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\z@' on input line 275.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\unskip' on input line 275.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\@@italiccorr' on input line 275.
+
+[4] [5]
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 405.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `\lambda' on input line 405.
+
+
+Package hyperref Warning: Token not allowed in a PDF string (Unicode):
+(hyperref)                removing `math shift' on input line 405.
+
+[6] [7] [8]
+Underfull \hbox (badness 5652) in paragraph at lines 657--658
 []\OT1/cmr/m/n/10.95 Sum-rate ob-jec-tive [] and
  []
 
 
-Underfull \hbox (badness 1701) in paragraph at lines 522--524
+Underfull \hbox (badness 1701) in paragraph at lines 658--660
 []\OT1/cmr/m/n/10.95 Reproduced un-changed; re-tained as Scheme I, a same-
  []
 
 
-Underfull \hbox (badness 10000) in paragraph at lines 524--525
+Underfull \hbox (badness 10000) in paragraph at lines 660--661
 []\OT1/cmr/m/n/10.95 SAC al-go-rithm (ac-tor/critic
  []
 
 
-Underfull \hbox (badness 4403) in paragraph at lines 524--525
+Underfull \hbox (badness 4403) in paragraph at lines 660--661
 \OT1/cmr/m/n/10.95 struc-ture, en-tropy ob-jec-tive,
  []
 
 
-Underfull \hbox (badness 1038) in paragraph at lines 526--527
+Underfull \hbox (badness 1038) in paragraph at lines 662--663
 []\OT1/cmr/m/n/10.95 Electrical power model $\OML/cmm/m/it/10.95 P[]$
  []
 
 
-Underfull \hbox (badness 1052) in paragraph at lines 533--534
+Underfull \hbox (badness 1052) in paragraph at lines 669--670
 []\OT1/cmr/m/n/10.95 Dinkelbach re-ward re-for-mu-la-
  []
 
-[7] [8] [9] [10] (./EE_formulation.aux)
+
+Underfull \hbox (badness 1005) in paragraph at lines 672--673
+[]\OT1/cmr/m/n/10.95 Honest the-o-ret-i-cal ac-count-ing
+ []
+
+[9]
+Underfull \hbox (badness 1622) in paragraph at lines 710--714
+[]\OT1/cmr/m/n/10.95 A. Schr^^?oder, S. Gr-a-cla, M. R^^?oper, D. W^^?ubben, C.
+ Bock-el-mann, and A. Deko-rsy,
+ []
+
+
+Underfull \hbox (badness 1112) in paragraph at lines 710--714
+\OT1/cmr/m/n/10.95 ``Flex-i-ble Ro-bust Beam-form-ing for Multi-beam Satel-lite
+ Down-link us-ing Re-in-force-ment
+ []
+
+[10]
+Underfull \hbox (badness 2469) in paragraph at lines 764--768
+[]\OT1/cmr/m/n/10.95 M. Alsenwi, E. La-gu-nas, H. Al-Hraishawi, and S. Chatzino
+-tas, ``CVaR-based Ro-
+ []
+
+[11] [12] (./EE_formulation.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-22>
  ***********
 Package rerunfilecheck Info: File `EE_formulation.out' has not changed.
-(rerunfilecheck)             Checksum: 3AAC7C1B741D3757A5E813E904F67E73;4158.
+(rerunfilecheck)             Checksum: 60C5C8092B3FDEEE8BB3FF3938A7596E;4636.
  ) 
 Here is how much of TeX's memory you used:
- 10984 strings out of 476182
- 167910 string characters out of 5795595
+ 10998 strings out of 476182
+ 168142 string characters out of 5795595
  1938975 words of memory out of 5000000
- 32777 multiletter control sequences out of 15000+600000
+ 32785 multiletter control sequences out of 15000+600000
  569967 words of font info for 79 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 75i,13n,79p,551b,589s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,13n,79p,551b,587s stack positions out of 10000i,1000n,20000p,200000b,200000s
  </home/parajuli/.texlive2023/texmf-var/fonts/pk/ljfour/jknappen/ec/tcrm1095.
 600pk></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb>
 </usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></usr/
@@ -512,22 +560,24 @@ share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx8.pfb></usr/share/t
 exlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></usr/share/texlive
 /texmf-dist/fonts/type1/public/amsfonts/cm/cmitt10.pfb></usr/share/texlive/texm
 f-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></usr/share/texlive/texmf-dist
-/fonts/type1/public/amsfonts/cm/cmmi8.pfb></usr/share/texlive/texmf-dist/fonts/
-type1/public/amsfonts/cm/cmmib10.pfb></usr/share/texlive/texmf-dist/fonts/type1
-/public/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public
-/amsfonts/cm/cmr17.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfon
-ts/cm/cmr8.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cm
-sy10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pf
-b></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr
-/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share
-/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></usr/share/texliv
-e/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/share/texlive/texm
-f-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></usr/share/texlive/texmf
--dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on EE_formulation.pdf (10 pages, 279332 bytes).
+/fonts/type1/public/amsfonts/cm/cmmi12.pfb></usr/share/texlive/texmf-dist/fonts
+/type1/public/amsfonts/cm/cmmi8.pfb></usr/share/texlive/texmf-dist/fonts/type1/
+public/amsfonts/cm/cmmib10.pfb></usr/share/texlive/texmf-dist/fonts/type1/publi
+c/amsfonts/cm/cmr10.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfo
+nts/cm/cmr12.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/
+cmr17.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pf
+b></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></us
+r/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></usr/share
+/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/share/texliv
+e/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/share/texlive/texm
+f-dist/fonts/type1/public/amsfonts/cm/cmti8.pfb></usr/share/texlive/texmf-dist/
+fonts/type1/public/amsfonts/cm/cmtt10.pfb></usr/share/texlive/texmf-dist/fonts/
+type1/public/amsfonts/symbols/msam10.pfb></usr/share/texlive/texmf-dist/fonts/t
+ype1/public/amsfonts/symbols/msbm10.pfb>
+Output written on EE_formulation.pdf (12 pages, 309625 bytes).
 PDF statistics:
- 372 PDF objects out of 1000 (max. 8388607)
- 317 compressed objects within 4 object streams
- 67 named destinations out of 1000 (max. 500000)
- 129 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 408 PDF objects out of 1000 (max. 8388607)
+ 347 compressed objects within 4 object streams
+ 73 named destinations out of 1000 (max. 500000)
+ 137 words of extra memory for PDF output out of 10000 (max. 10000000)
 
