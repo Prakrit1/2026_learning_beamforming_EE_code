@@ -201,9 +201,22 @@ def train_sac_energy_effiency(
     # Dinkelbach lambda, three mutually exclusive update modes: per-step EMA
     # (default), one update per block of N episodes, or held constant all run
     dinkelbach_lambda_fixed = getattr(config, 'dinkelbach_lambda_fixed', None)
-    lambda_ee = dinkelbach_lambda_fixed if dinkelbach_lambda_fixed is not None else 0.0
-    dinkelbach_rate_ema = None
-    dinkelbach_power_ema = None
+    # optional prior to seed the per-step EMA with instead of the untrained
+    # policy's first (essentially noise) sample -- e.g. the MMSE baseline's
+    # own mean rate/power at the same budget, so lambda starts near the
+    # right ballpark instead of an arbitrary single-sample ratio
+    dinkelbach_lambda_init_rate = getattr(config, 'dinkelbach_lambda_init_rate', None)
+    dinkelbach_lambda_init_power = getattr(config, 'dinkelbach_lambda_init_power', None)
+    if dinkelbach_lambda_init_rate is not None and dinkelbach_lambda_init_power is not None:
+        dinkelbach_rate_ema = dinkelbach_lambda_init_rate
+        dinkelbach_power_ema = dinkelbach_lambda_init_power
+        lambda_ee = dinkelbach_lambda_fixed if dinkelbach_lambda_fixed is not None else (
+            dinkelbach_rate_ema / dinkelbach_power_ema
+        )
+    else:
+        dinkelbach_rate_ema = None
+        dinkelbach_power_ema = None
+        lambda_ee = dinkelbach_lambda_fixed if dinkelbach_lambda_fixed is not None else 0.0
     dinkelbach_lambda_window_steps = getattr(config, 'dinkelbach_lambda_window_steps', transitions_per_episode)
     dinkelbach_lambda_ema_alpha = 2.0 / (dinkelbach_lambda_window_steps + 1)
     dinkelbach_block_episodes = getattr(config, 'dinkelbach_block_episodes', 0)
@@ -622,6 +635,23 @@ if __name__ == '__main__':
     )
     cfg.dinkelbach_lambda_fixed = dinkelbach_lambda_fixed
 
+    # optional prior to seed the lambda EMA with (e.g. MMSE's own mean
+    # rate/power at the same budget) instead of the untrained policy's first,
+    # essentially-noise sample; both must be set together
+    _dinkelbach_lambda_init_rate_str = os.environ.get('EE_DINKELBACH_LAMBDA_INIT_RATE')
+    _dinkelbach_lambda_init_power_str = os.environ.get('EE_DINKELBACH_LAMBDA_INIT_POWER')
+    assert (_dinkelbach_lambda_init_rate_str is None) == (_dinkelbach_lambda_init_power_str is None), (
+        'EE_DINKELBACH_LAMBDA_INIT_RATE and EE_DINKELBACH_LAMBDA_INIT_POWER must be set together'
+    )
+    dinkelbach_lambda_init_rate = (
+        float(_dinkelbach_lambda_init_rate_str) if _dinkelbach_lambda_init_rate_str is not None else None
+    )
+    dinkelbach_lambda_init_power = (
+        float(_dinkelbach_lambda_init_power_str) if _dinkelbach_lambda_init_power_str is not None else None
+    )
+    cfg.dinkelbach_lambda_init_rate = dinkelbach_lambda_init_rate
+    cfg.dinkelbach_lambda_init_power = dinkelbach_lambda_init_power
+
     # PA efficiency override for eta ablations
     cfg.pa_efficiency = float(os.environ.get('EE_PA_EFFICIENCY', cfg.pa_efficiency))
 
@@ -726,6 +756,8 @@ if __name__ == '__main__':
             lambda_mode_suffix = f'_block{dinkelbach_block_episodes}'
         else:
             lambda_mode_suffix = f'_lwin{dinkelbach_lambda_window_steps}'
+        if dinkelbach_lambda_init_rate is not None:
+            lambda_mode_suffix += f'_lambdainit{dinkelbach_lambda_init_rate:g}-{dinkelbach_lambda_init_power:g}'
         cfg.config_learner.training_name = f'EE_dinkelbach_adaptive{error_suffix}{lambda_mode_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}'
     elif reward_mode is not None:
         raise ValueError(f'Unknown EE_REWARD_MODE: {reward_mode!r}')
