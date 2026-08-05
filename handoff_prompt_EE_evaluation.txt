@@ -9,6 +9,14 @@ p75_eta0.6_rawpow`, job 156358) and aod=0.05
 (`EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow`,
 job 153655), plus the old "regular" always-100W baseline
 (`full_EE_aod0.5_N16K3_eta0.6`) kept for spatial/beampattern comparisons.
+**A full lwin5000/3GPP-native aod=0.0/0.025/0.05 triplet retrain was queued
+up in this same session (see "2026-08-04 session: lwin5000/3GPP triplet
+retrain scripted" at the end of this file) -- all three `.slurm` launchers
+are committed and pushed (commit 6c15a56) but NOT YET SUBMITTED to the
+cluster as of this writing (this working environment has no `sbatch`
+access). On pickup, check whether the user has submitted them and whether
+jobs 156358/153655's checkpoints have since been supplemented or replaced
+by fresher same-named snapshots.**
 Everything else this project tried between 2026-07-29 and 2026-07-31 --
 deterministic-lambda ("detlam"), EMA-smoothing + warm-start on top of it,
 target-entropy annealing ("tanneal"), and the power-conditioned reward mode
@@ -1119,13 +1127,14 @@ handoff/git history -- not reproduced here since unchanged and unactioned.
    comparison instead of the stale detlam-based one currently in the repo.
    Base it on `my_evaluation.py`'s checkpoint-selection pattern
    (`get_best_model_path`) rather than reviving a deleted script.
-2. **Commit the working tree** -- the 2026-08-03 revert of EE_sac.py/
-   soft_actor_critic.py, the `docs/EE_formulation.tex` Section 6 rewrite,
-   and the 2026-08-04 cleanup (deletion of ~48 model checkpoints, matching
-   outputs/metrics subfolders, and ~110 dead scripts/.slurm files) are all
-   still uncommitted as of this writing. Needs user go-ahead; suggest
-   separate commits (revert, docs rewrite, cleanup) rather than one giant
-   commit.
+2. **DONE, no longer applies as written** -- the 2026-08-03 revert, the
+   `docs/EE_formulation.tex` Section 6 rewrite, and the 2026-08-04 cleanup
+   were all committed and pushed sometime between this section being
+   written and the "2026-08-04 session: lwin5000/3GPP triplet retrain
+   scripted" section at the end of this file (`git log` showed a clean
+   working tree with those changes already in history by the time that
+   session started -- exact commit(s) not captured by this handoff, see
+   `git log` directly if the history matters).
 3. **Decide whether to keep investigating the matched-power-MMSE gap at
    all**, now that the mechanism-engineering line (detlam/EMA/tanneal/
    power-conditioned) is closed out. Options from the 2026-07-28 section's
@@ -1134,11 +1143,14 @@ handoff/git history -- not reproduced here since unchanged and unactioned.
    reframe the paper's story around "EE at useful rates" rather than
    closing the gap to MMSE. See docs/EE_formulation.tex Section 6 for the
    current honest state of the theory (open, not closed).
-4. **aod=0.025** has no working checkpoint at 3GPP params in either the old
-   or the lwin5000 line -- every aod=0.025 attempt (Optuna-tuned old-system,
-   detlam) either predates the 3GPP alignment or diverged. Would need a
-   fresh `lwin5000`/3GPP-native training run if ever wanted, mirroring the
-   aod=0.0/aod=0.05 launchers.
+4. **aod=0.025 launcher now exists** (`EE_dinkelbach_rawpow_aod0.025_
+   satg30_p75_nadir.slurm`, written 2026-08-04, default LR, plain
+   lwin5000/3GPP) -- see "2026-08-04 session: lwin5000/3GPP triplet retrain
+   scripted" at the end of this file. Not yet submitted to the cluster as
+   of this writing (no `sbatch` access from this working environment) --
+   next action is to `sbatch` all three (aod=0.0/0.025/0.05) scripts and
+   monitor for completion/divergence, same as every previous training
+   round in this file.
 5. **elev30 geometry** was dropped (structural dropped-user problem,
    checkpoint deleted in cleanup) -- revisit only if elevation-angle
    robustness becomes a paper requirement again; would need a fresh
@@ -1175,18 +1187,20 @@ handoff/git history -- not reproduced here since unchanged and unactioned.
   (Schroder et al., IEEE Open J. Comm. Soc. 2025). Fig. 3 (N=16/K=3,
   d_K=100km) is the scenario this whole investigation targets.
 
-## Git state (this repo, branch energy-efficiency-standalone, updated 2026-08-04)
+## Git state (this repo, branch energy-efficiency-standalone, updated 2026-08-04, end of session)
 
-9 commits as of this writing (`git log --oneline` is authoritative;
-newest: `5c6d6de` merge, `ed9ff5f` beampattern diagnostic for job 156358,
-`cd93c35` DATA_SYNC_MANIFEST.txt, `7c5d3d4` point eval/plot at native
-aod=0.0 checkpoint + EE_formulation Sec 6 rewrite, `2840d08` figure
-curation). **Uncommitted as of this writing**: the 2026-08-03 revert of
-EE_sac.py/soft_actor_critic.py, and the 2026-08-04 cleanup -- `git status
---short` shows ~98 deletions (dead scripts/.slurm under
-src/energy_efficiency/) and no other changes. `models/` and
-`outputs/metrics/` remain gitignored, disk-only. GitHub-push token note
-near the top of this file still applies.
+Working tree is CLEAN as of this writing (`git status --short` empty),
+pushed to `origin/energy-efficiency-standalone`. Newest commits (`git log
+--oneline` is authoritative): `6c15a56` "Add aod=0.025 lwin5000/3GPP
+nadir launcher, harden aod=0.05 script", `57eb096` "Ignore local
+claude/podman sandbox folder", `8a9be66` "Update handoff to reflect
+current state after repo cleanup", `b37061a` "Remove scripts/slurms tied
+to abandoned detlam/EMA/tanneal/pcond/elev30/fairness lines" (this last
+one is where the 2026-08-03 revert + 2026-08-04 cleanup, described as
+still-uncommitted earlier in this same file, actually landed -- that
+description is now stale, kept only as history of the session narrative).
+`models/` and `outputs/metrics/` remain gitignored, disk-only.
+GitHub-push token note near the top of this file still applies.
 
 ## 2026-08-03 session: EE_sac.py reverted (detlam/EMA/warmstart/entropy-anneal/
 power-conditioned stashed), aod=0.0 3GPP retrain launched, docs/EE_formulation.tex
@@ -1344,3 +1358,84 @@ detlam was tried, why it failed, why entropy-annealing didn't fix it
 either) -- but don't expect to find the checkpoints, gzips, or scripts they
 name. Git history (`git show <commit>` or `git log -- <path>`) still has
 everything if it's ever needed back.
+
+## 2026-08-04 session: lwin5000/3GPP triplet retrain scripted (aod=0.0/0.025/0.05), not yet submitted
+
+**Goal (user-driven): rerun the plain `lwin5000` EMA-Dinkelbach SAC line at
+3GPP params for all three error bounds together** -- aod=0.0, aod=0.025,
+aod=0.05 -- as a clean, consistently-scripted triplet, rather than the
+current mix of two checkpoints trained at different times (156358, 153655)
+plus a permanently-missing aod=0.025.
+
+**Working environment note: this session's tool access has no `sbatch`/
+SLURM** (confirmed: `which sbatch` fails, hostname is a container ID, not
+a cluster node). Earlier sessions in this file describe an interactive
+shell sitting directly on a live compute node with sbatch access -- that
+is NOT the case here. This session could only edit/commit/push files;
+**actually submitting the three jobs is still a TODO for the user (or a
+future session with cluster access).**
+
+**Three `.slurm` launchers, all plain lwin5000 mode
+(`EE_DINKELBACH_LAMBDA_WINDOW_STEPS=5000`, no lambda-mode env vars beyond
+that), 3GPP defaults (sat_gain_dBi=30 / power_constraint_watt=75, no
+override needed), nadir geometry, default (untuned) LR:**
+- `EE_dinkelbach_rawpow_aod0.0_satg30_p75_nadir.slurm` -- pre-existing,
+  unchanged. Expected training_name:
+  `EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow`.
+- `EE_dinkelbach_rawpow_aod0.025_satg30_p75_nadir.slurm` -- **newly
+  written this session**, mirroring the aod=0.0 script's structure
+  exactly (same node-exclude list, py_compile guard, hostname-echo
+  pattern). No prior 3GPP-native checkpoint exists at aod=0.025 in any
+  lambda mode -- the only earlier aod=0.025 attempts were the pre-3GPP
+  Optuna-LR-tuned checkpoint (different system params entirely) and a
+  `detlam`-mode run that diverged with NaN around episode 12k (see
+  2026-07-30 session) -- neither is a precedent for this run's stability.
+  Expected training_name:
+  `EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow`.
+- `EE_dinkelbach_rawpow_aod0.05_satg30_p75_nadir.slurm` -- **hardened this
+  session**: it predated the node-exclude list and py_compile guard that
+  aod=0.0's script already had (it's the older of the two pre-existing
+  launchers, from the original 2026-07-27 pilot round), so both were
+  added for consistency across the triplet. `EE_TRAIN_ERROR_BOUND=0.05`
+  and all other behavior unchanged from before. Expected training_name
+  unchanged: `EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_
+  eta0.6_rawpow`.
+
+**User decisions made this session (do not re-litigate without new
+information):**
+- **Default LR for aod=0.025, not the old Optuna-tuned LR**
+  (lrc1.82e-06/lra1.17e-06) -- keeps the triplet a clean matched
+  comparison (only the error bound differs across the three scripts); the
+  tuning was for the old pre-3GPP (20 dBi/100 W) system anyway, not
+  necessarily still optimal at 30 dBi/75 W.
+- **Old checkpoint snapshots (156358, 153655) are left in place, not
+  cleared before rerun.** Verified via `save_model_checkpoint()` in
+  `EE_sac.py` (lines ~110-153): `high_scores` is a fresh in-memory list
+  per process (`high_scores = []`), so a new run has no awareness of an
+  old run's on-disk snapshots and cannot prune/delete them -- new
+  snapshots simply accumulate in the same `training_name/base/` folder
+  alongside the old ones. Practical consequence: if a rerun scores worse
+  than the existing checkpoint, both are on disk afterward, and any
+  best-checkpoint-selection logic (e.g. `get_best_model_path`-style
+  patterns in `my_evaluation.py`) will pick whichever snapshot has the
+  higher score regardless of which run produced it -- so it will silently
+  keep the OLD checkpoint if the new run underperforms, not silently
+  overwrite it. Worth knowing if a rerun's checkpoint seems to not have
+  "taken effect" during evaluation.
+
+**Committed and pushed**: commit `6c15a56` "Add aod=0.025 lwin5000/3GPP
+nadir launcher, harden aod=0.05 script", branch
+`energy-efficiency-standalone`, pushed to `origin` cleanly (one harmless
+"unable to write credential store" warning about the local credential
+cache, not the push itself -- verified via `git log origin/...` matching
+local HEAD afterward).
+
+**On pickup: first check whether the user has since submitted these three
+jobs from the cluster** (`sbatch src/energy_efficiency/EE_dinkelbach_
+rawpow_aod{0.0,0.025,0.05}_satg30_p75_nadir.slurm`), and if so, their
+status/outcome -- particularly whether aod=0.025 completes cleanly this
+time (first-ever lwin5000/3GPP attempt at that error bound) or diverges
+like the old detlam attempt did. If completed, the natural follow-up is
+regenerating `parajuli.pdf` against the now-complete lwin5000/3GPP triplet
+(see "What to do next" item 1, still open) instead of just the aod=0.0/
+aod=0.05 pair.
