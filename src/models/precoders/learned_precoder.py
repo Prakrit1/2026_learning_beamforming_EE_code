@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 
 from src.utils.norm_precoder import norm_precoder, clip_precoder_to_power_budget
-from src.utils.real_complex_vector_reshaping import real_vector_to_half_complex_vector
+from src.utils.real_complex_vector_reshaping import real_vector_to_half_complex_vector, rad_and_phase_to_complex_vector
 
 
 def get_learned_precoder_no_norm(
@@ -12,12 +12,16 @@ def get_learned_precoder_no_norm(
         sat_nr: int,
         sat_ant_nr: int,
         user_nr: int,
+        action_format: str = 'real_imag',
 ) -> np.ndarray:
 
     w_precoder, _ = precoder_network.call(state.astype('float32')[np.newaxis])
     w_precoder = w_precoder.numpy().flatten()
 
-    w_precoder = real_vector_to_half_complex_vector(w_precoder)
+    if action_format == 'rad_phase':
+        w_precoder = rad_and_phase_to_complex_vector(w_precoder)
+    else:
+        w_precoder = real_vector_to_half_complex_vector(w_precoder)
     w_precoder = w_precoder.reshape((sat_nr * sat_ant_nr, user_nr))
 
     return w_precoder
@@ -30,6 +34,7 @@ def get_learned_precoder_normalized(
         sat_ant_nr: int,
         user_nr: int,
         power_constraint_watt: float,
+        action_format: str = 'real_imag',
 ) -> np.ndarray:
 
     w_precoder_no_norm = get_learned_precoder_no_norm(
@@ -38,6 +43,7 @@ def get_learned_precoder_normalized(
         sat_nr=sat_nr,
         sat_ant_nr=sat_ant_nr,
         user_nr=user_nr,
+        action_format=action_format,
     )
 
     w_precoder_normalized = norm_precoder(
@@ -59,6 +65,7 @@ def get_learned_precoder_clip_only(
         sat_ant_nr: int,
         user_nr: int,
         power_constraint_watt: float,
+        action_format: str = 'real_imag',
 ) -> np.ndarray:
     """
     Clip-only counterpart to get_learned_precoder_normalized: rescales down
@@ -75,6 +82,7 @@ def get_learned_precoder_clip_only(
         sat_nr=sat_nr,
         sat_ant_nr=sat_ant_nr,
         user_nr=user_nr,
+        action_format=action_format,
     )
 
     w_precoder_clipped = clip_precoder_to_power_budget(
@@ -184,6 +192,7 @@ def get_learned_precoder_decentralized_normalized(
         sat_ant_nr: int,
         user_nr: int,
         power_constraint_watt: float,
+        action_format: str = 'real_imag',  # unused here (decentralized path predates this option); accepted so **config.learned_precoder_args splats cleanly
 ) -> np.ndarray:
 
     w_precoder_no_norm = get_learned_precoder_decentralized_no_norm(

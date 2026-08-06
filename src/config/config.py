@@ -221,6 +221,10 @@ class Config:
             'sat_ant_nr': self.sat_ant_nr,
             'user_nr': self.user_nr,
             'power_constraint_watt': self.power_constraint_watt,
+            # 'real_imag' (default) or 'rad_phase' -- must match the action
+            # decomposition the checkpoint was trained with (see EE_sac.py's
+            # EE_ACTION_FORMAT env var / action_format variable)
+            'action_format': 'real_imag',
         }
 
     def generate_name_from_config(

@@ -120,6 +120,7 @@ def get_precoding_learned_no_norm(
         sat_nr=config.learned_precoder_args['sat_nr'],
         sat_ant_nr=config.learned_precoder_args['sat_ant_nr'],
         user_nr=config.learned_precoder_args['user_nr'],
+        action_format=config.learned_precoder_args.get('action_format', 'real_imag'),
     )
 
     return w_precoder_no_norm

@@ -42,6 +42,8 @@ from src.data.precoder.mmse_precoder import (
 from src.utils.real_complex_vector_reshaping import (
     real_vector_to_half_complex_vector,
     complex_vector_to_double_real_vector,
+    rad_and_phase_to_complex_vector,
+    complex_vector_to_rad_and_phase,
 )
 from src.utils.plot_sweep import (
     plot_sweep,
@@ -198,6 +200,9 @@ def train_sac_energy_effiency(
     high_scores = []
     # default needed so short runs that never clear the Dinkelbach warmup can still return
     best_model_path = None
+    # action (precoder) decomposition: 'real_imag' (default) or 'rad_phase' --
+    # see rad_and_phase_to_complex_vector's angle-periodicity note
+    action_format = getattr(config, 'action_format', 'real_imag')
     # Dinkelbach lambda, three mutually exclusive update modes: per-step EMA
     # (default), one update per block of N episodes, or held constant all run
     dinkelbach_lambda_fixed = getattr(config, 'dinkelbach_lambda_fixed', None)
@@ -283,7 +288,10 @@ def train_sac_energy_effiency(
                 step_experience['action'] = action
 
                 # reshape to fit reward calculation
-                w_precoder_vector = real_vector_to_half_complex_vector(action)
+                if action_format == 'rad_phase':
+                    w_precoder_vector = rad_and_phase_to_complex_vector(action)
+                else:
+                    w_precoder_vector = real_vector_to_half_complex_vector(action)
                 w_precoder = w_precoder_vector.reshape((config.sat_nr*config.sat_ant_nr, config.user_nr))
                 power_precoder = np.real(np.trace(np.matmul(w_precoder.conj().T, w_precoder)))
 
@@ -474,9 +482,13 @@ def train_sac_energy_effiency(
                 if add_mmse_sample and (
                         reward_mmse > reward or not config.config_learner.only_add_mmse_samples_with_greater_reward
                 ):
+                    if action_format == 'rad_phase':
+                        mmse_action = complex_vector_to_rad_and_phase(w_mmse.flatten())
+                    else:
+                        mmse_action = complex_vector_to_double_real_vector(w_mmse.flatten())
                     sac.add_experience(experience={
                         'state': state_current,
-                        'action': complex_vector_to_double_real_vector(w_mmse.flatten()),
+                        'action': mmse_action,
                         'reward': reward_mmse,
                         'next_state': state_next,
                     })
@@ -655,6 +667,26 @@ if __name__ == '__main__':
     # PA efficiency override for eta ablations
     cfg.pa_efficiency = float(os.environ.get('EE_PA_EFFICIENCY', cfg.pa_efficiency))
 
+    # input (state) / output (action) decomposition ablation -- see
+    # 04_approach.tex's "In testing, we find that magnitude-phase
+    # decomposition works best for the network input and real-imaginary
+    # composition works best for the output, though this is still under
+    # investigation" and get_state()/rad_and_phase_to_complex_vector's
+    # angle-periodicity note. Defaults reproduce the paper's claimed-best
+    # combination (rad_phase in / real_imag out) unchanged.
+    csi_format_override = os.environ.get('EE_CSI_FORMAT')
+    if csi_format_override is not None:
+        cfg.config_learner.get_state_args['csi_format'] = csi_format_override
+    csi_format_suffix = (
+        f"_csi{cfg.config_learner.get_state_args['csi_format']}"
+        if cfg.config_learner.get_state_args['csi_format'] != 'rad_phase' else ''
+    )
+
+    action_format = os.environ.get('EE_ACTION_FORMAT', 'real_imag')
+    cfg.action_format = action_format  # read directly by the training loop above
+    cfg.learned_precoder_args['action_format'] = action_format  # read by evaluation-side get_precoding_learned_*
+    action_format_suffix = f'_action{action_format}' if action_format != 'real_imag' else ''
+
     # tag training_name with (N, K) plus any non-legacy gain/power/elevation, so runs
     # under different system parameters never share a checkpoint folder (legacy
     # pre-2026-07-27 checkpoints were all trained at 20 dBi / 100 W / nadir)
@@ -741,10 +773,10 @@ if __name__ == '__main__':
 
     if reward_mode == 'energy_efficiency':
         cfg.config_learner.reward = {'energy_efficiency': 1.0}  # Scheme I, full EE with circuit power
-        cfg.config_learner.training_name = f'full_EE{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{lr_suffix}'
+        cfg.config_learner.training_name = f'full_EE{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{lr_suffix}{csi_format_suffix}{action_format_suffix}'
     elif reward_mode == 'energy_efficiency_no_normalization_fixed':
         cfg.config_learner.reward = {'energy_efficiency_no_normalization_fixed': 1.0}
-        cfg.config_learner.training_name = f'EE_no_norm_fixed{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}'
+        cfg.config_learner.training_name = f'EE_no_norm_fixed{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{csi_format_suffix}{action_format_suffix}'
     elif reward_mode == 'energy_efficiency_dinkelbach_adaptive':
         cfg.config_learner.reward = {'energy_efficiency_dinkelbach_adaptive': 1.0}
         if fairness_weight != 0.0:
@@ -758,7 +790,7 @@ if __name__ == '__main__':
             lambda_mode_suffix = f'_lwin{dinkelbach_lambda_window_steps}'
         if dinkelbach_lambda_init_rate is not None:
             lambda_mode_suffix += f'_lambdainit{dinkelbach_lambda_init_rate:g}-{dinkelbach_lambda_init_power:g}'
-        cfg.config_learner.training_name = f'EE_dinkelbach_adaptive{error_suffix}{lambda_mode_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}'
+        cfg.config_learner.training_name = f'EE_dinkelbach_adaptive{error_suffix}{lambda_mode_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}{csi_format_suffix}{action_format_suffix}'
     elif reward_mode is not None:
         raise ValueError(f'Unknown EE_REWARD_MODE: {reward_mode!r}')
 
