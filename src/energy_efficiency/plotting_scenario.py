@@ -27,6 +27,13 @@ script pattern as beampattern_3gpp_nadir_aod0.py (generate_beampatterns()
 + plot_beam_patterns()). Pass --plot-only to skip the (expensive, GPU-bound)
 simulation and just re-plot an already-saved gzip.
 
+Current figure (see the `curves` list in __main__): MMSE rescaled to
+SAC(train err 0.0)'s own measured power, plus the three SAC training-error
+curves (0.0/0.025/0.05) -- no full-budget MMSE, no matched-power MMSE for
+the other two error bounds. Edit `curves` to change what's drawn without
+re-running the simulation (--plot-only), or edit CHECKPOINTS to change what
+gets simulated in the first place.
+
 Saves one gzip: outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip
 """
 import os
@@ -54,8 +61,6 @@ from src.utils.update_sim import update_sim
 from src.plotting.plotting import plot_rate_error_sweep
 
 PLOT_ONLY = '--plot-only' in sys.argv
-PLOT_AOD_KEYS = ['aod0.0', 'aod0.025', 'aod0.05']
-PLOT_COLOR_NAMES = {'aod0.0': 'green', 'aod0.025': 'blue', 'aod0.05': 'magenta'}
 
 error_sweep_range = np.linspace(0, 0.10, 11)
 monte_carlo_iterations = 10000
@@ -253,11 +258,24 @@ if __name__ == '__main__':
     plot_width = 0.99 * plot_cfg.textwidth
     plot_height = plot_width * 0.6
 
+    # MMSE rescaled to SAC(err 0.0)'s own measured power, plus the three SAC
+    # training-error curves -- no full-budget MMSE, no per-checkpoint matched
+    # MMSE for the other two error bounds.
+    curves = [
+        {'result_key': 'mmse_matched_aod0.0', 'label': 'MMSE (eq. power, SAC err 0.0)',
+         'color': plot_cfg.cp2['gold'], 'marker': 'x', 'linestyle': '--'},
+        {'result_key': 'sac_aod0.0', 'label': 'SAC (train err 0.0)',
+         'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
+        {'result_key': 'sac_aod0.025', 'label': 'SAC (train err 0.025)',
+         'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-'},
+        {'result_key': 'sac_aod0.05', 'label': 'SAC (train err 0.05)',
+         'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-'},
+    ]
+
     plot_rate_error_sweep(
         error_sweep_range=data['error_sweep_range'],
         results=data['results'],
-        aod_keys=PLOT_AOD_KEYS,
-        color_names=PLOT_COLOR_NAMES,
+        curves=curves,
         width=plot_width,
         height=plot_height,
         plots_parent_path=plot_cfg.plots_parent_path,
