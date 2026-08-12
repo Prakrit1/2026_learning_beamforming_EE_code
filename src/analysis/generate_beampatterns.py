@@ -15,8 +15,6 @@ from src.data.user_manager import UserManager
 from src.data.calc_sum_rate import calc_sum_rate
 from src.data.channel.get_steering_vec import get_steering_vec
 from src.data.precoder.mmse_precoder import mmse_precoder_normalized
-from src.data.precoder.calc_autocorrelation import calc_autocorrelation
-from src.data.precoder.robust_SLNR_precoder import robust_SLNR_precoder_no_norm
 from src.models.precoders.learned_precoder import get_learned_precoder_normalized
 from src.utils.update_sim import update_sim
 from src.utils.progress_printer import progress_printer
@@ -31,7 +29,6 @@ def generate_beampatterns(
         user_manager: 'src.data.user_manager.UserManager',
         learned_model_paths: dict,
         generate_mmse: bool = True,
-        generate_slnr: bool = True,
         generate_ones: bool = True,
         compute_channel_correlations: bool = False,
 ) -> None:
@@ -176,34 +173,6 @@ def generate_beampatterns(
                 'power_gains': power_gains,
             }
 
-        if generate_slnr:
-
-            autocorrelation=calc_autocorrelation(
-                satellite=satellite_manager.satellites[0],
-                error_model_config=config.config_error_model,
-                error_distribution='uniform',
-            )
-
-            w_slnr = robust_SLNR_precoder_no_norm(
-                channel_matrix=satellite_manager.erroneous_channel_state_information,
-                autocorrelation_matrix=autocorrelation,
-                noise_power_watt=config.noise_power_watt,
-                power_constraint_watt=config.power_constraint_watt,
-            )
-
-            sum_rate_slnr = calc_sum_rate(
-                channel_state=satellite_manager.channel_state_information,
-                w_precoder=w_slnr,
-                noise_power_watt=config.noise_power_watt,
-            )
-
-            power_gains = calc_power_gains(w_slnr)
-
-            iter_data['slnr'] = {
-                'sum_rate': sum_rate_slnr,
-                'power_gains': power_gains,
-            }
-
         if generate_ones:
 
             w_ones = np.ones(w_mmse.shape)
@@ -234,7 +203,6 @@ if __name__ == '__main__':
     angle_sweep_range = np.arange(1.2, 1.9, 0.1 * np.pi / 180)
     num_patterns = 1000
     generate_mmse = True
-    generate_slnr = True
     generate_ones = True
 
     config = Config()
@@ -280,6 +248,5 @@ if __name__ == '__main__':
             user_manager=user_manager,
             learned_model_paths=model_paths,
             generate_mmse=generate_mmse,
-            generate_slnr=generate_slnr,
             generate_ones=generate_ones,
         )

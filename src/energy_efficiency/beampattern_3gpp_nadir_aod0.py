@@ -182,7 +182,6 @@ if __name__ == '__main__':
             user_manager=user_manager,
             learned_model_paths=model_paths,
             generate_mmse=True,
-            generate_slnr=False,
             generate_ones=False,
         )
 

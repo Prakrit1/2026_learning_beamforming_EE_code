@@ -161,7 +161,7 @@ if __name__ == '__main__':
             'row': 0,
             'column': 0,
             'realization': realization,
-            'precoders': ['mmse', 'slnr', 'learned_0.0_error']
+            'precoders': ['mmse', 'learned_0.0_error']
         },
         # {
         #     'row': 1,
@@ -189,28 +189,24 @@ if __name__ == '__main__':
 
     colors = {
         'mmse': plot_cfg.cp2['gold'],
-        'slnr': plot_cfg.cp2['magenta'],
         'learned_0.0_error': plot_cfg.cp2['blue'],
         'learned_0.05_error': plot_cfg.cp2['green'],
     }
 
     line_styles = {
         'mmse': 'solid',
-        'slnr': 'solid',
         'learned_0.0_error': 'solid',
         'learned_0.05_error': 'solid',
     }
 
     marker_styles = {
         'mmse': 'o',
-        'slnr': '^',
         'learned_0.0_error': 's',
         'learned_0.05_error': 'x',
     }
 
     labels = {
         'mmse': 'MMSE',
-        'slnr': 'SLNR',
         'learned_0.0_error': 'abc',
         'learned_0.05_error': 'abc',
     }
