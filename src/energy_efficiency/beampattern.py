@@ -1,10 +1,10 @@
 """
-Beampattern generation + beamwidth/coverage quantification for the new
-aod=0.0 3GPP nadir checkpoint (job 156358, plain lwin5000 lambda mode,
-30 dBi / 75 W, no detlam/EMA/warmstart/entropy-anneal machinery), plus the
-existing aod=0.05 3GPP nadir checkpoint (job 153655, same lambda mode) and
-MMSE as references -- all nadir geometry, one generate_beampatterns() call
-so every curve shares the exact same channel realizations.
+Beampattern generation + beamwidth/coverage quantification for the same
+three checkpoints as plotting_scenario.py's rate-vs-error figure -- SAC
+train err 0.0 (job 156358), 0.025, and 0.05, all plain lwin5000 lambda
+mode, 30 dBi / 75 W, nadir geometry -- plus MMSE as a reference, one
+generate_beampatterns() call so every curve shares the exact same channel
+realizations.
 
 Motivation: the matched-power-MMSE rate sweep for the aod=0.0 checkpoint
 (my_evaluation.py / rate_power_3gpp_pilots.py, run 2026-08-04) showed it
@@ -51,10 +51,11 @@ REALIZATION_TO_PLOT = int(sys.argv[sys.argv.index('--realization') + 1]) if '--r
 
 PLOT_ONLY = '--plot-only' in sys.argv
 
-MODEL_KEYS = ['sac_nadir_aod0.0', 'sac_nadir_aod0.05']
+MODEL_KEYS = ['sac_nadir_aod0.0', 'sac_nadir_aod0.025', 'sac_nadir_aod0.05']
 
 CHECKPOINT_TRAINING_NAMES = {
     'sac_nadir_aod0.0': 'EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
+    'sac_nadir_aod0.025': 'EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
     'sac_nadir_aod0.05': 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
 }
 
@@ -209,21 +210,25 @@ if __name__ == '__main__':
     colors = {
         'mmse': plot_cfg.cp2['gold'],
         'sac_nadir_aod0.0': plot_cfg.cp2['green'],
-        'sac_nadir_aod0.05': plot_cfg.cp2['blue'],
+        'sac_nadir_aod0.025': plot_cfg.cp2['blue'],
+        'sac_nadir_aod0.05': plot_cfg.cp2['magenta'],
     }
     line_styles = {
         'mmse': 'dotted',
         'sac_nadir_aod0.0': 'solid',
+        'sac_nadir_aod0.025': 'dashdot',
         'sac_nadir_aod0.05': 'dashed',
     }
     marker_styles = {
         'mmse': 'x',
         'sac_nadir_aod0.0': 'o',
+        'sac_nadir_aod0.025': '^',
         'sac_nadir_aod0.05': 's',
     }
     labels = {
         'mmse': 'MMSE',
         'sac_nadir_aod0.0': 'SAC (3GPP nadir, train err 0.0)',
+        'sac_nadir_aod0.025': 'SAC (3GPP nadir, train err 0.025)',
         'sac_nadir_aod0.05': 'SAC (3GPP nadir, train err 0.05)',
     }
 

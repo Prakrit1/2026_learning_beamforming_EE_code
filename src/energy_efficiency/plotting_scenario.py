@@ -23,7 +23,7 @@ checkpoint-dependent) and stored alongside.
 This is a "scenario" script: it generates the data for this specific
 checkpoint set, then calls the shared plot_rate_error_sweep() in
 src/plotting/plotting.py to draw the figure -- same simulate+plot-in-one-
-script pattern as beampattern_3gpp_nadir_aod0.py (generate_beampatterns()
+script pattern as beampattern.py (generate_beampatterns()
 + plot_beam_patterns()). Pass --plot-only to skip the (expensive, GPU-bound)
 simulation and just re-plot an already-saved gzip.
 

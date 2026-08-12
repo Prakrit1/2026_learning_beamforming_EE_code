@@ -21,7 +21,7 @@
 # found by my_evaluation.py / rate_power_3gpp_pilots.py (2026-08-04) is
 # corroborated by healthy aiming/coverage, or whether it's a "same rate by
 # luck" case the way the detlam checkpoints turned out to be. See
-# beampattern_3gpp_nadir_aod0.py docstring.
+# beampattern.py docstring.
 # Expected training_name for the new checkpoint:
 # EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow
 
@@ -31,11 +31,11 @@ conda activate gpu_beamforming
 cd /home/parajuli/repos/2026_learning_beamforming_EE_code
 export PYTHONPATH=/home/parajuli/repos/2026_learning_beamforming_EE_code
 
-python3 -m py_compile src/energy_efficiency/beampattern_3gpp_nadir_aod0.py
+python3 -m py_compile src/energy_efficiency/beampattern.py
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/beampattern_3gpp_nadir_aod0.py --realization 0
+srun python3 src/energy_efficiency/beampattern.py --realization 0
 srun echo $HOSTNAME
 wait
 
