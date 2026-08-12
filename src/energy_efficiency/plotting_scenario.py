@@ -20,10 +20,17 @@ A single FULL-BUDGET MMSE curve is also computed once (all three
 checkpoints share the identical nadir/30dBi/75W system, so it is not
 checkpoint-dependent) and stored alongside.
 
+This is a "scenario" script: it generates the data for this specific
+checkpoint set, then calls the shared plot_rate_error_sweep() in
+src/plotting/plotting.py to draw the figure -- same simulate+plot-in-one-
+script pattern as beampattern_3gpp_nadir_aod0.py (generate_beampatterns()
++ plot_beam_patterns()). Pass --plot-only to skip the (expensive, GPU-bound)
+simulation and just re-plot an already-saved gzip.
+
 Saves one gzip: outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip
-Plotting: my_plotting_triplet.py (run after this script).
 """
 import os
+import sys
 
 os.environ.pop('EE_SAT_GAIN_DBI', None)
 os.environ.pop('EE_POWER_BUDGET_WATT', None)
@@ -36,6 +43,7 @@ from pathlib import Path
 import numpy as np
 
 from src.config.config import Config
+from src.config.config_plotting import PlotConfig
 from src.data.calc_sum_rate import calc_sum_rate
 from src.data.calc_tx_power_distribution import calc_tx_power_distribution
 from src.data.satellite_manager import SatelliteManager
@@ -43,6 +51,11 @@ from src.data.user_manager import UserManager
 from src.utils.get_precoding import get_precoding_learned_clip_only, get_precoding_mmse
 from src.utils.load_model import load_model
 from src.utils.update_sim import update_sim
+from src.plotting.plotting import plot_rate_error_sweep
+
+PLOT_ONLY = '--plot-only' in sys.argv
+PLOT_AOD_KEYS = ['aod0.0', 'aod0.025', 'aod0.05']
+PLOT_COLOR_NAMES = {'aod0.0': 'green', 'aod0.025': 'blue', 'aod0.05': 'magenta'}
 
 error_sweep_range = np.linspace(0, 0.10, 11)
 monte_carlo_iterations = 10000
@@ -53,6 +66,10 @@ CHECKPOINTS = {
     'aod0.0': 'EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
     'aod0.025': 'EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
     'aod0.05': 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
+    # lambda-init variant of aod0.0 (job 1175, commit c8f2538): Dinkelbach lambda
+    # EMA seeded from the MMSE-matched-power closed-form prior instead of the
+    # untrained policy's first noisy sample -- see the .slurm header for details.
+    'aod0.0_lambdainit': 'EE_dinkelbach_adaptive_lwin5000_lambdainit12.2-75_N16K3_satg30_p75_eta0.6_rawpow',
 }
 
 
@@ -190,39 +207,59 @@ if __name__ == '__main__':
     out_path.mkdir(parents=True, exist_ok=True)
     gzip_path = Path(out_path, 'rate_power_triplet.gzip')
 
-    results = {}
+    if not PLOT_ONLY:
+        results = {}
 
-    # ---- shared full-budget MMSE curve (system-only, same for all 3) ------
-    cfg.config_learner.training_name = 'EE_lwin5000_3gpp_triplet'
-    results['mmse_nadir'] = run_rate_power_sweep(cfg, 'MMSE (3GPP Set-1, nadir, full budget)', get_precoding_mmse)
-    results['mmse_nadir']['label'] = 'MMSE (full budget)'
+        # ---- shared full-budget MMSE curve (system-only, same for all 3) ------
+        cfg.config_learner.training_name = 'EE_lwin5000_3gpp_triplet'
+        results['mmse_nadir'] = run_rate_power_sweep(cfg, 'MMSE (3GPP Set-1, nadir, full budget)', get_precoding_mmse)
+        results['mmse_nadir']['label'] = 'MMSE (full budget)'
 
-    # ---- per-checkpoint SAC + matched-power MMSE ---------------------------
-    for aod_key, training_name in CHECKPOINTS.items():
-        cfg.config_learner.training_name = training_name
-        model_path = get_best_model_path(cfg.trained_models_path, training_name)
-        print(f'[{aod_key}] checkpoint: {model_path}')
+        # ---- per-checkpoint SAC + matched-power MMSE ---------------------------
+        for aod_key, training_name in CHECKPOINTS.items():
+            cfg.config_learner.training_name = training_name
+            model_path = get_best_model_path(cfg.trained_models_path, training_name)
+            print(f'[{aod_key}] checkpoint: {model_path}')
 
-        precoder_network, norm_factors = load_model(model_path)
-        if norm_factors != {}:
-            cfg.config_learner.get_state_args['norm_state'] = True
+            precoder_network, norm_factors = load_model(model_path)
+            if norm_factors != {}:
+                cfg.config_learner.get_state_args['norm_state'] = True
 
-        sac_result = run_rate_power_sweep(
-            cfg, f'SAC ({aod_key})',
-            lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
-        )
-        sac_result['label'] = f'SAC (train err {aod_key.replace("aod", "")})'
-        sac_result['training_name'] = training_name
-        sac_result['checkpoint'] = str(model_path)
+            sac_result = run_rate_power_sweep(
+                cfg, f'SAC ({aod_key})',
+                lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
+            )
+            sac_result['label'] = f'SAC (train err {aod_key.replace("aod", "")})'
+            sac_result['training_name'] = training_name
+            sac_result['checkpoint'] = str(model_path)
 
-        matched_mmse_result = run_matched_power_mmse_sweep(
-            cfg, f'MMSE matched-power ({aod_key})', sac_result['mean_power'],
-        )
-        matched_mmse_result['label'] = f'MMSE eq.pow ({aod_key.replace("aod", "")})'
+            matched_mmse_result = run_matched_power_mmse_sweep(
+                cfg, f'MMSE matched-power ({aod_key})', sac_result['mean_power'],
+            )
+            matched_mmse_result['label'] = f'MMSE eq.pow ({aod_key.replace("aod", "")})'
 
-        results[f'sac_{aod_key}'] = sac_result
-        results[f'mmse_matched_{aod_key}'] = matched_mmse_result
+            results[f'sac_{aod_key}'] = sac_result
+            results[f'mmse_matched_{aod_key}'] = matched_mmse_result
 
-    with gzip.open(gzip_path, 'wb') as file:
-        pickle.dump({'error_sweep_range': error_sweep_range, 'results': results}, file=file)
-    print(f'Saved: {gzip_path}')
+        with gzip.open(gzip_path, 'wb') as file:
+            pickle.dump({'error_sweep_range': error_sweep_range, 'results': results}, file=file)
+        print(f'Saved: {gzip_path}')
+
+    # ---- plot (reads the gzip just saved above, or an existing one if --plot-only) ----
+    with gzip.open(gzip_path, 'rb') as file:
+        data = pickle.load(file)
+
+    plot_cfg = PlotConfig()
+    plot_width = 0.99 * plot_cfg.textwidth
+    plot_height = plot_width * 0.6
+
+    plot_rate_error_sweep(
+        error_sweep_range=data['error_sweep_range'],
+        results=data['results'],
+        aod_keys=PLOT_AOD_KEYS,
+        color_names=PLOT_COLOR_NAMES,
+        width=plot_width,
+        height=plot_height,
+        plots_parent_path=plot_cfg.plots_parent_path,
+        name='error_sweep_ratio_reward_ablation_sumrate',
+    )

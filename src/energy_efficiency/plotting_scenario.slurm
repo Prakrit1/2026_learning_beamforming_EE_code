@@ -15,8 +15,9 @@
 # Rate+power error sweep (0-0.10, 11 points, 10k MC) for the lwin5000/3GPP
 # nadir triplet (aod=0.0 job 156358, aod=0.025, aod=0.05 job 153655), plus
 # a shared full-budget MMSE curve and a per-checkpoint matched-power MMSE
-# curve. See rate_power_triplet.py docstring. Follow up with
-# my_plotting_triplet.slurm (submit with --dependency=afterok:<this job>).
+# curve, then plots the result -- see plotting_scenario.py docstring.
+# Pass --plot-only (edit the srun line below) to skip the simulation and
+# just re-plot an already-saved gzip.
 
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
 conda activate gpu_beamforming
@@ -26,7 +27,7 @@ export PYTHONPATH=/home/parajuli/repos/2026_learning_beamforming_EE_code
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/rate_power_triplet.py
+srun python3 src/energy_efficiency/plotting_scenario.py
 srun echo $HOSTNAME
 wait
 
