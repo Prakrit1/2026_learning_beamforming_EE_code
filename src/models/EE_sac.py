@@ -307,74 +307,6 @@ def train_sac_energy_effiency(
                 # step simulation based on action, determine reward
                 reward = 0
 
-                # Scheme I: always rescale to the full budget, so power carries no gradient
-                if 'energy_efficiency' in config.config_learner.reward:
-                    if raw_power_precoder < 1e-9:
-                        energy_efficiency = 0.0
-                    else:
-                        scheme_i_norm_factor = np.sqrt(config.power_constraint_watt / raw_power_precoder)
-                        w_precoder_scheme_i = scheme_i_norm_factor * w_precoder_vector.reshape(
-                            (config.sat_nr * config.sat_ant_nr, config.user_nr)
-                        )
-                        # always == power_constraint_watt by construction; kept explicit for debug asserts
-                        power_precoder_scheme_i = np.real(
-                            np.trace(np.matmul(w_precoder_scheme_i.conj().T, w_precoder_scheme_i))
-                        )
-
-                        sum_rate_reward = calc_sum_rate(
-                            channel_state=satellite_manager.channel_state_information,
-                            w_precoder=w_precoder_scheme_i,
-                            noise_power_watt=config.noise_power_watt,
-                        )
-                        # /pa_efficiency: radiated power is only a fraction eta of actual DC draw (Auer et al. 2011)
-                        normalized_transmit = (power_precoder_scheme_i / config.pa_efficiency) / config.power_constraint_watt
-                        normalized_circuit = (
-                            config.sat_nr
-                            * config.sat_ant_nr
-                            * config.circuit_power_watt
-                            / config.power_constraint_watt
-                        )
-                        total_power_normalized = normalized_transmit + normalized_circuit
-
-                        if total_power_normalized < 1e-9:
-                            energy_efficiency = 0.0
-                        else:
-                            energy_efficiency = sum_rate_reward / total_power_normalized
-
-                    reward += config.config_learner.reward['energy_efficiency'] * energy_efficiency
-
-                # Rate uses the clipped (physically transmittable) precoder; the power
-                # penalty uses raw pre-clip power so its gradient stays alive when the
-                # network outputs more than the budget.
-                if 'energy_efficiency_no_normalization_fixed' in config.config_learner.reward:
-                    w_precoder_raw = w_precoder
-                    power_for_ee = raw_power_precoder
-
-                    sum_rate_reward_raw = calc_sum_rate(
-                        channel_state=satellite_manager.channel_state_information,
-                        w_precoder=w_precoder_raw,
-                        noise_power_watt=config.noise_power_watt,
-                    )
-                    # normalize by power_constraint_watt to match 'energy_efficiency' branch's
-                    # reward magnitude -- without it the reward is ~100x smaller, too weak
-                    # a gradient against the L2 weight penalty
-                    normalized_power_for_ee = (power_for_ee / config.pa_efficiency) / config.power_constraint_watt
-                    normalized_circuit_for_ee = (
-                        config.sat_nr * config.sat_ant_nr * config.circuit_power_watt
-                        / config.power_constraint_watt
-                    )
-                    total_power_for_ee = normalized_power_for_ee + normalized_circuit_for_ee
-
-                    if total_power_for_ee < 1e-9:
-                        energy_efficiency_no_normalization_fixed = 0.0
-                    else:
-                        energy_efficiency_no_normalization_fixed = sum_rate_reward_raw / total_power_for_ee
-
-                    reward += (
-                        config.config_learner.reward['energy_efficiency_no_normalization_fixed']
-                        * energy_efficiency_no_normalization_fixed
-                    )
-
                 # Dinkelbach reward: rate - lambda * power, with lambda tracking the
                 # achieved rate/power ratio. Power is normalized by the budget to keep
                 # lambda O(1).
@@ -436,8 +368,6 @@ def train_sac_energy_effiency(
                             lambda_ee = dinkelbach_rate_ema / dinkelbach_power_ema
 
                 valid_reward_keys = [
-                    'energy_efficiency',
-                    'energy_efficiency_no_normalization_fixed',
                     'energy_efficiency_dinkelbach_adaptive',
                     'fairness',
                 ]
@@ -771,13 +701,7 @@ if __name__ == '__main__':
     # folders of old checkpoints trained on the gradient-dead reward
     rawpow_suffix = '_rawpow'
 
-    if reward_mode == 'energy_efficiency':
-        cfg.config_learner.reward = {'energy_efficiency': 1.0}  # Scheme I, full EE with circuit power
-        cfg.config_learner.training_name = f'full_EE{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{lr_suffix}{csi_format_suffix}{action_format_suffix}'
-    elif reward_mode == 'energy_efficiency_no_normalization_fixed':
-        cfg.config_learner.reward = {'energy_efficiency_no_normalization_fixed': 1.0}
-        cfg.config_learner.training_name = f'EE_no_norm_fixed{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{csi_format_suffix}{action_format_suffix}'
-    elif reward_mode == 'energy_efficiency_dinkelbach_adaptive':
+    if reward_mode == 'energy_efficiency_dinkelbach_adaptive':
         cfg.config_learner.reward = {'energy_efficiency_dinkelbach_adaptive': 1.0}
         if fairness_weight != 0.0:
             cfg.config_learner.reward['fairness'] = fairness_weight
