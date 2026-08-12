@@ -43,7 +43,7 @@ from src.data.user_manager import UserManager
 from src.analysis.generate_beampatterns import generate_beampatterns
 from src.plotting.plot_beam_patterns import plot_beam_patterns, print_realizations
 
-TRAINING_NAME = 'EE_beampattern_3gpp_nadir_aod0_N16K3'
+TRAINING_NAME = 'EE_beampattern_N16K3'
 ANGLE_SWEEP_RANGE = np.arange(1.2, 1.9, 0.1 * np.pi / 180)
 NUM_PATTERNS = 30
 CSIT_ERROR_BOUND = 0.05
@@ -173,7 +173,7 @@ if __name__ == '__main__':
             for label, training_name in CHECKPOINT_TRAINING_NAMES.items()
         }
         for label, path in model_paths.items():
-            print(f'[beampattern_3gpp_nadir_aod0] {label} -> {path}')
+            print(f'[beampattern] {label} -> {path}')
 
         generate_beampatterns(
             angle_sweep_range=ANGLE_SWEEP_RANGE,
@@ -189,7 +189,7 @@ if __name__ == '__main__':
     print_realizations(data_path)
     all_stats = analyze_gzip(data_path, ['mmse'] + MODEL_KEYS)
 
-    stats_out = Path(cfg.output_metrics_path, 'EE_beampattern_3gpp_nadir_aod0_stats.gzip')
+    stats_out = Path(cfg.output_metrics_path, 'EE_beampattern_stats.gzip')
     with gzip.open(stats_out, 'wb') as file:
         pickle.dump(all_stats, file=file)
     print(f'\nSaved: {stats_out}')
@@ -227,9 +227,9 @@ if __name__ == '__main__':
     }
     labels = {
         'mmse': 'MMSE',
-        'sac_nadir_aod0.0': 'SAC (3GPP nadir, train err 0.0)',
-        'sac_nadir_aod0.025': 'SAC (3GPP nadir, train err 0.025)',
-        'sac_nadir_aod0.05': 'SAC (3GPP nadir, train err 0.05)',
+        'sac_nadir_aod0.0': 'SAC 0.0',
+        'sac_nadir_aod0.025': 'SAC 0.025',
+        'sac_nadir_aod0.05': 'SAC 0.05',
     }
 
     plot_beam_patterns(
@@ -243,7 +243,7 @@ if __name__ == '__main__':
         marker_style_dict=marker_styles,
         xlim=[1.2, 1.9],
         plots_parent_path=plot_cfg.plots_parent_path,
-        name='beampattern_3gpp_nadir_aod0',
+        name='beampattern',
     )
     ax = plt.gca()
     ax.set_xlabel('Angle of Departure [rad]')
@@ -256,6 +256,6 @@ if __name__ == '__main__':
 
     pdf_path = Path(plot_cfg.plots_parent_path, 'pdf')
     pdf_path.mkdir(parents=True, exist_ok=True)
-    out = Path(pdf_path, f'beampattern_3gpp_nadir_aod0_realization{REALIZATION_TO_PLOT}.pdf')
+    out = Path(pdf_path, f'beampattern_realization{REALIZATION_TO_PLOT}.pdf')
     plt.savefig(out, bbox_inches='tight', dpi=300, transparent=True)
     print(f'Saved: {out}')

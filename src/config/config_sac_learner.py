@@ -17,29 +17,22 @@ class ConfigSACLearner:
             user_nr,
     ) -> None:
 
-        self.training_name: str = (
-             #'full_EE'
-             'EE_no_norm_fixed'
-
-        )
-        # NOTE: for EE_sac.py runs (full_EE / EE_no_norm_fixed / dinkelbach
-        # variants), self.training_name and self.reward below are IGNORED --
-        # EE_sac.py's __main__ overwrites both based on the EE_REWARD_MODE
-        # env var set in the .slurm file, so multiple sbatch jobs can run
-        # concurrently off this one unedited file instead of racing on a
-        # hand-edited default. See EE_sac.py's __main__ for the full list of
-        # valid EE_REWARD_MODE values:
-        #   energy_efficiency                        -> full_EE (Scheme I, always full power)
-        #   energy_efficiency_no_normalization_fixed  -> EE_no_norm_fixed (clip-only, direct ratio reward)
-        #   energy_efficiency_dinkelbach_adaptive     -> EE_dinkelbach_adaptive (clip-only, adaptive-lambda reward)
-        # Also set EE_TRAIN_ERROR_BOUND (float, default 0.0) to train at a
-        # fixed CSIT error bound; it appends '_aod{bound}' to the training
-        # name automatically. The values below only apply when
-        # EE_REWARD_MODE is unset (e.g. journal_training_sweeps/*.py, which
-        # calls Config() directly without going through EE_sac.py).
+        self.training_name: str = 'EE_dinkelbach_adaptive'
+        # NOTE: for EE_sac.py runs, self.training_name and self.reward below
+        # are IGNORED -- EE_sac.py's __main__ overwrites both based on the
+        # EE_REWARD_MODE env var set in the .slurm file, so multiple sbatch
+        # jobs can run concurrently off this one unedited file instead of
+        # racing on a hand-edited default. The only valid EE_REWARD_MODE
+        # value is energy_efficiency_dinkelbach_adaptive (clip-only,
+        # adaptive-lambda reward, optionally combined with a 'fairness'
+        # bonus via EE_FAIRNESS_WEIGHT). Also set EE_TRAIN_ERROR_BOUND
+        # (float, default 0.0) to train at a fixed CSIT error bound; it
+        # appends '_aod{bound}' to the training name automatically. The
+        # values below only apply when EE_REWARD_MODE is unset (i.e. a
+        # script calling Config() directly without going through
+        # EE_sac.py's __main__).
         self.reward: dict = {
-            #'energy_efficiency': 1.0,           # full EE with circuit power
-            'energy_efficiency_no_normalization_fixed': 1.0,                    # energy efficiency without normalization
+            'energy_efficiency_dinkelbach_adaptive': 1.0,
         }
 
         self.get_state = get_state_erroneous_channel_state_information

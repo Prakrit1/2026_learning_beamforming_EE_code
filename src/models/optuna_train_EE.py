@@ -37,11 +37,7 @@ def build_config() -> Config:
 
     config.dinkelbach_lambda_window_steps = EE_DINKELBACH_LAMBDA_WINDOW_STEPS
 
-    if EE_REWARD_MODE == 'energy_efficiency':
-        config.config_learner.reward = {'energy_efficiency': 1.0}
-    elif EE_REWARD_MODE == 'energy_efficiency_no_normalization_fixed':
-        config.config_learner.reward = {'energy_efficiency_no_normalization_fixed': 1.0}
-    elif EE_REWARD_MODE == 'energy_efficiency_dinkelbach_adaptive':
+    if EE_REWARD_MODE == 'energy_efficiency_dinkelbach_adaptive':
         config.config_learner.reward = {'energy_efficiency_dinkelbach_adaptive': 1.0}
     else:
         raise ValueError(f'Unknown EE_REWARD_MODE: {EE_REWARD_MODE!r}')

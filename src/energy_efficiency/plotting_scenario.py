@@ -279,5 +279,5 @@ if __name__ == '__main__':
         width=plot_width,
         height=plot_height,
         plots_parent_path=plot_cfg.plots_parent_path,
-        name='error_sweep_ratio_reward_ablation_sumrate',
+        name='error_sweep_sumrate',
     )
