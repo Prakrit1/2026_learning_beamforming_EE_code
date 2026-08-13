@@ -1,28 +1,43 @@
 I'm working on RSMA/energy-efficiency beamforming for satellite downlink.
 This is a continuation session -- read this whole file before doing anything.
-This handoff REPLACES all previous ones. Current as of 2026-08-05.
+This handoff REPLACES all previous ones. Current as of 2026-08-10.
 
-**CURRENT STATE, in one paragraph:** the working line is plain `lwin5000`
-EMA-Dinkelbach SAC, 3GPP params (30 dBi / 75 W), **nadir** geometry. The
-full aod=0.0 / 0.025 / 0.05 training triplet (scripted 2026-08-04, see
-below) has now been SUBMITTED, COMPLETED, and EVALUATED -- this is the
-first time all three error bounds exist as clean lwin5000/3GPP-native
-checkpoints trained the same way. A dedicated evaluation + plotting +
-beampattern pipeline for the triplet was written and run (2026-08-05,
-committed as `b5e3253`/`fa5d7d2`/`c51a4b5`); results are summarized below.
-Separately, an Overleaf sync (via Overleaf's Git integration, not GitHub
-sync -- see "Overleaf" section) is now set up for the paper draft, which
-lives in its own repo (`EE_precoder/`, NOT part of this repo). Everything
-before 2026-08-04 (detlam, EMA-smoothing/warm-start, target-entropy
-annealing, power-conditioned reward, the fairness-weight sweep, elev30
-geometry, pre-3GPP checkpoints, Optuna-LR variants) was tried, evaluated,
-found to NOT close the matched-power-MMSE gap, and deleted from disk in
-the 2026-08-04 cleanup -- git history has it if ever needed again, but
-don't expect to find those checkpoints/scripts on disk. Full narrative
-reasoning for *why* each of those was abandoned has been pruned from this
-file (it was getting unwieldy); the one-paragraph summary above is what
-survives. If the detailed reasoning is ever needed again, it's in this
-file's git history (this repo tracks the handoff file itself).
+**CURRENT STATE, in one paragraph:** the working line is still plain
+`lwin5000` EMA-Dinkelbach SAC, 3GPP params (30 dBi / 75 W), **nadir**
+geometry, and the aod=0.0/0.025/0.05 triplet from 2026-08-05 is still the
+reference checkpoint set. Two things happened on top of that on 2026-08-06:
+(1) a **lambda-init variant of the aod=0.0 checkpoint (job 1175)** was
+trained, evaluated, and found to converge to essentially the same policy as
+the plain aod=0.0 baseline (job 156358) -- the lambda-init mitigation
+speeds up early convergence as designed but doesn't change the final
+answer; (2) an **input/output decomposition ablation** was scaffolded
+(`EE_CSI_FORMAT`/`EE_ACTION_FORMAT` env vars, pushed to GitHub as `06be02a`)
+to test 04_approach.tex's "still under investigation" claim about
+magnitude-phase-in/real-imag-out being the best combination, and the user
+submitted two ablation jobs on the cluster that day. **On 2026-08-07, both
+ablation jobs finished, were evaluated, and CONFIRMED the baseline: both
+alternatives (real_imag-in, rad_phase-out) score substantially worse than
+the reused rad_phase-in/real_imag-out baseline (mean sum-rate deltas of
+-0.53 and -3.15 bps/Hz across the error sweep, respectively -- see
+"2026-08-07 session" below for the full per-error-point numbers).** Per the
+user's standing policy, neither alternative was adopted -- the working line
+is unchanged. `04_approach.tex`'s "though this is still under
+investigation" hedge was removed on the strength of this result (local
+edit only, not yet pushed to Overleaf -- see "2026-08-07 session"). See
+"2026-08-06 session" below for full detail on the lambda-init variant,
+plus a large batch of new local-sandbox-only EE-vs-power/rate-vs-power
+analysis scripts and figures, and further `EE_precoder` paper edits, none
+of which are pushed anywhere yet. Everything before 2026-08-04 (detlam,
+EMA-smoothing/warm-start, target-entropy annealing, power-conditioned
+reward, the fairness-weight sweep, elev30 geometry, pre-3GPP checkpoints,
+Optuna-LR variants) was tried, evaluated, found to NOT close the
+matched-power-MMSE gap, and deleted from disk in the 2026-08-04 cleanup --
+git history has it if ever needed again, but don't expect to find those
+checkpoints/scripts on disk. Full narrative reasoning for *why* each of
+those was abandoned has been pruned from this file (it was getting
+unwieldy); the one-paragraph summary above is what survives. If the
+detailed reasoning is ever needed again, it's in this file's git history
+(this repo tracks the handoff file itself).
 
 ## Repo layout / access (still applies)
 
@@ -139,6 +154,401 @@ if exact numbers are needed)
   the coverage-ratio stats (printed to the `beampattern_triplet` job's
   `.out`, or in `EE_beampattern_3gpp_triplet_stats.gzip` on the cluster)
   before concluding anything; not yet done.
+
+## 2026-08-06 session (NEW)
+
+**Lambda-init job 1175 (committed `c8f2538`, done before this session
+started): completed, pulled, evaluated.** `.out`/`.err` logs and the
+checkpoint (`models/EE_dinkelbach_adaptive_lwin5000_lambdainit12.2-75_
+N16K3_satg30_p75_eta0.6_rawpow/`) were copied from the cluster and
+evaluated with `rate_power_triplet.py` (aod0.025 checkpoint excluded --
+see "local-only changes" below). Result: **converges to essentially the
+same policy as the plain aod=0.0 baseline** (job 156358) -- rate/power
+curves match within noise across the whole error sweep (e.g. 9.04 vs 9.03
+bps/Hz at error=0). Lambda trajectory itself (parsed from the raw `.out`
+log via new `lambda_convergence_lambdainit.py`, since `EE_sac.py`'s own
+metrics gzip does NOT save it) starts at 0.168 (matches the 0.163 seed),
+climbs to ~3.0 by episode ~1000, then slowly settles to 3.460+/-0.008 by
+episode ~8000 and stays flat -- clean confirmation the seed does what it's
+supposed to (shorten early mis-pricing), without changing the converged
+answer.
+
+**Local sandbox Python environment**: this Claude Code sandbox has no
+Python/conda at all by default (unlike the LaTeX toolchain, which
+persisted from 2026-08-05 -- Python did not, sandboxes appear to reset per
+session). Rebuilt via `apt-get install python3.11 python3.11-venv`,
+`python3.11 -m venv .venv`, `.venv/bin/pip install -r requirements.txt`
+(CPU-only TensorFlow, no GPU in this sandbox -- fine for evaluation/
+plotting, MC sweeps run at ~0.2-2ms/iteration on CPU). `.venv/` is
+gitignored. Expect to redo this setup from scratch in a future session if
+local (non-cluster) evaluation is needed again.
+
+**New EE-vs-transmit-power / rate-vs-transmit-power analysis suite** (all
+in `src/energy_efficiency/`, NONE of this is pushed/committed yet):
+`ee_vs_transmit_power_sweep.py` (MMSE), `ee_vs_transmit_power_sweep_sac.py`
+(SAC, lambda-init checkpoint's raw pre-clip direction), and
+`rate_vs_transmit_power_plot.py` (re-plots both sweeps' saved rate data,
+no new simulation). Both sweep scripts take `--error X` (default 0.0) and
+sweep a FIXED precoding direction per realization, rescaled to
+`power_sweep_watt = linspace(1, 75, 40)` -- capped at the real 75W budget
+deliberately, since no precoder in this system can ever transmit above it
+(a first version swept to 200W and had to be corrected). Outputs land in
+`outputs/metrics/EE_vs_transmit_power/` (gzips) and
+`reports/figures/pdf/` (`ee_vs_transmit_power[_sac]_error{X}.pdf`,
+`rate_vs_transmit_power_error{X}.pdf`).
+- **error=0.0 (perfect CSIT)**: EE(power) is a clean rise-then-fall curve,
+  peaking at **12.4 W for BOTH MMSE and SAC** (EE=0.1509 vs 0.1498 --
+  SAC very slightly below MMSE everywhere, ~0.7-2% gap, curves nearly
+  overlap). Rate at the max-EE point: 5.53 (MMSE) / 5.49 (SAC) bps/Hz,
+  vs. 12.16 / 11.92 bps/Hz at the full 75W budget -- classic
+  log2(1+SINR) diminishing-returns shape, practically flattening out
+  around 40-50W even though it never mathematically saturates.
+- **error=0.05**: same 12.4W EE-maximizer location for both, but **SAC
+  now clearly beats MMSE** (EE=0.0733 vs 0.0662) -- the roles flip from
+  perfect CSIT, consistent with this project's established "SAC's
+  advantage is a robustness story" finding elsewhere. Rate ceiling drops
+  a lot (peak ~5.9-6.5 bps/Hz vs ~12 bps/Hz at error=0) but the
+  diminishing-returns shape and EE-maximizer location are unchanged.
+
+**Beampattern at max-EE power vs. full budget** (`beampattern_ee_vs_
+full_power.py`, NOT pushed): generated via this project's own
+`generate_beampatterns()`/`plot_beam_patterns()` pipeline (not a bespoke
+reimplementation -- first version was, got redone on request), by calling
+`generate_beampatterns()` twice with `config.rng` reseeded identically
+(seed `20260806`) and `config.mmse_args['power_constraint_watt']` set to
+12.4 vs 75, then merging the two single-key ('mmse') gzips into one
+two-key ('max_ee'/'full_budget') gzip in the shape `plot_beam_patterns()`
+already expects. Confirms mathematically and empirically that going from
+full budget to max-EE power changes ONLY the overall power scale, not the
+beam shape/direction -- measured gain ratio 6.0559 +/- 6.6e-13 across 30
+realizations (exactly 75/12.4), beamwidth/coverage/offset stats identical
+to 3 decimal places between the two power levels.
+
+**Input/output decomposition ablation (pushed, commit `06be02a`)**:
+04_approach.tex claims "magnitude-phase decomposition works best for the
+network input and real-imaginary composition works best for the output,
+though this is still under investigation." Added `EE_CSI_FORMAT` (state
+format, already had a `csi_format` config field, just needed an env-var
+hook) and `EE_ACTION_FORMAT` (action format, needed real plumbing --
+`rad_and_phase_to_complex_vector` wasn't used anywhere for the action
+before this) to `EE_sac.py`, threaded through evaluation via
+`config.learned_precoder_args['action_format']` (`learned_precoder.py`,
+`get_precoding.py`). Both default to the paper's claimed-best combination
+unchanged (`rad_phase` in / `real_imag` out) -- **no existing checkpoint
+or evaluation script's behavior changes unless the new env vars are
+explicitly set.** Smoke-tested (short training runs, both new code paths)
+before pushing, no crashes. Two new `.slurm` launchers reuse job 1175's
+exact settings, changing only one variable each:
+- `EE_dinkelbach_rawpow_aod0.0_satg30_p75_nadir_realimag_input.slurm`
+  (`EE_CSI_FORMAT=real_imag`, output held at default `real_imag`) --
+  tests the input-side half of the claim.
+- `EE_dinkelbach_rawpow_aod0.0_satg30_p75_nadir_radphase_output.slurm`
+  (`EE_ACTION_FORMAT=rad_phase`, input held at default `rad_phase`) --
+  tests the output-side half. Flagged in the script's own comments: the
+  actor still samples both output components from an unconstrained Normal
+  distribution, so a negative sampled "radius" isn't an error (it's
+  equivalent to a valid (positive radius, angle+pi) pair once passed
+  through cos/sin) but is a non-injective parametrization worth
+  remembering if training looks odd.
+- **The known-good baseline is reused, not retrained**: job 1175 (or
+  156358) already IS the `rad_phase`-in/`real_imag`-out combination, no
+  new run needed for that corner.
+- **User submitted both jobs on 2026-08-06; both finished and were
+  evaluated on 2026-08-07 -- see "2026-08-07 session" below for the full
+  result.** Explicit fallback policy from the user: **if these two ablations
+  don't show an improvement, keep the current defaults as the working
+  line -- do NOT switch.** No code revert is actually needed to honor
+  this: since both env vars default to reproducing the current
+  known-good combination unchanged, "reverting" just means not setting
+  `EE_CSI_FORMAT`/`EE_ACTION_FORMAT` in future `.slurm` launchers, i.e.
+  doing nothing further with this ablation. The new plumbing itself is
+  harmless to leave in place either way -- confirmed harmless: neither
+  alternative was adopted, so it correctly remains dormant.
+
+## 2026-08-07 session (NEW)
+
+**Decomposition ablation: both jobs finished, evaluated, baseline
+confirmed.** Built and pushed (commit `102399d`, no code review needed --
+reuses `rate_power_triplet.py`'s helper functions rather than duplicating)
+`src/energy_efficiency/decomposition_ablation_eval.py` + `.slurm` and
+`my_plotting_decomposition_ablation.py` + `.slurm`: same rate/power sweep
+methodology as the triplet (0-0.10 error, 11 pts, 10k MC, matched-power
+MMSE per checkpoint), but comparing three checkpoints that share job
+1175's exact recipe (aod=0.0, lambda-init) and differ only in one decoding
+format env var each. Critically, evaluation threads the correct
+`csi_format`/`action_format` per checkpoint (via a `FORMAT_OVERRIDES`
+dict, reset to repo defaults between checkpoints) -- evaluating an
+ablation checkpoint with the wrong decomposition would silently feed the
+network a state/action vector shape or convention it was never trained on.
+
+Ran on the cluster via SLURM (job 3110), gzip + `.out`/`.err` logs pulled
+into this sandbox, `models/` also updated with both ablation checkpoints
+(directories `..._rawpow_csireal_imag` and `..._rawpow_actionrad_phase`),
+Python env rebuilt (`apt-get install python3.11 python3.11-venv` again --
+sandboxes reset per session as previously noted, `.venv`'s symlink to
+`/usr/bin/python3.11` had gone dangling). Plotting script run locally,
+produced `reports/figures/pdf/error_sweep_decomposition_ablation_sumrate.pdf`
+(NOT yet committed) and a console rate-delta-vs-baseline printout.
+
+**Result: baseline (rad_phase-in/real_imag-out) beats both alternatives
+at every error point.** At error=0: baseline 9.04 bps/Hz, `csi_real_imag`
+7.47 bps/Hz, `action_rad_phase` only 3.86 bps/Hz. Mean deltas across the
+full sweep: `csi_real_imag` -0.53 bps/Hz (worst at low error, actually
+crosses slightly positive at error>=0.08 by +0.07 to +0.21 -- a detail,
+not a reason to adopt it, since the policy is worse everywhere that
+matters most); `action_rad_phase` -3.15 bps/Hz, worse everywhere, and
+also draws far less power than baseline (16% of budget at error=0 vs.
+baseline's 46.6%) -- consistent with the non-injective negative-radius
+concern flagged in that ablation's own `.slurm` comments, plausibly a
+genuinely degenerate/undertrained policy rather than just a worse
+decomposition choice. **Per the explicit fallback policy, neither
+alternative is adopted -- the working line (job 1175 / job 156358,
+rad_phase-in/real_imag-out) is unchanged.**
+
+**Verified the ablation actually tests what the paper's hedge meant**
+(the user asked for this explicitly): (1) code-level terminology check --
+`get_state.py`'s `csi_format='rad_phase'` calls
+`complex_vector_to_rad_and_phase` (radius=magnitude, phase=angle) and
+`csi_format='real_imag'` calls `complex_vector_to_double_real_vector`;
+same mapping holds for the action side via `rad_and_phase_to_complex_vector`
+vs `real_vector_to_half_complex_vector` in `learned_precoder.py` -- the
+env-var names implement exactly the two decompositions the paper names,
+not just plausibly-named. (2) Isolation check -- diffed each ablation
+`.slurm` against job 1175's training script line-by-line; each differs by
+exactly one line (`EE_CSI_FORMAT=real_imag` or `EE_ACTION_FORMAT=rad_phase`),
+nothing else, so the rate difference is attributable to that one factor.
+(3) Scope check -- searched this repo's full git history (594 commits,
+all branches, including the pre-2026 RSMA history this repo's worktree
+shares) for any prior documented experiment behind 04_approach.tex's "in
+testing, we find..." claim; found none. The claim was informal/undocumented
+prior to this ablation -- this run is the first controlled, recorded test
+of it, at one operating point (aod=0.0, lambda-init recipe, this 3GPP/nadir
+config specifically), not an exhaustive sweep across aod bounds.
+
+**`EE_precoder` paper updated (local only, NOT pushed to Overleaf)**:
+`04_approach.tex`'s "In testing, we find that magnitude-phase decomposition
+works best for the network input and real-imaginary composition works
+best for the output, though this is still under investigation." was
+replaced with "A single-factor ablation confirms that magnitude-phase
+decomposition is preferable for the network input and real-imaginary
+composition for the output: training otherwise-identical policies with
+either choice swapped in isolation reduces achieved sum rate substantially
+across the CSIT error sweep." -- removes the hedge, states the result
+without adding a new figure/results subsection (none of the paper's
+existing structure has an obvious home for one; revisit if a dedicated
+ablation figure is wanted for `05_evaluation.tex`). **Needs pushing from
+the user's own terminal** (`cd EE_precoder && git add -A && git commit
+-m "..." && git push origin main`, then refresh Overleaf), same
+TTY-for-credentials limitation as all other Overleaf pushes from this
+sandbox.
+
+**No source code needs reverting.** The `EE_CSI_FORMAT`/`EE_ACTION_FORMAT`
+plumbing added 2026-08-06 was opt-in via env var from the start --
+`config_sac_learner.py`'s `csi_format` default and `config.py`'s
+`action_format` default were never changed, and
+`decomposition_ablation_eval.py` resets `cfg`'s format fields to those
+defaults after its per-checkpoint loop. The working line's code is, and
+remains, exactly what it was before this ablation existed.
+
+**`EE_precoder` paper edits (local only, NOT pushed to Overleaf)**: on top
+of the already-unpushed `b4a795f` ("Reframe Dinkelbach reward as borrowed
+transform, add lambda-init discussion"), two more paragraphs in
+`04_approach.tex` were rewritten this session, still uncommitted:
+1. The SINR-monotonicity argument (right before eq:ptotal) was condensed
+   from a full derivation into a shorter statement citing
+   `schroder2025modelfree` for the justification, per user request ("no
+   point writing this lemma, it's basically Schroder's paper").
+2. The paragraph after eq:eeobjective (the non-monotonicity/clip-only
+   motivation) was rewritten for a first-time reader -- previously leaned
+   on an unstated "the argument above" callback and unexplained "feasible
+   ball" jargon; now explicitly restates what carries over (SINR still
+   only rises with power) vs. what breaks (P_total now grows unboundedly
+   too), and drops the "ball" terminology.
+Both compile cleanly (`./compile.sh`, LaTeX toolchain confirmed still
+installed this session) -- only pre-existing warning is the known
+`eq:channel_perfect` duplicate label (still not fixed). **To push: `cd
+EE_precoder && git add -A && git commit -m "..." && git push origin
+main`, then refresh Overleaf in browser** -- needs the user's own
+terminal (no TTY for the git credential prompt from this sandbox).
+
+**Local-only changes to the main repo, NOT committed** (`git status`
+shows these as dirty): `rate_power_triplet.py` / `my_plotting_triplet.py`
+have `aod0.025` commented out of `CHECKPOINTS`/`AOD_KEYS` -- purely
+because that checkpoint isn't copied into this sandbox's `models/`
+(only aod0.0/aod0.05/lambdainit are). The checkpoint exists fine on the
+cluster; **don't push this exclusion as a permanent change** -- copy
+`EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/`
+into `models/` and uncomment both lines to restore the full triplet
+before committing anything from these two files. A large batch of new
+untracked files (all the analysis scripts/figures described above) also
+sit locally uncommitted -- see `git status` for the full list, none
+pushed as of this writing.
+
+## 2026-08-10 session (NEW)
+
+**Main code repo (this repo): new raw-ratio-reward-vs-Dinkelbach ablation,
+pushed.** Added three new SLURM launchers in `src/energy_efficiency/`:
+`EE_ratio_reward_aod0.0_satg30_p75_nadir.slurm`,
+`EE_ratio_reward_aod0.035_satg30_p75_nadir.slurm`, and
+`EE_ratio_reward_aod0.05_satg30_p75_nadir.slurm` -- same 3GPP/nadir/
+N16K3/satg30/p75 system parameters as the existing Dinkelbach-adaptive-
+lambda triplet, but with `EE_REWARD_MODE=energy_efficiency` (Scheme I:
+reward = raw `sum_rate/total_power` computed directly every step, no
+lambda/adaptive pricing at all, precoder always rescaled to the full
+power budget -- the same mode that trained the old pre-cleanup
+`full_EE_aod0.5_N16K3_eta0.6` baseline). **No source code changes were
+needed** -- this reward mode was already fully implemented in
+`EE_sac.py` (lines 774-776), just never had a launcher pointed at it
+under the current 3GPP params. Expected training_names:
+`full_EE_N16K3_satg30_p75_eta0.6` (error=0.0),
+`full_EE_aod0.035_N16K3_satg30_p75_eta0.6`,
+`full_EE_aod0.05_N16K3_satg30_p75_eta0.6` -- none collide with existing
+checkpoint folders. Committed and pushed to
+`origin/energy-efficiency-standalone` (commit `0a60e76`). **Not yet
+submitted to the cluster** -- user needs to `sbatch` all three from
+their own terminal; once they finish, evaluate the same way as the
+lambda triplet (`rate_power_triplet.py`-style sweep) and compare
+directly against `EE_dinkelbach_adaptive_{aod0.0,aod0.035,aod0.05}...`
+checkpoints once those exist (**note**: the lambda-reward triplet
+currently on disk/cluster is at aod=0.0/0.025/0.05, NOT 0.035 -- the
+error bounds don't line up for a matched aod=0.035 comparison unless a
+matching lambda-reward aod=0.035 checkpoint is also trained; flag this
+to the user before evaluating, don't assume it's already covered).
+
+Also pulled one small commit from GitHub at the start of this session
+(`a0860d3`, just `error_sweep_decomposition_ablation_sumrate.pdf` --
+already accounted for in the 2026-08-07 session notes above) before this
+session's own work began.
+
+**`EE_precoder` (Overleaf paper) work -- all local to the `EE_precoder/`
+git repo, NONE of it pushed to Overleaf yet:**
+
+- **`04_approach.tex` reward section reworked.** At the start of this
+  session, the working tree had a stray uncommitted local edit that had
+  REVERTED both the ablation-confirmed sentence (back to the old "still
+  under investigation" hedge) and changed "price" back to "weight" in
+  the Dinkelbach paragraph -- undid both. Then rewrote
+  `\refsec{sec:dinkelbach-reward}`'s prose across several paragraphs
+  (motivating sentence, an explicit "this is not classical Dinkelbach's
+  algorithm" clarification, the \(\dinklambda_0=0\) transient argument,
+  the TTBO-FL scale-mismatch comparison) while keeping the existing
+  `eq:dinkreward` equation block unchanged. Applied four specific
+  wording fixes from the user's own review pass: (1) softened the
+  gradient-conditioning claim to "the ratio can nevertheless lead to
+  less well-conditioned gradient estimates during stochastic
+  optimization" (was asserting more than proven); (2) "indifferent to
+  power consumption" -> "the reward contains no explicit power penalty"
+  (the original phrasing could be misread as the policy not responding
+  to power at all, when it still chases power because rate keeps rising
+  with it); (3) "until the price adapts" -> "during the initial period
+  before the adaptive price becomes appreciable" (more precise, since
+  \(\dinklambda\) never "finishes" adapting, it just keeps updating);
+  (4) kept "inspired by the Dinkelbach transform" unchanged (user's
+  favorite phrasing from the earlier rewrite). Also restored the
+  ablation-confirmed sentence at line 56.
+- **Self-review ("rebuttal") of `04_approach.tex` found three unresolved
+  issues, NONE fixed yet:** (a) the `\eeobj` non-monotonicity/
+  quasi-concavity-in-power claim (line 26) has no citation -- see next
+  bullet; (b) the `\dinklambda` update equation's
+  \(\overline{X}_{\text{window}}\) notation reads like a plain
+  box-car/sliding-window mean, but the actual `EE_sac.py` implementation
+  is a recursive EMA (`ema += alpha*(x-ema)`, alpha=2/(window+1)) --
+  loosely equivalent but not literally the same, worth reconciling the
+  notation or adding a footnote; (c) minor grammar, "used to as a guide"
+  at line 41 (extra "to").
+- **Citation search for the non-monotonicity claim, not yet resolved.**
+  Confirmed via IEEE-Xplore-adjacent web search:
+  **E. V. Belmega, S. Lasaulce, "Energy-Efficient Precoding for
+  Multiple-Antenna Terminals," IEEE Trans. Signal Processing, vol. 59,
+  no. 1, pp. 329-340, 2011**, and
+  **C. Isheden, Z. Chong, E. Jorswieck, G. Fettweis, "Framework for
+  Link-Level Energy Efficiency Optimization with Informed Transmitter,"
+  IEEE Trans. Wireless Communications, 2012** both directly establish
+  the claimed property (EE ratio quasi-concave/non-monotone in transmit
+  power due to a circuit-power floor, maximizer strictly below budget).
+  User wanted something newer; found and ADDED TO `references.bib` (key
+  `huang2020satn`): **Q. Huang, M. Lin, J.-B. Wang, T. A. Tsiftsis,
+  J. Wang, "Energy Efficient Beamforming Schemes for
+  Satellite-Aerial-Terrestrial Networks," IEEE Trans. Communications,
+  vol. 68, no. 6, pp. 3863-3875, 2020** (DOI
+  10.1109/TCOMM.2020.2978044) -- satellite-specific, EE = ergodic
+  capacity/total power, Dinkelbach-style solution, directly supports the
+  claim. **This is in the .bib but NOT yet cited anywhere in the actual
+  `.tex` text** -- the wiring edit into line 26 was explicitly rejected
+  by the user, who wants to keep searching for an even newer (2023-2025)
+  candidate before committing to one. Two 2023-2024-era satellite/NTN EE
+  beamforming candidates were surfaced by search but NOT verified to
+  actually contain the claim (would need the PDFs pulled and read, like
+  was done for the two papers below, before trusting them).
+- **Read Khalil, Wang, Choi, "Energy-Efficient Predictive RIS
+  Beamforming in Multi-Satellite LEO Networks Using Twin-Delayed Deep
+  Reinforcement Learning," IEEE Trans. Vehicular Technology, early
+  access 2026** (PDF already sitting in `src/energy_efficiency/` in the
+  main repo) **in full.** Confirmed it does NOT support the
+  non-monotonicity-in-power citation need above -- its free/swept
+  variable is RIS aperture N, not transmit power; per-satellite transmit
+  power is solved analytically in closed form (SINR-minimal for a
+  target rate, their eq. 29) and is never a learned action at all, so
+  the ratio-as-reward numerical-conditioning concern this project's
+  \(\dinklambda\) mechanism addresses never arises for them.
+- **Compared MDP structure (state/action/reward/transition) between
+  Khalil's RIS paper and Schröder et al.'s original satellite paper**
+  (the base paper this whole EE line builds on): the CSIT
+  magnitude/phase-in, real/imag-out decomposition and the
+  "redraw-every-step, no long-term action-to-future-state dependency"
+  transition structure are both literally inherited from Schröder's
+  paper (not independently discovered by either follow-on paper); what's
+  actually new in this project is entirely the Dinkelbach-adaptive-price
+  reward and the clip-only power projection that Schröder's
+  always-rescale-to-budget precoder can't express.
+- **Compared SAC-vs-TD3 algorithm-choice justifications**: confirmed
+  Schröder's paper never mentions TD3 at all (only argues SAC beats
+  DDPG/PPO/TRPO, citing sample efficiency for their offline
+  ground-station training setup); Khalil's paper never mentions SAC at
+  all either (only argues TD3 beats "earlier deterministic
+  policy-gradient schemes," i.e., DDPG, citing training
+  stability/overestimation-bias fixes). Neither paper argues TD3 vs SAC
+  head-to-head -- both are independent, non-competing fixes to DDPG's
+  known weaknesses (SAC: max-entropy exploration; TD3: twin critics +
+  delayed updates). TD3 is confirmed off-policy (same family as
+  DDPG/SAC), stated explicitly in Khalil's own text.
+- **Read Jiao, Fang, Ding, "Joint Robust Beamforming Design for
+  WPT-assisted D2D Communications in MISO-NOMA: Fractional Programming
+  and Deep Reinforcement Learning," arXiv:2209.12253 (2023)** in full
+  (found as a candidate answering "does anyone else let power be a free
+  learned action, or does closed-form power make more sense?"). Confirmed:
+  (a) their DDPG reward (eq. 49-50) is the raw EE ratio \(R_D/E_c\) used
+  directly, no Dinkelbach/adaptive-price term in the DRL branch at all;
+  (b) Dinkelbach's method is used ONLY in their separate analytical PFP
+  algorithm (for the WPT time-switching coefficient, `Section III-A`),
+  never touching the DRL reward; (c) **correction to an earlier
+  in-conversation claim**: although their DDPG action does include the
+  beamforming vectors' real/imaginary parts (nominally free power), a
+  mandatory per-step renormalization (their eq. 51-52) always rescales
+  total transmit power to exactly the full budget `P_max` -- so, same as
+  Schröder's and Khalil's precoders, total power is NOT actually a free
+  learned decision in this paper either, only the per-user power *split*
+  is. This means none of the three related papers read this session
+  actually let total transmit power fall below budget as a genuine
+  learned decision the way this project's `eq:clip` clip-only projection
+  does -- that appears to be a real point of distinction, not just a
+  design preference.
+- **Added both `khalil2026ris` and `jiao2023wptd2d` to
+  `references.bib`, plus a large commented-out (inert, `%`-prefixed)
+  draft related-work paragraph in `02_intro.tex`** summarizing both
+  papers and how they differ from this project (reward form, and the
+  always-saturates-budget correction above). **Not yet integrated into
+  active/compiled text** -- and worth remembering, the entire
+  `02_intro.tex` section is ITSELF still wrapped in an `\iffalse...\fi`
+  block left over from the original (pre-EE) paper -- this project's
+  actual introduction has not been rewritten at all yet, the draft
+  paragraph is sitting inert inside an already-inert section.
+- **One user question left unresolved and dropped as "not important"**:
+  early in the session, the user mentioned pushing a file "with copy in
+  parentheses" into `outputs/metrics` on GitHub -- searched the repo and
+  GitHub thoroughly, never found any such file (very likely silently
+  gitignored, since `outputs/metrics/` is excluded except for one
+  specific file exception). User said to drop it.
 
 ## Overleaf sync (NEW, 2026-08-05)
 
@@ -290,27 +700,72 @@ ever needed again -- not reproduced here.
   `EE_precoder` or kept as a separate internal derivation doc; ask the
   user if this matters for a given task.
 
-## What to do next (priority order, updated 2026-08-05)
+## What to do next (priority order, updated 2026-08-10)
 
-1. **Pull `EE_beampattern_3gpp_triplet_stats.gzip` and `rate_power_triplet.gzip`
+1. **Submit the three new ratio-reward SLURM jobs** (`EE_ratio_reward_
+   aod{0.0,0.035,0.05}_satg30_p75_nadir.slurm`, pushed this session,
+   commit `0a60e76`) from the user's own terminal -- not yet submitted.
+   Once they finish, evaluate against the Dinkelbach-adaptive-lambda
+   triplet. **Watch out**: the lambda triplet on disk is at aod=0.0/
+   0.025/0.05, not 0.035 -- there's no matched-error-bound lambda
+   checkpoint for the aod=0.035 ratio-reward run yet, flag this to the
+   user rather than silently comparing mismatched error bounds.
+2. **`EE_precoder` citation search still open**: user wants a citation
+   for the \(\eeobj\) non-monotonicity/quasi-concavity-in-power claim
+   (`04_approach.tex` line 26) newer than the already-`references.bib`'d
+   `huang2020satn` (2020) -- keep searching 2023-2025 IEEE Xplore
+   satellite/NTN EE-beamforming literature, and actually read/verify any
+   candidate's full text before proposing it (two Khalil-et-al./Jiao-
+   et-al.-adjacent candidates turned out NOT to support the claim on
+   close reading this session -- don't repeat that from a search-snippet
+   summary alone).
+3. **`EE_precoder`'s other two rebuttal-found issues, still unfixed**:
+   the EMA-vs-windowed-mean notation mismatch in `eq:dinkreward`, and
+   the "used to as a guide" typo at line 41.
+4. **Decide on and write the actual related-work paragraph** for
+   `EE_precoder`'s introduction, using the commented-out
+   `khalil2026ris`/`jiao2023wptd2d` draft in `02_intro.tex` as a
+   starting point -- remember the whole section is still wrapped in an
+   `\iffalse...\fi` block from the old paper, so this needs an active
+   rewrite, not just uncommenting.
+5. **Push `EE_precoder`'s accumulated local changes to Overleaf** from
+   the user's own terminal (needs TTY for credentials) once the above
+   are settled: `04_approach.tex` (reward section rewrite, hedge
+   removal), `02_intro.tex` (related-work draft), `references.bib`
+   (three new entries) are all still local-only as of this writing.
+6. **Decide whether to commit `decomposition_ablation.gzip` /
+   `error_sweep_decomposition_ablation_sumrate.pdf`** to this repo, or
+   leave the ablation as a one-off local-sandbox check.
+7. **Decide what to do with the 2026-08-06 session's large batch of
+   local-only work** (see that session's notes above): the EE-vs-power/
+   rate-vs-power scripts+figures, the beampattern max-EE-vs-full-power
+   comparison are all still uncommitted/unpushed. Push what's wanted, and
+   restore the full aod=0.025 triplet in `rate_power_triplet.py`/
+   `my_plotting_triplet.py` (copy the checkpoint into `models/`,
+   uncomment) before committing those two files specifically.
+8. **Pull `EE_beampattern_3gpp_triplet_stats.gzip` and `rate_power_triplet.gzip`
    off the cluster** to get exact numbers behind the approximate/visual
    read-off above, and to check whether the realization-0 "third user
    underserved" pattern is a real, general finding or a one-off.
-2. **Fix `EE_precoder`'s two known content issues**: the duplicate
-   `eq:channel_perfect` label, and the dangling `\reffig{fig:geometry}` on
-   line 11 of `03_setup.tex` now that the figure is commented out.
-3. **Decide whether to keep investigating the matched-power-MMSE gap**,
-   now that the mechanism-engineering line (detlam/EMA/tanneal/power-
-   conditioned) is closed out. See `docs/EE_formulation.tex` Section 6 for
-   the current honest state of the theory (open, not closed) -- three
-   options remain on the table: a minimal lambda tweak, a more careful
-   lambda estimator (tried, reverted), or reframing the paper's story
-   around "EE at useful rates" rather than closing the gap to MMSE.
-4. **Older open items, still unresolved**: `pa_efficiency` 0.60-vs-0.185
-   sensitivity sweep; `sat_gain_dBi` Set-1 vs Set-2 (30 vs 24 dBi); repo
-   sync cadence with the original 2025 repo (still ad hoc);
-   GhadimiLan2013/2016 citations in `EE_formulation.tex` are still only
-   abstract-verified, not full-text.
-5. **elev30 geometry**: revisit only if elevation-angle robustness becomes
-   a paper requirement again -- would need a fresh retrain with fairness
-   weighting from scratch (checkpoint was deleted in the 2026-08-04 cleanup).
+9. **Fix `EE_precoder`'s remaining known content issue**: the duplicate
+   `eq:channel_perfect` label in `03_setup.tex` (lines 13/19) -- still
+   not fixed. (The other previously-flagged issue, the dangling
+   `\reffig{fig:geometry}`, is now MOOT: a later, already-Overleaf-pushed
+   commit `1689dc3` re-enabled the geometry figure, so the label exists
+   again and the reference resolves fine -- confirmed via `pdftotext`
+   showing no `??` anywhere in the compiled PDF.)
+10. **Decide whether to keep investigating the matched-power-MMSE gap**,
+    now that the mechanism-engineering line (detlam/EMA/tanneal/power-
+    conditioned) is closed out. See `docs/EE_formulation.tex` Section 6 for
+    the current honest state of the theory (open, not closed) -- three
+    options remain on the table: a minimal lambda tweak, a more careful
+    lambda estimator (tried, reverted), or reframing the paper's story
+    around "EE at useful rates" rather than closing the gap to MMSE.
+11. **Older open items, still unresolved**: `pa_efficiency` 0.60-vs-0.185
+    sensitivity sweep; `sat_gain_dBi` Set-1 vs Set-2 (30 vs 24 dBi); repo
+    sync cadence with the original 2025 repo (still ad hoc);
+    GhadimiLan2013/2016 citations in `EE_formulation.tex` are still only
+    abstract-verified, not full-text.
+12. **elev30 geometry**: revisit only if elevation-angle robustness becomes
+    a paper requirement again -- would need a fresh retrain with fairness
+    weighting from scratch (checkpoint was deleted in the 2026-08-04 cleanup).
