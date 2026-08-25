@@ -12,17 +12,15 @@
 #SBATCH --mail-user=parajuli@ant.uni-bremen.de
 #SBATCH --mail-type=ALL
 
-# Power-savings loading-bar chart (10k MC, single CSIT error point = 0.0) for
-# the lwin5000/3GPP nadir triplet (aod=0.0 job 156358, aod=0.025, aod=0.05
-# job 153655) plus the aod=0.0 checkpoint's full-power reference bar -- see
-# power_savings_bars_triplet.py's docstring for the full layout. Only one
-# error point per checkpoint (vs. plotting_scenario.slurm's 11), so this is
-# much cheaper -- 2h budget is generous headroom, not a measured requirement.
-# REQUIRES the aod=0.025 checkpoint
-# (EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow)
-# to be present under models/.
-# Pass --plot-only (edit the srun line below) to skip the simulation and
-# just re-plot an already-saved gzip.
+# Power-savings loading-bar chart (10k MC, single CSIT error point = 0.0),
+# now the advisor-recommended 4-bar version: MMSE (75W budget), SAC (75W
+# budget), SAC (energy-efficient, aod=0.0 checkpoint, job 156358), and MMSE
+# rescaled to that SAC-EE bar's own measured power -- see
+# power_savings_bars_triplet.py for the full layout. No longer needs the
+# aod=0.025/0.05 checkpoints (dropped in favor of the MMSE bars).
+# NOT --plot-only: this computes new MMSE samples that aren't in any
+# existing gzip on disk, needs a fresh run. Pass --plot-only yourself once
+# a gzip from this current 4-bar layout already exists.
 
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
 conda activate gpu_beamforming
@@ -32,7 +30,7 @@ export PYTHONPATH=/home/parajuli/repos/2026_learning_beamforming_EE_code
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/power_savings_bars_triplet.py --plot-only
+srun python3 src/energy_efficiency/power_savings_bars_triplet.py
 srun echo $HOSTNAME
 wait
 

@@ -17,7 +17,7 @@ from src.config.config_plotting import PlotConfig
 from src.data.calc_tx_power_distribution import calc_tx_power_distribution
 from src.data.satellite_manager import SatelliteManager
 from src.data.user_manager import UserManager
-from src.utils.get_precoding import get_precoding_learned, get_precoding_learned_clip_only
+from src.utils.get_precoding import get_precoding_learned, get_precoding_learned_clip_only, get_precoding_mmse
 from src.utils.load_model import load_model
 from src.utils.update_sim import update_sim
 from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
@@ -53,6 +53,33 @@ def run_power_samples(cfg, label, get_precoder_func):
     return samples
 
 
+def run_matched_power_mmse_samples(cfg, label, target_mean_power):
+    """Per-user transmit power for MMSE rescaled to target_mean_power -- the fair
+    equal-power comparison against SAC's own measured power. Same rescaling as
+    plotting_scenario.py's run_matched_power_mmse_sweep, but a single fixed
+    target (this figure is one CSIT error point, not a sweep)."""
+    satellite_manager = SatelliteManager(config=cfg)
+    user_manager = UserManager(config=cfg)
+
+    error_param = 'additive_error_on_cosine_of_aod'
+    cfg.config_error_model.error_rng_parametrizations[error_param]['args']['low'] = -eval_error_bound
+    cfg.config_error_model.error_rng_parametrizations[error_param]['args']['high'] = eval_error_bound
+
+    samples = np.zeros((monte_carlo_iterations, cfg.user_nr))
+    for iter_idx in range(monte_carlo_iterations):
+        update_sim(cfg, satellite_manager, user_manager)
+        w_mmse = get_precoding_mmse(cfg, user_manager, satellite_manager)
+        current_power = np.real(np.trace(np.matmul(w_mmse.conj().T, w_mmse)))
+        w_precoder = w_mmse * np.sqrt(target_mean_power / current_power)
+        samples[iter_idx, :] = calc_tx_power_distribution(w_precoder=w_precoder)
+        if iter_idx % 1000 == 0:
+            print(f'[{label}] {iter_idx}/{monte_carlo_iterations}')
+
+    total_power = samples.sum(axis=1)
+    print(f'[{label}] mean total power: {total_power.mean():.2f} W (target {target_mean_power:.2f} W)')
+    return samples
+
+
 if __name__ == '__main__':
     cfg = Config()
     cfg.show_plots = False
@@ -65,31 +92,43 @@ if __name__ == '__main__':
 
     if not PLOT_ONLY:
         samples_dict = {}
-        power_budget = None
+        power_budget = cfg.power_constraint_watt
 
-        for aod_key, training_name in CHECKPOINTS.items():
-            cfg.config_learner.training_name = training_name
-            model_path = get_best_model_path(cfg.trained_models_path, training_name)
-            print(f'[{aod_key}] checkpoint: {model_path}')
+        # MMSE full budget -- system-only, no checkpoint dependency.
+        mmse_full_label = 'MMSE (75 W budget)'
+        samples_dict[mmse_full_label] = run_power_samples(cfg, mmse_full_label, get_precoding_mmse)
 
-            precoder_network, norm_factors = load_model(model_path)
-            if norm_factors != {}:
-                cfg.config_learner.get_state_args['norm_state'] = True
+        # aod0.0 checkpoint, evaluated both ways: always-rescale-to-budget
+        # ("full power") and clip-only ("energy-efficient") -- same trained
+        # network, matching plotting_scenario.py's error-sweep figure.
+        training_name = CHECKPOINTS['aod0.0']
+        cfg.config_learner.training_name = training_name
+        model_path = get_best_model_path(cfg.trained_models_path, training_name)
+        print(f'[aod0.0] checkpoint: {model_path}')
 
-            power_budget = cfg.power_constraint_watt
-            delta_eps = aod_key.replace('aod', '')
-            label = f'SAC (Δε = {delta_eps}, energy-efficient)'
-            samples_dict[label] = run_power_samples(
-                cfg, label,
-                lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
-            )
+        precoder_network, norm_factors = load_model(model_path)
+        if norm_factors != {}:
+            cfg.config_learner.get_state_args['norm_state'] = True
 
-            if aod_key == 'aod0.0':
-                fullpower_label = 'SAC (Δε = 0.0, full power)'
-                samples_dict[fullpower_label] = run_power_samples(
-                    cfg, fullpower_label,
-                    lambda c, um, sm: get_precoding_learned(c, um, sm, norm_factors, precoder_network),
-                )
+        sac_full_label = 'SAC (75 W budget)'
+        samples_dict[sac_full_label] = run_power_samples(
+            cfg, sac_full_label,
+            lambda c, um, sm: get_precoding_learned(c, um, sm, norm_factors, precoder_network),
+        )
+
+        sac_ee_label = 'SAC (Δε = 0.0, energy-efficient)'
+        samples_dict[sac_ee_label] = run_power_samples(
+            cfg, sac_ee_label,
+            lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
+        )
+
+        # MMSE rescaled to SAC-EE's own measured mean power -- the fair
+        # equal-power comparison, same pairing as the error-sweep figure.
+        sac_ee_mean_power = samples_dict[sac_ee_label].sum(axis=1).mean()
+        mmse_matched_label = 'MMSE (equal power, Δε = 0.0)'
+        samples_dict[mmse_matched_label] = run_matched_power_mmse_samples(
+            cfg, mmse_matched_label, sac_ee_mean_power,
+        )
 
         with gzip.open(gzip_path, 'wb') as file:
             pickle.dump({'power_budget': power_budget, 'samples_dict': samples_dict}, file=file)
@@ -102,18 +141,18 @@ if __name__ == '__main__':
     plot_cfg = PlotConfig()
 
     ordered_labels = [
-        'SAC (Δε = 0.0, full power)',
+        'SAC (75 W budget)',
+        'MMSE (75 W budget)',
         'SAC (Δε = 0.0, energy-efficient)',
-        'SAC (Δε = 0.025, energy-efficient)',
-        'SAC (Δε = 0.05, energy-efficient)',
+        'MMSE (equal power, Δε = 0.0)',
     ]
     ordered_samples_dict = {label: data['samples_dict'][label] for label in ordered_labels}
 
     bar_colors = [
         plot_cfg.cp2['gold'],
+        plot_cfg.cp2['black'],
         plot_cfg.cp2['green'],
         plot_cfg.cp2['blue'],
-        plot_cfg.cp2['magenta'],
     ]
 
     plot_power_savings_bars(
