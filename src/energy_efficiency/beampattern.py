@@ -47,7 +47,10 @@ TRAINING_NAME = 'EE_beampattern_N16K3'
 ANGLE_SWEEP_RANGE = np.arange(1.2, 1.9, 0.1 * np.pi / 180)
 NUM_PATTERNS = 30
 CSIT_ERROR_BOUND = 0.05
-REALIZATION_TO_PLOT = int(sys.argv[sys.argv.index('--realization') + 1]) if '--realization' in sys.argv else 0
+# None = auto-pick the "cleanest coverage" realization (see
+# find_best_realization() below) instead of a hardcoded default; pass
+# --realization N to override and plot a specific one instead.
+REALIZATION_ARG = int(sys.argv[sys.argv.index('--realization') + 1]) if '--realization' in sys.argv else None
 
 PLOT_ONLY = '--plot-only' in sys.argv
 
@@ -159,6 +162,51 @@ def analyze_gzip(data_path, model_keys):
     return stats
 
 
+def find_best_realization(data_path, model_keys):
+    """Rank realizations by their worst-case (minimum) coverage ratio across
+    every precoder and every user in that realization -- i.e. the realization
+    where nobody is visibly dropped/underserved by any precoder. This is a
+    "cleanest illustration of the mechanism" pick, not a "SAC looks best"
+    cherry-pick: a realization only scores well here if MMSE and all three
+    SAC checkpoints simultaneously aim reasonably at all users.
+
+    Returns the best realization's index (an index into the gzip's `data`
+    list, the same integer --realization expects) and prints the top 10
+    for transparency.
+    """
+    with gzip.open(data_path, 'rb') as file:
+        angle_sweep_range, data = pickle.load(file)
+
+    scored = []
+    for realization_idx, entry in enumerate(data):
+        true_angles = entry['user_positions'][0]
+        min_coverage = None
+        for model in model_keys:
+            if model not in entry:
+                continue
+            gains_all_users = entry[model]['power_gains']
+            for user_idx, true_angle in enumerate(true_angles):
+                gain_curve = gains_all_users[user_idx, :, 0]
+                peak_idx = int(np.argmax(gain_curve))
+                peak_gain = gain_curve[peak_idx]
+                true_idx = int(np.argmin(np.abs(angle_sweep_range - true_angle)))
+                coverage = gain_curve[true_idx] / peak_gain if peak_gain > 0 else 0.0
+                if min_coverage is None or coverage < min_coverage:
+                    min_coverage = coverage
+        if min_coverage is not None:
+            scored.append((realization_idx, min_coverage))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    print(f'\n  Realizations ranked by worst-case coverage ratio (min across all precoders/users):')
+    print(f'  {"realization":>11} {"min coverage":>13}')
+    for idx, score in scored[:10]:
+        print(f'  {idx:>11} {score:>13.3f}')
+
+    best_idx, best_score = scored[0]
+    print(f'\n  Auto-selected realization: {best_idx} (worst-case coverage={best_score:.3f})')
+    return best_idx
+
+
 if __name__ == '__main__':
     cfg = get_config()
 
@@ -193,6 +241,11 @@ if __name__ == '__main__':
     with gzip.open(stats_out, 'wb') as file:
         pickle.dump(all_stats, file=file)
     print(f'\nSaved: {stats_out}')
+
+    REALIZATION_TO_PLOT = (
+        REALIZATION_ARG if REALIZATION_ARG is not None
+        else find_best_realization(data_path, ['mmse'] + MODEL_KEYS)
+    )
 
     plot_cfg = PlotConfig()
     matplotlib.rcParams['text.usetex'] = False  # PlotConfig() resets this on construction
