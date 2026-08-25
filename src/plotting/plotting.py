@@ -54,14 +54,14 @@ def plot_rate_error_sweep(
             label=curve['label'],
         )
 
-    ax.set_xlabel('Error Bound')
+    ax.set_xlabel('Error Bound (Δε)')
     ax.set_ylabel('Rate R [bps/Hz]')
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
     ax.legend(
         loc='upper right',
         ncols=1,
-        fontsize=6,
+        fontsize=9,
         framealpha=0.9,
         frameon=True,
         handlelength=1.6,
