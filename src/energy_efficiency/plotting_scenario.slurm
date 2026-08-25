@@ -5,7 +5,7 @@
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 4
-#SBATCH -t 0-06:00:00
+#SBATCH -t 0-07:00:00
 #SBATCH --gres=gpu:1
 #SBATCH -p wiss
 #SBATCH --mem=4G
@@ -13,9 +13,14 @@
 #SBATCH --mail-type=ALL
 
 # Rate+power error sweep (0-0.10, 11 points, 10k MC) for the lwin5000/3GPP
-# nadir triplet (aod=0.0 job 156358, aod=0.025, aod=0.05 job 153655), plus
-# a shared full-budget MMSE curve and a per-checkpoint matched-power MMSE
-# curve, then plots the result -- see plotting_scenario.py docstring.
+# nadir triplet (aod=0.0 job 156358, aod=0.025, aod=0.05 job 153655): full-
+# budget MMSE, SAC(err 0.0) at full power, SAC(err 0.0/0.025/0.05) energy-
+# efficient (clip-only) with a matched-power MMSE curve for err 0.0 -- six
+# curves total, see plotting_scenario.py's docstring for the full layout.
+# REQUIRES the aod=0.025 checkpoint
+# (EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow)
+# to be present under models/ -- copy it in from wherever it was trained if
+# it is missing, or the run will fail with FileNotFoundError partway through.
 # Pass --plot-only (edit the srun line below) to skip the simulation and
 # just re-plot an already-saved gzip.
 

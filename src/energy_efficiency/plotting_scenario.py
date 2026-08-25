@@ -10,11 +10,19 @@ the stale detlam-based parajuli.pdf.
 For each checkpoint this script computes, over the same
 error_sweep_range/monte_carlo_iterations used throughout this project:
   - the SAC (clip-only precoder, matching how these Dinkelbach-rawpow
-    checkpoints are evaluated elsewhere in this repo) rate+power curve.
+    checkpoints are evaluated elsewhere in this repo) rate+power curve --
+    referred to as "energy-efficient" below since the clip-only projection
+    is what lets the precoder spend less than the full power budget.
   - a MATCHED-POWER MMSE curve: MMSE rescaled, per error level, to that
     checkpoint's OWN measured mean power -- the fair "does SAC's
     beamforming itself compete" comparison used throughout this project's
     history (my_evaluation.py, mmse_matched_power_detlam.py, etc).
+
+The aod=0.0 checkpoint is additionally evaluated with the always-rescale-
+to-budget precoder (get_precoding_learned, "full power"), i.e. the SAME
+trained network forced to spend the full 75W budget instead of the
+clip-only projection -- this isolates the effect of the power projection
+itself from the effect of training at a different error bound.
 
 A single FULL-BUDGET MMSE curve is also computed once (all three
 checkpoints share the identical nadir/30dBi/75W system, so it is not
@@ -27,12 +35,12 @@ script pattern as beampattern.py (generate_beampatterns()
 + plot_beam_patterns()). Pass --plot-only to skip the (expensive, GPU-bound)
 simulation and just re-plot an already-saved gzip.
 
-Current figure (see the `curves` list in __main__): MMSE rescaled to
-SAC(train err 0.0)'s own measured power, plus the three SAC training-error
-curves (0.0/0.025/0.05) -- no full-budget MMSE, no matched-power MMSE for
-the other two error bounds. Edit `curves` to change what's drawn without
-re-running the simulation (--plot-only), or edit CHECKPOINTS to change what
-gets simulated in the first place.
+Current figure (see the `curves` list in __main__): full-budget MMSE,
+SAC(train err 0.0) at full power, SAC(train err 0.0) energy-efficient with
+its matched-power MMSE, and SAC(train err 0.025/0.05) energy-efficient --
+six curves total. Edit `curves` to change what's drawn without re-running
+the simulation (--plot-only), or edit CHECKPOINTS to change what gets
+simulated in the first place.
 
 Saves one gzip: outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip
 """
@@ -55,7 +63,7 @@ from src.data.calc_sum_rate import calc_sum_rate
 from src.data.calc_tx_power_distribution import calc_tx_power_distribution
 from src.data.satellite_manager import SatelliteManager
 from src.data.user_manager import UserManager
-from src.utils.get_precoding import get_precoding_learned_clip_only, get_precoding_mmse
+from src.utils.get_precoding import get_precoding_learned, get_precoding_learned_clip_only, get_precoding_mmse
 from src.utils.load_model import load_model
 from src.utils.update_sim import update_sim
 from src.plotting.plotting import plot_rate_error_sweep
@@ -66,15 +74,13 @@ error_sweep_range = np.linspace(0, 0.10, 11)
 monte_carlo_iterations = 10000
 
 # aod bound -> training_name, in the order the lwin5000/3GPP triplet was
-# scripted (see commit 6c15a56 / handoff "2026-08-04 session").
+# scripted (see commit 6c15a56 / handoff "2026-08-04 session"). aod0.025's
+# checkpoint directory must be copied into models/ from the cluster before
+# this script can run past that point -- it is not present in every sandbox.
 CHECKPOINTS = {
     'aod0.0': 'EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
     'aod0.025': 'EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
     'aod0.05': 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
-    # lambda-init variant of aod0.0 (job 1175, commit c8f2538): Dinkelbach lambda
-    # EMA seeded from the MMSE-matched-power closed-form prior instead of the
-    # untrained policy's first noisy sample -- see the .slurm header for details.
-    'aod0.0_lambdainit': 'EE_dinkelbach_adaptive_lwin5000_lambdainit12.2-75_N16K3_satg30_p75_eta0.6_rawpow',
 }
 
 
@@ -218,9 +224,9 @@ if __name__ == '__main__':
         # ---- shared full-budget MMSE curve (system-only, same for all 3) ------
         cfg.config_learner.training_name = 'EE_lwin5000_3gpp_triplet'
         results['mmse_nadir'] = run_rate_power_sweep(cfg, 'MMSE (3GPP Set-1, nadir, full budget)', get_precoding_mmse)
-        results['mmse_nadir']['label'] = 'MMSE (full budget)'
+        results['mmse_nadir']['label'] = 'MMSE (full budget, 75 W)'
 
-        # ---- per-checkpoint SAC + matched-power MMSE ---------------------------
+        # ---- per-checkpoint SAC (clip-only, "energy-efficient") + matched-power MMSE ----
         for aod_key, training_name in CHECKPOINTS.items():
             cfg.config_learner.training_name = training_name
             model_path = get_best_model_path(cfg.trained_models_path, training_name)
@@ -231,19 +237,32 @@ if __name__ == '__main__':
                 cfg.config_learner.get_state_args['norm_state'] = True
 
             sac_result = run_rate_power_sweep(
-                cfg, f'SAC ({aod_key})',
+                cfg, f'SAC ({aod_key}, energy-efficient)',
                 lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
             )
-            sac_result['label'] = f'SAC (train err {aod_key.replace("aod", "")})'
+            sac_result['label'] = f'SAC (train err {aod_key.replace("aod", "")}, energy-efficient)'
             sac_result['training_name'] = training_name
             sac_result['checkpoint'] = str(model_path)
+            results[f'sac_{aod_key}'] = sac_result
+
+            # aod0.0's checkpoint is additionally evaluated with the always-
+            # rescale-to-budget precoder -- same trained network, forced to
+            # spend the full 75W budget, to isolate the effect of the power
+            # projection from the effect of the training error bound.
+            if aod_key == 'aod0.0':
+                fullpower_result = run_rate_power_sweep(
+                    cfg, f'SAC ({aod_key}, full power)',
+                    lambda c, um, sm: get_precoding_learned(c, um, sm, norm_factors, precoder_network),
+                )
+                fullpower_result['label'] = 'SAC (train err 0.0, full power)'
+                fullpower_result['training_name'] = training_name
+                fullpower_result['checkpoint'] = str(model_path)
+                results[f'sac_{aod_key}_fullpower'] = fullpower_result
 
             matched_mmse_result = run_matched_power_mmse_sweep(
                 cfg, f'MMSE matched-power ({aod_key})', sac_result['mean_power'],
             )
-            matched_mmse_result['label'] = f'MMSE eq.pow ({aod_key.replace("aod", "")})'
-
-            results[f'sac_{aod_key}'] = sac_result
+            matched_mmse_result['label'] = f'MMSE (equal power to SAC EE, err {aod_key.replace("aod", "")})'
             results[f'mmse_matched_{aod_key}'] = matched_mmse_result
 
         with gzip.open(gzip_path, 'wb') as file:
@@ -258,17 +277,23 @@ if __name__ == '__main__':
     plot_width = 0.99 * plot_cfg.textwidth
     plot_height = plot_width * 0.6
 
-    # MMSE rescaled to SAC(err 0.0)'s own measured power, plus the three SAC
-    # training-error curves -- no full-budget MMSE, no per-checkpoint matched
-    # MMSE for the other two error bounds.
+    # Six curves: full-budget MMSE and full-power SAC as the two "spends the
+    # whole 75W budget" references (black/gold, distinct markers), the
+    # aod0.0 energy-efficient SAC paired by color with its matched-power
+    # MMSE (green, solid vs dashed) so the two are visually linked, and the
+    # aod0.025/aod0.05 energy-efficient SAC curves in their own colors.
     curves = [
-        {'result_key': 'mmse_matched_aod0.0', 'label': 'MMSE (eq. power, SAC err 0.0)',
-         'color': plot_cfg.cp2['gold'], 'marker': 'x', 'linestyle': '--'},
-        {'result_key': 'sac_aod0.0', 'label': 'SAC (train err 0.0)',
+        {'result_key': 'mmse_nadir', 'label': 'MMSE (full budget, 75 W)',
+         'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':'},
+        {'result_key': 'sac_aod0.0_fullpower', 'label': 'SAC (train err 0.0, full power)',
+         'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
+        {'result_key': 'sac_aod0.0', 'label': 'SAC (train err 0.0, energy-efficient)',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.025', 'label': 'SAC (train err 0.025)',
+        {'result_key': 'mmse_matched_aod0.0', 'label': 'MMSE (equal power to SAC EE, err 0.0)',
+         'color': plot_cfg.cp2['green'], 'marker': 'x', 'linestyle': '--'},
+        {'result_key': 'sac_aod0.025', 'label': 'SAC (train err 0.025, energy-efficient)',
          'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.05', 'label': 'SAC (train err 0.05)',
+        {'result_key': 'sac_aod0.05', 'label': 'SAC (train err 0.05, energy-efficient)',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-'},
     ]
 
