@@ -209,6 +209,12 @@ if __name__ == '__main__':
     fig.savefig(out_jpg, bbox_inches='tight', dpi=200)
     print(f'Saved: {out_jpg}')
 
+    png_path = Path(plot_cfg.plots_parent_path, 'png')
+    png_path.mkdir(parents=True, exist_ok=True)
+    out_png = Path(png_path, 'rate_comparison_classical_vs_sac.png')
+    fig.savefig(out_png, bbox_inches='tight', dpi=200, transparent=True)
+    print(f'Saved: {out_png}')
+
     plt.close(fig)
 
     print('\n' + '=' * 60)

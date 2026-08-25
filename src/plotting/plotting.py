@@ -87,4 +87,13 @@ def plot_rate_error_sweep(
     plt.savefig(out_jpg, bbox_inches='tight', dpi=200)
     print(f'Saved: {out_jpg}')
 
+    # PNG with a transparent background, for dropping the figure onto other
+    # content (slides/docs) where the background needs to show through --
+    # JPG can't do this (no alpha channel), PNG can.
+    png_path = Path(plots_parent_path, 'png')
+    png_path.mkdir(parents=True, exist_ok=True)
+    out_png = Path(png_path, f'{name}.png')
+    plt.savefig(out_png, bbox_inches='tight', dpi=200, transparent=True)
+    print(f'Saved: {out_png}')
+
     plt.close(fig)

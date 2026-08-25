@@ -249,6 +249,12 @@ def plot_power_savings_comparison(
     fig.savefig(out_jpg, bbox_inches='tight', dpi=200)
     print(f'Saved: {out_jpg}')
 
+    png_path = Path(plots_parent_path, 'png')
+    png_path.mkdir(parents=True, exist_ok=True)
+    out_png = Path(png_path, f'{name}.png')
+    fig.savefig(out_png, bbox_inches='tight', dpi=200, transparent=True)
+    print(f'Saved: {out_png}')
+
     plt.close(fig)
 
     # ---- printed summary, the actual numeric answer ----
@@ -422,6 +428,12 @@ def plot_power_savings_bars(
     out_jpg = Path(jpg_path, f'{name}.jpg')
     fig.savefig(out_jpg, bbox_inches='tight', dpi=200)
     print(f'Saved: {out_jpg}')
+
+    png_path = Path(plots_parent_path, 'png')
+    png_path.mkdir(parents=True, exist_ok=True)
+    out_png = Path(png_path, f'{name}.png')
+    fig.savefig(out_png, bbox_inches='tight', dpi=200, transparent=True)
+    print(f'Saved: {out_png}')
 
     plt.close(fig)
 

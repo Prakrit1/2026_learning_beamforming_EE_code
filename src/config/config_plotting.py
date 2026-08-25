@@ -162,11 +162,13 @@ def save_figures(
     pdf_path = Path(plots_parent_path, 'pdf')
     eps_path = Path(plots_parent_path, 'eps')
     jpg_path = Path(plots_parent_path, 'jpg')
+    png_path = Path(plots_parent_path, 'png')
 
     pgf_path.mkdir(exist_ok=True)
     pdf_path.mkdir(exist_ok=True)
     eps_path.mkdir(exist_ok=True)
     jpg_path.mkdir(exist_ok=True)
+    png_path.mkdir(exist_ok=True)
 
     plt.savefig(
         Path(pgf_path, f'{plot_name}.pgf'),
@@ -194,6 +196,16 @@ def save_figures(
         bbox_inches='tight',
         pad_inches=padding,
         dpi=200,
+    )
+    # PNG with a transparent background, for dropping the figure onto other
+    # content where the background needs to show through -- JPG can't do
+    # this (no alpha channel), PNG can.
+    plt.savefig(
+        Path(png_path, f'{plot_name}.png'),
+        bbox_inches='tight',
+        pad_inches=padding,
+        dpi=200,
+        transparent=True,
     )
 
 
