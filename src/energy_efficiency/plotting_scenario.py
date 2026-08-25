@@ -224,7 +224,7 @@ if __name__ == '__main__':
         # ---- shared full-budget MMSE curve (system-only, same for all 3) ------
         cfg.config_learner.training_name = 'EE_lwin5000_3gpp_triplet'
         results['mmse_nadir'] = run_rate_power_sweep(cfg, 'MMSE (3GPP Set-1, nadir, full budget)', get_precoding_mmse)
-        results['mmse_nadir']['label'] = 'MMSE (full budget, 75 W)'
+        results['mmse_nadir']['label'] = 'MMSE (75 W budget)'
 
         # ---- per-checkpoint SAC (clip-only, "energy-efficient") + matched-power MMSE ----
         for aod_key, training_name in CHECKPOINTS.items():
@@ -236,11 +236,17 @@ if __name__ == '__main__':
             if norm_factors != {}:
                 cfg.config_learner.get_state_args['norm_state'] = True
 
+            # legend notation matches the reference paper's own figures (e.g.
+            # Fig. 3: "SAC Δε = 0.0" / 0.025 / 0.05) -- Δε without the
+            # 'aod' subscript, since AoD error is the only error source in
+            # these sweeps (the subscript only appears in the paper's own
+            # mixed-error-model figure, which disambiguates from phase error).
+            delta_eps = aod_key.replace('aod', '')
             sac_result = run_rate_power_sweep(
-                cfg, f'SAC ({aod_key}, energy-efficient)',
+                cfg, f'SAC (Δε = {delta_eps}, energy-efficient)',
                 lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
             )
-            sac_result['label'] = f'SAC (train err {aod_key.replace("aod", "")}, energy-efficient)'
+            sac_result['label'] = f'SAC (Δε = {delta_eps}, energy-efficient)'
             sac_result['training_name'] = training_name
             sac_result['checkpoint'] = str(model_path)
             results[f'sac_{aod_key}'] = sac_result
@@ -254,7 +260,7 @@ if __name__ == '__main__':
                     cfg, f'SAC ({aod_key}, full power)',
                     lambda c, um, sm: get_precoding_learned(c, um, sm, norm_factors, precoder_network),
                 )
-                fullpower_result['label'] = 'SAC (train err 0.0, full power)'
+                fullpower_result['label'] = 'SAC (75 W budget)'
                 fullpower_result['training_name'] = training_name
                 fullpower_result['checkpoint'] = str(model_path)
                 results[f'sac_{aod_key}_fullpower'] = fullpower_result
@@ -262,7 +268,7 @@ if __name__ == '__main__':
             matched_mmse_result = run_matched_power_mmse_sweep(
                 cfg, f'MMSE matched-power ({aod_key})', sac_result['mean_power'],
             )
-            matched_mmse_result['label'] = f'MMSE (equal power to SAC EE, err {aod_key.replace("aod", "")})'
+            matched_mmse_result['label'] = f'MMSE (equal power, Δε = {delta_eps})'
             results[f'mmse_matched_{aod_key}'] = matched_mmse_result
 
         with gzip.open(gzip_path, 'wb') as file:
@@ -283,17 +289,17 @@ if __name__ == '__main__':
     # MMSE (green, solid vs dashed) so the two are visually linked, and the
     # aod0.025/aod0.05 energy-efficient SAC curves in their own colors.
     curves = [
-        {'result_key': 'mmse_nadir', 'label': 'MMSE (full budget, 75 W)',
+        {'result_key': 'mmse_nadir', 'label': 'MMSE (75 W budget)',
          'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':'},
-        {'result_key': 'sac_aod0.0_fullpower', 'label': 'SAC (train err 0.0, full power)',
+        {'result_key': 'sac_aod0.0_fullpower', 'label': 'SAC (75 W budget)',
          'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.0', 'label': 'SAC (train err 0.0, energy-efficient)',
+        {'result_key': 'sac_aod0.0', 'label': 'SAC (Δε = 0.0, energy-efficient)',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'mmse_matched_aod0.0', 'label': 'MMSE (equal power to SAC EE, err 0.0)',
+        {'result_key': 'mmse_matched_aod0.0', 'label': 'MMSE (equal power, Δε = 0.0)',
          'color': plot_cfg.cp2['green'], 'marker': 'x', 'linestyle': '--'},
-        {'result_key': 'sac_aod0.025', 'label': 'SAC (train err 0.025, energy-efficient)',
+        {'result_key': 'sac_aod0.025', 'label': 'SAC (Δε = 0.025, energy-efficient)',
          'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.05', 'label': 'SAC (train err 0.05, energy-efficient)',
+        {'result_key': 'sac_aod0.05', 'label': 'SAC (Δε = 0.05, energy-efficient)',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-'},
     ]
 
