@@ -77,14 +77,15 @@ if __name__ == '__main__':
                 cfg.config_learner.get_state_args['norm_state'] = True
 
             power_budget = cfg.power_constraint_watt
-            label = f'SAC (train err {aod_key.replace("aod", "")}, energy-efficient)'
+            delta_eps = aod_key.replace('aod', '')
+            label = f'SAC (Δε = {delta_eps}, energy-efficient)'
             samples_dict[label] = run_power_samples(
                 cfg, label,
                 lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
             )
 
             if aod_key == 'aod0.0':
-                fullpower_label = 'SAC (train err 0.0, full power)'
+                fullpower_label = 'SAC (Δε = 0.0, full power)'
                 samples_dict[fullpower_label] = run_power_samples(
                     cfg, fullpower_label,
                     lambda c, um, sm: get_precoding_learned(c, um, sm, norm_factors, precoder_network),
