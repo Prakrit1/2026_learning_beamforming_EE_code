@@ -24,6 +24,11 @@
 # beampattern.py docstring.
 # Expected training_name for the new checkpoint:
 # EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow
+#
+# No --realization arg below: beampattern.py now auto-picks the realization
+# with the best worst-case coverage across MMSE + all three SAC checkpoints
+# instead of a hardcoded index -- see find_best_realization() in that
+# script. Pass --realization N here to force a specific one instead.
 
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
 conda activate gpu_beamforming
@@ -35,7 +40,7 @@ python3 -m py_compile src/energy_efficiency/beampattern.py
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/beampattern.py --realization 0
+srun python3 src/energy_efficiency/beampattern.py
 srun echo $HOSTNAME
 wait
 
