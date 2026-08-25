@@ -28,6 +28,7 @@ def plot_rate_error_sweep(
         height,
         plots_parent_path,
         name: str,
+        annotate_power: bool = False,
 ) -> None:
     """
     curves: list of dicts, each describing one line on the figure:
@@ -38,6 +39,12 @@ def plot_rate_error_sweep(
             'marker': marker style (default 'o'),
             'linestyle': line style (default '-'),
         }
+
+    annotate_power: if True, label each curve at its error=0 point with its
+    measured power (W and % of budget), reading 'mean_power'/'power_budget'
+    from that curve's results entry -- opt-in since not every figure using
+    this function wants it (e.g. the MMSE/SAC full-vs-matched-power figure
+    already encodes power in which curves are drawn, not via annotation).
     """
     matplotlib.rcParams['text.usetex'] = False  # override PlotConfig's reset
 
@@ -53,6 +60,15 @@ def plot_rate_error_sweep(
             linewidth=1.5, markersize=5,
             label=curve['label'],
         )
+        if annotate_power and 'mean_power' in series and 'power_budget' in series:
+            power_watt = series['mean_power'][0]
+            power_pct = 100 * power_watt / series['power_budget']
+            ax.annotate(
+                f'{power_watt:.1f} W ({power_pct:.0f}%)',
+                xy=(error_sweep_range[0], series['mean_rate'][0]),
+                xytext=(6, 6), textcoords='offset points',
+                fontsize=7, color=curve['color'], fontweight='bold',
+            )
 
     ax.set_xlabel('Error Bound (Δε)')
     ax.set_ylabel('Rate R [bps/Hz]')
