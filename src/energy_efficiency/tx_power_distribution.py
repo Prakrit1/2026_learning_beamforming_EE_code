@@ -242,6 +242,13 @@ def plot_power_savings_comparison(
     out = Path(pdf_path, f'{name}.pdf')
     fig.savefig(out, bbox_inches='tight', dpi=300, transparent=True)
     print(f'Saved: {out}')
+
+    jpg_path = Path(plots_parent_path, 'jpg')
+    jpg_path.mkdir(parents=True, exist_ok=True)
+    out_jpg = Path(jpg_path, f'{name}.jpg')
+    fig.savefig(out_jpg, bbox_inches='tight', dpi=200)
+    print(f'Saved: {out_jpg}')
+
     plt.close(fig)
 
     # ---- printed summary, the actual numeric answer ----
@@ -405,6 +412,17 @@ def plot_power_savings_bars(
     out = Path(pdf_path, f'{name}.pdf')
     fig.savefig(out, bbox_inches='tight', dpi=300, transparent=True)
     print(f'Saved: {out}')
+
+    # JPG alongside the PDF for quick viewing/sharing -- PDF stays the one
+    # referenced from the LaTeX paper, this is not a replacement for it.
+    # No transparent=True: JPG has no alpha channel, matplotlib just fills
+    # with white.
+    jpg_path = Path(plots_parent_path, 'jpg')
+    jpg_path.mkdir(parents=True, exist_ok=True)
+    out_jpg = Path(jpg_path, f'{name}.jpg')
+    fig.savefig(out_jpg, bbox_inches='tight', dpi=200)
+    print(f'Saved: {out_jpg}')
+
     plt.close(fig)
 
 

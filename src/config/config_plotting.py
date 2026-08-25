@@ -161,10 +161,12 @@ def save_figures(
     pgf_path = Path(plots_parent_path, 'pgf')
     pdf_path = Path(plots_parent_path, 'pdf')
     eps_path = Path(plots_parent_path, 'eps')
+    jpg_path = Path(plots_parent_path, 'jpg')
 
     pgf_path.mkdir(exist_ok=True)
     pdf_path.mkdir(exist_ok=True)
     eps_path.mkdir(exist_ok=True)
+    jpg_path.mkdir(exist_ok=True)
 
     plt.savefig(
         Path(pgf_path, f'{plot_name}.pgf'),
@@ -183,6 +185,15 @@ def save_figures(
         Path(eps_path, f'{plot_name}.eps'),
         bbox_inches='tight',
         pad_inches=padding,
+    )
+    # JPG alongside the vector formats above for quick viewing/sharing --
+    # not a replacement for the pgf/pdf/eps outputs used by the LaTeX paper.
+    # No transparent=True: JPG has no alpha channel, matplotlib fills with white.
+    plt.savefig(
+        Path(jpg_path, f'{plot_name}.jpg'),
+        bbox_inches='tight',
+        pad_inches=padding,
+        dpi=200,
     )
 
 

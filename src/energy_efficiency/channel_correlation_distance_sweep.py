@@ -81,3 +81,9 @@ if __name__ == '__main__':
     out = Path(pdf_path, 'channel_correlation_distance_sweep.pdf')
     fig.savefig(out, bbox_inches='tight', dpi=300, transparent=True)
     print(f'Saved: {out}')
+
+    jpg_path = Path(plot_cfg.plots_parent_path, 'jpg')
+    jpg_path.mkdir(parents=True, exist_ok=True)
+    out_jpg = Path(jpg_path, 'channel_correlation_distance_sweep.jpg')
+    fig.savefig(out_jpg, bbox_inches='tight', dpi=200)
+    print(f'Saved: {out_jpg}')

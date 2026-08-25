@@ -10,8 +10,14 @@ same error bound. Note this checkpoint was trained at error bound 0.0, so
 evaluating it at error>0 (e.g. --error 0.05) tests generalization, same as
 every other error-sweep evaluation in this project.
 
-Checkpoint: the lambda-init aod=0.0 run (job 1175),
-EE_dinkelbach_adaptive_lwin5000_lambdainit12.2-75_N16K3_satg30_p75_eta0.6_rawpow.
+Checkpoint: the canonical aod=0.0 run (job 156358),
+EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow -- same
+checkpoint plotting_scenario.py and power_savings_bars_triplet.py use, via
+plotting_scenario.py's CHECKPOINTS mapping, so all three figures tell a
+consistent story about the same trained network (previously pointed at the
+lambda-init variant, job 1175, which the handoff confirms converges to
+essentially the same policy -- but using a genuinely different checkpoint
+than the other two figures was worth fixing regardless).
 
 Plots the SAC curve against the already-saved MMSE curve at the same error
 bound from outputs/metrics/EE_vs_transmit_power/ee_vs_power_sweep_error{X}.gzip
@@ -22,7 +28,6 @@ and reports/figures/pdf/ee_vs_transmit_power_sac_error{X}.pdf.
 """
 import sys
 import gzip
-import os
 import pickle
 from pathlib import Path
 
@@ -41,30 +46,13 @@ from src.data.user_manager import UserManager
 from src.utils.get_precoding import get_precoding_learned_no_norm
 from src.utils.load_model import load_model
 from src.utils.update_sim import update_sim
+from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
 
-TRAINING_NAME = 'EE_dinkelbach_adaptive_lwin5000_lambdainit12.2-75_N16K3_satg30_p75_eta0.6_rawpow'
+TRAINING_NAME = CHECKPOINTS['aod0.0']
 CSIT_ERROR_BOUND = float(sys.argv[sys.argv.index('--error') + 1]) if '--error' in sys.argv else 0.0
 
 monte_carlo_iterations = 10000
 power_sweep_watt = np.linspace(1, 75, 40)  # capped at the actual budget, see ee_vs_transmit_power_sweep.py
-
-
-def get_best_model_path(trained_models_path, training_name):
-    """Session-aware checkpoint selection -- see plotting_scenario.py's identical function."""
-    base_path = Path(trained_models_path, training_name, 'base')
-    checkpoints = [p for p in base_path.iterdir() if p.is_dir() and 'full_snap' in p.name]
-    checkpoints_by_time = sorted(checkpoints, key=lambda p: os.path.getmtime(p))
-
-    max_gap_seconds = 90 * 60
-    session_start_idx = 0
-    for i in range(len(checkpoints_by_time) - 1, 0, -1):
-        gap = os.path.getmtime(checkpoints_by_time[i]) - os.path.getmtime(checkpoints_by_time[i - 1])
-        if gap > max_gap_seconds:
-            session_start_idx = i
-            break
-
-    same_session_checkpoints = checkpoints_by_time[session_start_idx:]
-    return sorted(same_session_checkpoints, key=lambda p: float(p.name.split('_')[-1]))[-1]
 
 
 def total_power_watt(cfg, transmit_power_watt):
@@ -159,18 +147,21 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.62
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
-    ax.plot(power_sweep_watt, ee, color=plot_cfg.cp2['blue'], marker='o', markersize=4, linewidth=1.5,
-            label='SAC (lambda-init) direction')
+    # green for SAC matches its color everywhere else this checkpoint
+    # (aod=0.0) appears -- plotting_scenario.py's error-sweep figure and
+    # power_savings_bars_triplet.py's bar chart.
+    ax.plot(power_sweep_watt, ee, color=plot_cfg.cp2['green'], marker='o', markersize=4, linewidth=1.5,
+            label='SAC (Δε = 0.0)')
     if mmse_data is not None:
         ax.plot(mmse_data['power_sweep_watt'], mmse_data['ee'], color=plot_cfg.cp2['gold'], marker='x',
-                markersize=4, linewidth=1.3, linestyle='--', label='MMSE direction')
+                markersize=4, linewidth=1.3, linestyle='--', label='MMSE')
     ax.axvline(cfg.power_constraint_watt, color=plot_cfg.cp2['black'], linestyle=':', linewidth=1.2,
                label=f'power budget ({cfg.power_constraint_watt:.0f} W)')
     ax.axvline(power_sweep_watt[argmax_idx], color=plot_cfg.cp2['magenta'], linestyle='--', linewidth=1.3,
                label=f'SAC EE maximizer ({power_sweep_watt[argmax_idx]:.1f} W)')
     ax.set_xlabel('Fixed transmit power [W]')
     ax.set_ylabel('EE [bps/Hz/W]')
-    ax.set_title(f'SAC (lambda-init) vs. MMSE direction, CSIT error bound={CSIT_ERROR_BOUND:g}', fontsize=9)
+    ax.set_title(f'SAC vs. MMSE direction, CSIT error bound={CSIT_ERROR_BOUND:g}', fontsize=9)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
     ax.legend(fontsize=7, loc='upper right')
@@ -178,5 +169,12 @@ if __name__ == '__main__':
 
     out = Path(pdf_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}.pdf')
     fig.savefig(out, bbox_inches='tight', dpi=300, transparent=True)
-    plt.close(fig)
     print(f'Saved: {out}')
+
+    jpg_path = Path(plot_cfg.plots_parent_path, 'jpg')
+    jpg_path.mkdir(parents=True, exist_ok=True)
+    out_jpg = Path(jpg_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}.jpg')
+    fig.savefig(out_jpg, bbox_inches='tight', dpi=200)
+    print(f'Saved: {out_jpg}')
+
+    plt.close(fig)
