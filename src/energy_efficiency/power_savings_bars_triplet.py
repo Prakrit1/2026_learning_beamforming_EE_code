@@ -1,27 +1,4 @@
-"""
-"How much power is each precoder actually using?" for the current
-lwin5000/3GPP nadir triplet (aod=0.0 job 156358, aod=0.025, aod=0.05 job
-153655) plus the aod=0.0 checkpoint's full-power (always-rescale) variant --
-the same four SAC evaluations as plotting_scenario.py's error-sweep figure,
-here condensed to a single CSIT error point (0.0, "zero eval error") so the
-loading-bar comparison isn't muddied by an error axis.
 
-Reuses plot_power_savings_bars() from tx_power_distribution.py -- see that
-function's docstring for the visual design (gray track = power budget,
-colored fill = mean power used, "saves N W (X%)" annotation) -- rather than
-reimplementing it. That module's own __main__ block targets older
-checkpoints that no longer exist on disk (full_EE_aod0.5_N16K3_eta0.6's
-Dinkelbach/no-normalization comparison, an N8K2 repro, etc.); this script
-is the equivalent for the current triplet, matching the reference archived
-figures reports/figures/pdf_archive/power_savings_bars_error_bound_0_0.05.pdf
-and power_savings_bars_error_bound_0_0.025_0.05.pdf.
-
-Also reuses plotting_scenario.py's CHECKPOINTS mapping and session-aware
-get_best_model_path() rather than redefining them.
-
-Saves one gzip: outputs/metrics/EE_lwin5000_3gpp_triplet/power_savings_bars.gzip
-Pass --plot-only to skip the Monte Carlo run and just re-plot an existing gzip.
-"""
 import os
 import sys
 
@@ -106,10 +83,6 @@ if __name__ == '__main__':
                 lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
             )
 
-            # aod0.0's checkpoint is additionally evaluated with the always-
-            # rescale-to-budget precoder -- same trained network, forced to
-            # spend the full 75W budget -- as the "no savings" reference bar,
-            # matching the full-power curve in the error-sweep figure.
             if aod_key == 'aod0.0':
                 fullpower_label = 'SAC (train err 0.0, full power)'
                 samples_dict[fullpower_label] = run_power_samples(
@@ -127,21 +100,14 @@ if __name__ == '__main__':
 
     plot_cfg = PlotConfig()
 
-    # Reorder so the full-power reference bar is drawn first (top row), then
-    # the three energy-efficient bars in increasing-training-error order --
-    # plot_power_savings_bars draws samples_dict's first entry at the top.
     ordered_labels = [
-        'SAC (train err 0.0, full power)',
-        'SAC (train err 0.0, energy-efficient)',
-        'SAC (train err 0.025, energy-efficient)',
-        'SAC (train err 0.05, energy-efficient)',
+        'SAC (Δε = 0.0, full power)',
+        'SAC (Δε = 0.0, energy-efficient)',
+        'SAC (Δε = 0.025, energy-efficient)',
+        'SAC (Δε = 0.05, energy-efficient)',
     ]
     ordered_samples_dict = {label: data['samples_dict'][label] for label in ordered_labels}
 
-    # gold for the full-power reference bar, then green/blue/magenta for the
-    # energy-efficient 0.0/0.025/0.05 triplet -- same palette convention as
-    # plotting_scenario.py's error-sweep figure, for visual consistency
-    # across the paper's figure set.
     bar_colors = [
         plot_cfg.cp2['gold'],
         plot_cfg.cp2['green'],
@@ -153,7 +119,7 @@ if __name__ == '__main__':
         samples_dict=ordered_samples_dict,
         power_budget=data['power_budget'],
         plots_parent_path=plot_cfg.plots_parent_path,
-        name='power_savings_bars_3gpp_triplet',
+        name='power_savings_bars',
         model_colors=bar_colors,
-        title='3GPP nadir triplet: transmit power used vs. budget (zero eval error)',
+        title='transmit power used vs. budget',
     )
