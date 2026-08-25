@@ -237,8 +237,6 @@ if __name__ == '__main__':
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
         {'result_key': 'mmse_matched_aod0.0', 'label': 'MMSE (equal power, Δε = 0.0)',
          'color': plot_cfg.cp2['green'], 'marker': 'x', 'linestyle': '--'},
-        {'result_key': 'sac_aod0.025', 'label': 'SAC (Δε = 0.025, energy-efficient)',
-         'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-'},
         {'result_key': 'sac_aod0.05', 'label': 'SAC (Δε = 0.05, energy-efficient)',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-'},
     ]
