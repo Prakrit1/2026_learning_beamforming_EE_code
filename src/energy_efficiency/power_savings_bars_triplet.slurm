@@ -32,7 +32,7 @@ export PYTHONPATH=/home/parajuli/repos/2026_learning_beamforming_EE_code
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/power_savings_bars_triplet.py
+srun python3 src/energy_efficiency/power_savings_bars_triplet.py --plot-only
 srun echo $HOSTNAME
 wait
 
