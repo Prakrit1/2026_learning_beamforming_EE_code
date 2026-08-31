@@ -50,6 +50,11 @@ from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_
 
 TRAINING_NAME = CHECKPOINTS['aod0.0']
 CSIT_ERROR_BOUND = float(sys.argv[sys.argv.index('--error') + 1]) if '--error' in sys.argv else 0.0
+# --hide-maximizer: for the paper figure, omit the per-direction EE-maximizer
+# marker/legend entry (still printed to console) so the plot only shows the
+# EE-vs-power shape without a number that would sit alongside the deployed
+# policy's actual, higher operating power reported elsewhere in the paper.
+HIDE_MAXIMIZER = '--hide-maximizer' in sys.argv
 
 monte_carlo_iterations = 10000
 power_sweep_watt = np.linspace(1, 75, 40)  # capped at the actual budget, see ee_vs_transmit_power_sweep.py
@@ -157,8 +162,9 @@ if __name__ == '__main__':
                 markersize=4, linewidth=1.3, linestyle='--', label='MMSE')
     ax.axvline(cfg.power_constraint_watt, color=plot_cfg.cp2['black'], linestyle=':', linewidth=1.2,
                label=f'power budget ({cfg.power_constraint_watt:.0f} W)')
-    ax.axvline(power_sweep_watt[argmax_idx], color=plot_cfg.cp2['magenta'], linestyle='--', linewidth=1.3,
-               label=f'SAC EE maximizer ({power_sweep_watt[argmax_idx]:.1f} W)')
+    if not HIDE_MAXIMIZER:
+        ax.axvline(power_sweep_watt[argmax_idx], color=plot_cfg.cp2['magenta'], linestyle='--', linewidth=1.3,
+                   label=f'SAC EE maximizer ({power_sweep_watt[argmax_idx]:.1f} W)')
     ax.set_xlabel('Fixed transmit power [W]')
     ax.set_ylabel('EE [bps/Hz/W]')
     ax.set_title(f'SAC vs. MMSE direction, CSIT error bound={CSIT_ERROR_BOUND:g}', fontsize=9)
@@ -167,19 +173,20 @@ if __name__ == '__main__':
     ax.legend(fontsize=7, loc='upper right')
     fig.tight_layout(pad=0.4)
 
-    out = Path(pdf_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}.pdf')
+    name_suffix = '_paper' if HIDE_MAXIMIZER else ''
+    out = Path(pdf_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}{name_suffix}.pdf')
     fig.savefig(out, bbox_inches='tight', dpi=300, transparent=True)
     print(f'Saved: {out}')
 
     jpg_path = Path(plot_cfg.plots_parent_path, 'jpg')
     jpg_path.mkdir(parents=True, exist_ok=True)
-    out_jpg = Path(jpg_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}.jpg')
+    out_jpg = Path(jpg_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}{name_suffix}.jpg')
     fig.savefig(out_jpg, bbox_inches='tight', dpi=200)
     print(f'Saved: {out_jpg}')
 
     png_path = Path(plot_cfg.plots_parent_path, 'png')
     png_path.mkdir(parents=True, exist_ok=True)
-    out_png = Path(png_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}.png')
+    out_png = Path(png_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}{name_suffix}.png')
     fig.savefig(out_png, bbox_inches='tight', dpi=200, transparent=True)
     print(f'Saved: {out_png}')
 
