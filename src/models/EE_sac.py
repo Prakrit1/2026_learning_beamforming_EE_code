@@ -367,22 +367,9 @@ def train_sac_energy_effiency(
                         if dinkelbach_power_ema > 1e-9:
                             lambda_ee = dinkelbach_rate_ema / dinkelbach_power_ema
 
-                # Rate-only reward (schroder2025modelfree baseline): maximize sum rate
-                # alone, no power term. w_precoder is already clip-projected above; per
-                # Lemma 1 (sum rate monotonic in scale) this pushes the raw actor output
-                # toward the power budget without needing an always-rescale projection.
-                if 'sum_rate_only' in config.config_learner.reward:
-                    sum_rate_reward_only = calc_sum_rate(
-                        channel_state=satellite_manager.channel_state_information,
-                        w_precoder=w_precoder,
-                        noise_power_watt=config.noise_power_watt,
-                    )
-                    reward += config.config_learner.reward['sum_rate_only'] * sum_rate_reward_only
-
                 valid_reward_keys = [
                     'energy_efficiency_dinkelbach_adaptive',
                     'fairness',
-                    'sum_rate_only',
                 ]
                 if any(key not in valid_reward_keys for key in config.config_learner.reward.keys()):
                     raise ValueError("No valid reward provided")
@@ -728,13 +715,6 @@ if __name__ == '__main__':
         if dinkelbach_lambda_init_rate is not None:
             lambda_mode_suffix += f'_lambdainit{dinkelbach_lambda_init_rate:g}-{dinkelbach_lambda_init_power:g}'
         cfg.config_learner.training_name = f'EE_dinkelbach_adaptive{error_suffix}{lambda_mode_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}{csi_format_suffix}{action_format_suffix}'
-    elif reward_mode == 'sum_rate_only':
-        # rate-only baseline (schroder2025modelfree): no Dinkelbach price term,
-        # so this run never touches lambda_ee/dinkelbach_* state at all
-        cfg.config_learner.reward = {'sum_rate_only': 1.0}
-        if fairness_weight != 0.0:
-            cfg.config_learner.reward['fairness'] = fairness_weight
-        cfg.config_learner.training_name = f'SAC_rateonly{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}{csi_format_suffix}{action_format_suffix}'
     elif reward_mode is not None:
         raise ValueError(f'Unknown EE_REWARD_MODE: {reward_mode!r}')
 
