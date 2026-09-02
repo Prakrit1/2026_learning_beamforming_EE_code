@@ -402,15 +402,15 @@ def plot_power_savings_bars(
 
         # "how much are we saving" headline -- ALWAYS anchored past the
         # budget line, independent of the bar's own length, so it can never
-        # collide with the value label above
+        # collide with the value label above. Only drawn when there
+        # actually are savings -- a bar pinned at budget doesn't need a
+        # "no savings" callout, the bar reaching the budget line already
+        # shows that.
         if watts_saved > 0.5:
             savings_text = f'saves {watts_saved:.0f} W ({pct_saved:.0f}%)'
             savings_color = '#1a7a3c'  # a confident green, read as "good news"
-        else:
-            savings_text = 'no savings (at budget)'
-            savings_color = budget_line_color
-        ax.text(power_budget * 1.06, y, savings_text, va='center', ha='left',
-                fontsize=9.5, color=savings_color, zorder=4, style='italic')
+            ax.text(power_budget * 1.06, y, savings_text, va='center', ha='left',
+                    fontsize=9.5, color=savings_color, zorder=4, style='italic')
 
     ax.axvline(power_budget, color=budget_line_color, linestyle='--', linewidth=1.5, zorder=1)
     # annotation sits ABOVE the highest bar's row (n - 1 is the topmost
