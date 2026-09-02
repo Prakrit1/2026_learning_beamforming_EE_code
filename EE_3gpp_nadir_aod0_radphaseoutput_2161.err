@@ -1,0 +1,49 @@
+2026-08-06 14:33:38.696510: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+2026-08-06 14:33:38.696565: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+2026-08-06 14:33:38.697587: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+2026-08-06 14:33:38.703899: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2026-08-06 14:33:41.108193: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+2026-08-06 14:33:45.325155: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.367754: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.368256: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.422593: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.423232: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.423829: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.520678: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.521117: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.521513: I external/local_xla/xla/stream_executor/cuda/cuda_executor.cc:901] successful NUMA node read from SysFS had negative value (-1), but there must be at least one NUMA node, so returning NUMA node zero. See more at https://github.com/torvalds/linux/blob/v6.0/Documentation/ABI/testing/sysfs-bus-pci#L344-L355
+2026-08-06 14:33:45.521886: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1929] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 47372 MB memory:  -> device: 0, name: Quadro RTX 8000, pci bus id: 0000:c3:00.0, compute capability: 7.5
+2026-08-06 14:33:45.847142: I external/local_tsl/tsl/platform/default/subprocess.cc:304] Start cannot spawn child process: No such file or directory
+/home/parajuli/repos/2026_learning_beamforming_EE_code/src/models/EE_sac.py:542: RuntimeWarning: Mean of empty slice
+  f' current exploration: {np.nanmean(episode_metrics["mean_log_prob_density"]):.2f},'
+/home/parajuli/repos/2026_learning_beamforming_EE_code/src/models/EE_sac.py:543: RuntimeWarning: Mean of empty slice
+  f' value loss: {np.nanmean(episode_metrics["value_loss"]):.5f},'
+2026-08-06 14:34:30.763606: I external/local_xla/xla/service/service.cc:168] XLA service 0x756e763bacd0 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+2026-08-06 14:34:30.763646: I external/local_xla/xla/service/service.cc:176]   StreamExecutor device (0): Quadro RTX 8000, Compute Capability 7.5
+2026-08-06 14:34:30.768554: I tensorflow/compiler/mlir/tensorflow/utils/dump_mlir_util.cc:269] disabling MLIR crash reproducer, set env var `MLIR_CRASH_REPRODUCER_DIRECTORY` to enable.
+2026-08-06 14:34:30.783378: I external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:454] Loaded cuDNN version 8904
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1786026870.868720 3954936 device_compiler.h:186] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+--- Logging error ---
+Traceback (most recent call last):
+  File "/home/parajuli/miniconda3/envs/gpu_beamforming/lib/python3.11/logging/handlers.py", line 74, in emit
+    self.doRollover()
+  File "/home/parajuli/miniconda3/envs/gpu_beamforming/lib/python3.11/logging/handlers.py", line 179, in doRollover
+    self.rotate(self.baseFilename, dfn)
+  File "/home/parajuli/miniconda3/envs/gpu_beamforming/lib/python3.11/logging/handlers.py", line 115, in rotate
+    os.rename(source, dest)
+FileNotFoundError: [Errno 2] No such file or directory: '/home/parajuli/repos/2026_learning_beamforming_EE_code/outputs/logs/log.txt' -> '/home/parajuli/repos/2026_learning_beamforming_EE_code/outputs/logs/log.txt.1'
+Call stack:
+  File "/home/parajuli/repos/2026_learning_beamforming_EE_code/src/models/EE_sac.py", line 797, in <module>
+    train_sac_energy_effiency(config=cfg)
+  File "/home/parajuli/repos/2026_learning_beamforming_EE_code/src/models/EE_sac.py", line 535, in train_sac_energy_effiency
+    progress_print(to_log=True)
+  File "/home/parajuli/repos/2026_learning_beamforming_EE_code/src/models/EE_sac.py", line 94, in progress_print
+    progress_printer(progress=progress, real_time_start=real_time_start, logger=logger)
+  File "/home/parajuli/repos/2026_learning_beamforming_EE_code/src/utils/progress_printer.py", line 25, in progress_printer
+    logger.debug(result_string)
+Message: 'Simulation completed: 2.55%, est. finish 2026-08-06 23:30:52'
+Arguments: ()
+/home/parajuli/repos/2026_learning_beamforming_EE_code/src/models/EE_sac.py:616: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt_show()

@@ -1,0 +1,5 @@
+hildesheim
+2026-09-02 15:37:02 : INFO     : 15-37-02                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+[system] sat_gain_dBi=30.0, budget=75.0 W, eval error bound=0.0
+hildesheim
+Wed Sep  2 03:37:02 PM CEST 2026: Finished lwin5000/3GPP triplet power-savings bar chart!

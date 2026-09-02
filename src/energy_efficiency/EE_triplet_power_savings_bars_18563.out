@@ -1,0 +1,62 @@
+hildesheim
+2026-08-25 15:27:52 : INFO     : 15-27-52                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+[system] sat_gain_dBi=30.0, budget=75.0 W, eval error bound=0.0
+2026-08-25 15:27:52 : INFO     : 15-27-52.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 15:27:52 : INFO     : 15-27-52.src.data.user_manager : __init__                  :: user setup complete
+[MMSE (75 W budget)] 0/10000
+[MMSE (75 W budget)] 1000/10000
+[MMSE (75 W budget)] 2000/10000
+[MMSE (75 W budget)] 3000/10000
+[MMSE (75 W budget)] 4000/10000
+[MMSE (75 W budget)] 5000/10000
+[MMSE (75 W budget)] 6000/10000
+[MMSE (75 W budget)] 7000/10000
+[MMSE (75 W budget)] 8000/10000
+[MMSE (75 W budget)] 9000/10000
+[MMSE (75 W budget)] mean total power: 75.00 W (100.0% of budget)
+[aod0.0] checkpoint: /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_3.518
+2026-08-25 15:27:58 : INFO     : 15-27-52.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 15:27:58 : INFO     : 15-27-52.src.data.user_manager : __init__                  :: user setup complete
+[SAC (75 W budget)] 0/10000
+[SAC (75 W budget)] 1000/10000
+[SAC (75 W budget)] 2000/10000
+[SAC (75 W budget)] 3000/10000
+[SAC (75 W budget)] 4000/10000
+[SAC (75 W budget)] 5000/10000
+[SAC (75 W budget)] 6000/10000
+[SAC (75 W budget)] 7000/10000
+[SAC (75 W budget)] 8000/10000
+[SAC (75 W budget)] 9000/10000
+[SAC (75 W budget)] mean total power: 75.00 W (100.0% of budget)
+2026-08-25 15:28:09 : INFO     : 15-27-52.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 15:28:09 : INFO     : 15-27-52.src.data.user_manager : __init__                  :: user setup complete
+[SAC (Δε = 0.0, energy-efficient)] 0/10000
+[SAC (Δε = 0.0, energy-efficient)] 1000/10000
+[SAC (Δε = 0.0, energy-efficient)] 2000/10000
+[SAC (Δε = 0.0, energy-efficient)] 3000/10000
+[SAC (Δε = 0.0, energy-efficient)] 4000/10000
+[SAC (Δε = 0.0, energy-efficient)] 5000/10000
+[SAC (Δε = 0.0, energy-efficient)] 6000/10000
+[SAC (Δε = 0.0, energy-efficient)] 7000/10000
+[SAC (Δε = 0.0, energy-efficient)] 8000/10000
+[SAC (Δε = 0.0, energy-efficient)] 9000/10000
+[SAC (Δε = 0.0, energy-efficient)] mean total power: 34.85 W (46.5% of budget)
+2026-08-25 15:28:20 : INFO     : 15-27-52.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 15:28:20 : INFO     : 15-27-52.src.data.user_manager : __init__                  :: user setup complete
+[MMSE (equal power, Δε = 0.0)] 0/10000
+[MMSE (equal power, Δε = 0.0)] 1000/10000
+[MMSE (equal power, Δε = 0.0)] 2000/10000
+[MMSE (equal power, Δε = 0.0)] 3000/10000
+[MMSE (equal power, Δε = 0.0)] 4000/10000
+[MMSE (equal power, Δε = 0.0)] 5000/10000
+[MMSE (equal power, Δε = 0.0)] 6000/10000
+[MMSE (equal power, Δε = 0.0)] 7000/10000
+[MMSE (equal power, Δε = 0.0)] 8000/10000
+[MMSE (equal power, Δε = 0.0)] 9000/10000
+[MMSE (equal power, Δε = 0.0)] mean total power: 34.85 W (target 34.85 W)
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/outputs/metrics/EE_lwin5000_3gpp_triplet/power_savings_bars.gzip
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/power_savings_bars.pdf
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/jpg/power_savings_bars.jpg
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/png/power_savings_bars.png
+hildesheim
+Tue Aug 25 03:28:28 PM CEST 2026: Finished lwin5000/3GPP triplet power-savings bar chart!

@@ -1,0 +1,61 @@
+hildesheim
+2026-08-25 10:56:34 : INFO     : 10-56-34                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+[system] sat_gain_dBi=30.0, budget=75.0 W, eval error bound=0.0
+[aod0.0] checkpoint: /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_3.518
+2026-08-25 10:56:36 : INFO     : 10-56-34.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 10:56:36 : INFO     : 10-56-34.src.data.user_manager : __init__                  :: user setup complete
+[SAC (train err 0.0, energy-efficient)] 0/10000
+[SAC (train err 0.0, energy-efficient)] 1000/10000
+[SAC (train err 0.0, energy-efficient)] 2000/10000
+[SAC (train err 0.0, energy-efficient)] 3000/10000
+[SAC (train err 0.0, energy-efficient)] 4000/10000
+[SAC (train err 0.0, energy-efficient)] 5000/10000
+[SAC (train err 0.0, energy-efficient)] 6000/10000
+[SAC (train err 0.0, energy-efficient)] 7000/10000
+[SAC (train err 0.0, energy-efficient)] 8000/10000
+[SAC (train err 0.0, energy-efficient)] 9000/10000
+[SAC (train err 0.0, energy-efficient)] mean total power: 34.82 W (46.4% of budget)
+2026-08-25 10:56:47 : INFO     : 10-56-34.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 10:56:47 : INFO     : 10-56-34.src.data.user_manager : __init__                  :: user setup complete
+[SAC (train err 0.0, full power)] 0/10000
+[SAC (train err 0.0, full power)] 1000/10000
+[SAC (train err 0.0, full power)] 2000/10000
+[SAC (train err 0.0, full power)] 3000/10000
+[SAC (train err 0.0, full power)] 4000/10000
+[SAC (train err 0.0, full power)] 5000/10000
+[SAC (train err 0.0, full power)] 6000/10000
+[SAC (train err 0.0, full power)] 7000/10000
+[SAC (train err 0.0, full power)] 8000/10000
+[SAC (train err 0.0, full power)] 9000/10000
+[SAC (train err 0.0, full power)] mean total power: 75.00 W (100.0% of budget)
+[aod0.025] checkpoint: /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_2.748
+2026-08-25 10:56:58 : INFO     : 10-56-34.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 10:56:58 : INFO     : 10-56-34.src.data.user_manager : __init__                  :: user setup complete
+[SAC (train err 0.025, energy-efficient)] 0/10000
+[SAC (train err 0.025, energy-efficient)] 1000/10000
+[SAC (train err 0.025, energy-efficient)] 2000/10000
+[SAC (train err 0.025, energy-efficient)] 3000/10000
+[SAC (train err 0.025, energy-efficient)] 4000/10000
+[SAC (train err 0.025, energy-efficient)] 5000/10000
+[SAC (train err 0.025, energy-efficient)] 6000/10000
+[SAC (train err 0.025, energy-efficient)] 7000/10000
+[SAC (train err 0.025, energy-efficient)] 8000/10000
+[SAC (train err 0.025, energy-efficient)] 9000/10000
+[SAC (train err 0.025, energy-efficient)] mean total power: 38.34 W (51.1% of budget)
+[aod0.05] checkpoint: /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_2.169
+2026-08-25 10:57:09 : INFO     : 10-56-34.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 10:57:09 : INFO     : 10-56-34.src.data.user_manager : __init__                  :: user setup complete
+[SAC (train err 0.05, energy-efficient)] 0/10000
+[SAC (train err 0.05, energy-efficient)] 1000/10000
+[SAC (train err 0.05, energy-efficient)] 2000/10000
+[SAC (train err 0.05, energy-efficient)] 3000/10000
+[SAC (train err 0.05, energy-efficient)] 4000/10000
+[SAC (train err 0.05, energy-efficient)] 5000/10000
+[SAC (train err 0.05, energy-efficient)] 6000/10000
+[SAC (train err 0.05, energy-efficient)] 7000/10000
+[SAC (train err 0.05, energy-efficient)] 8000/10000
+[SAC (train err 0.05, energy-efficient)] 9000/10000
+[SAC (train err 0.05, energy-efficient)] mean total power: 40.03 W (53.4% of budget)
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/outputs/metrics/EE_lwin5000_3gpp_triplet/power_savings_bars.gzip
+hildesheim
+Tue Aug 25 10:57:21 AM CEST 2026: Finished lwin5000/3GPP triplet power-savings bar chart!

@@ -1,0 +1,8 @@
+hildesheim
+2026-08-25 14:30:13 : INFO     : 14-30-12                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+[system] sat_gain_dBi=30.0, budget=75.0 W, eval error bound=0.0
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/power_savings_bars.pdf
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/jpg/power_savings_bars.jpg
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/png/power_savings_bars.png
+hildesheim
+Tue Aug 25 02:30:14 PM CEST 2026: Finished lwin5000/3GPP triplet power-savings bar chart!

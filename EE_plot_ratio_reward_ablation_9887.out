@@ -1,0 +1,15 @@
+anatolien
+2026-08-11 11:20:12 : INFO     : 11-20-12                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:1', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:2', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:3', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:4', device_type='GPU')]
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/error_sweep_ratio_reward_ablation_sumrate.pdf
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/error_sweep_ratio_reward_ablation_power.pdf
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/error_sweep_ratio_reward_ablation_ee.pdf
+[aod0.0] rate delta ratio-reward minus lambda (per error point, bps/Hz): +2.902, +2.882, +2.835, +2.763, +2.557, +2.262, +2.154, +2.038, +2.057, +1.936, +1.914 (mean +2.391)
+[aod0.05] rate delta ratio-reward minus lambda (per error point, bps/Hz): +2.008, +2.071, +2.077, +2.062, +2.077, +2.129, +2.155, +2.204, +2.216, +2.253, +2.238 (mean +2.135)
+[aod0.035] no matched lambda checkpoint -- evaluated standalone, see gzip for raw numbers.
+[ratio_aod0.0] mean power (% of budget) per error point: 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0
+[ratio_aod0.05] mean power (% of budget) per error point: 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0
+[ratio_aod0.035] mean power (% of budget) per error point: 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0
+[lambda_aod0.0] mean power (% of budget) per error point: 46.4, 46.3, 45.7, 45.0, 44.1, 43.0, 42.1, 41.1, 40.0, 38.7, 37.7
+[lambda_aod0.05] mean power (% of budget) per error point: 53.4, 53.4, 53.6, 54.2, 54.4, 54.4, 54.6, 54.5, 54.5, 54.1, 53.8
+anatolien
+Tue Aug 11 11:20:15 AM CEST 2026: Finished raw-ratio-reward ablation plotting!

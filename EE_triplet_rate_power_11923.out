@@ -1,0 +1,128 @@
+funchal
+2026-08-12 14:38:35 : INFO     : 14-38-32                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+[system] sat_gain_dBi=30.0, budget=75.0 W, user_center_aod_earth_deg=90.00
+2026-08-12 14:38:35 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:38:35 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.00: rate=12.1570 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.01: rate=11.7533 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.02: rate=10.6924 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.03: rate=9.1904 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.04: rate=7.2853 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.05: rate=5.9228 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.06: rate=5.1441 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.07: rate=4.7186 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.08: rate=4.1815 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.09: rate=3.7042 bps/Hz, power=75.00 W (100.0% of budget)
+[MMSE (3GPP Set-1, nadir, full budget)] error=0.10: rate=3.3573 bps/Hz, power=75.00 W (100.0% of budget)
+[aod0.0] checkpoint: /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_3.518
+2026-08-12 14:39:36 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:39:36 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[SAC (aod0.0)] error=0.00: rate=9.0217 bps/Hz, power=34.81 W (46.4% of budget)
+[SAC (aod0.0)] error=0.01: rate=8.7608 bps/Hz, power=34.68 W (46.2% of budget)
+[SAC (aod0.0)] error=0.02: rate=8.0408 bps/Hz, power=34.31 W (45.8% of budget)
+[SAC (aod0.0)] error=0.03: rate=6.8911 bps/Hz, power=33.73 W (45.0% of budget)
+[SAC (aod0.0)] error=0.04: rate=5.5684 bps/Hz, power=33.03 W (44.0% of budget)
+[SAC (aod0.0)] error=0.05: rate=4.5848 bps/Hz, power=32.37 W (43.2% of budget)
+[SAC (aod0.0)] error=0.06: rate=4.0129 bps/Hz, power=31.57 W (42.1% of budget)
+[SAC (aod0.0)] error=0.07: rate=3.6297 bps/Hz, power=30.81 W (41.1% of budget)
+[SAC (aod0.0)] error=0.08: rate=3.2583 bps/Hz, power=30.01 W (40.0% of budget)
+[SAC (aod0.0)] error=0.09: rate=2.9317 bps/Hz, power=29.01 W (38.7% of budget)
+[SAC (aod0.0)] error=0.10: rate=2.7227 bps/Hz, power=28.40 W (37.9% of budget)
+2026-08-12 14:41:58 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:41:58 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[MMSE matched-power (aod0.0)] error=0.00: rate=9.1377 bps/Hz, power=34.81 W (target 34.81 W)
+[MMSE matched-power (aod0.0)] error=0.01: rate=8.8160 bps/Hz, power=34.68 W (target 34.68 W)
+[MMSE matched-power (aod0.0)] error=0.02: rate=7.9251 bps/Hz, power=34.31 W (target 34.31 W)
+[MMSE matched-power (aod0.0)] error=0.03: rate=6.6232 bps/Hz, power=33.73 W (target 33.73 W)
+[MMSE matched-power (aod0.0)] error=0.04: rate=5.1815 bps/Hz, power=33.03 W (target 33.03 W)
+[MMSE matched-power (aod0.0)] error=0.05: rate=4.1222 bps/Hz, power=32.37 W (target 32.37 W)
+[MMSE matched-power (aod0.0)] error=0.06: rate=3.5272 bps/Hz, power=31.57 W (target 31.57 W)
+[MMSE matched-power (aod0.0)] error=0.07: rate=3.1048 bps/Hz, power=30.81 W (target 30.81 W)
+[MMSE matched-power (aod0.0)] error=0.08: rate=2.7027 bps/Hz, power=30.01 W (target 30.01 W)
+[MMSE matched-power (aod0.0)] error=0.09: rate=2.3637 bps/Hz, power=29.01 W (target 29.01 W)
+[MMSE matched-power (aod0.0)] error=0.10: rate=2.1369 bps/Hz, power=28.40 W (target 28.40 W)
+[aod0.025] checkpoint: /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_2.748
+2026-08-12 14:42:54 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:42:54 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[SAC (aod0.025)] error=0.00: rate=8.2078 bps/Hz, power=38.43 W (51.2% of budget)
+[SAC (aod0.025)] error=0.01: rate=8.0831 bps/Hz, power=38.35 W (51.1% of budget)
+[SAC (aod0.025)] error=0.02: rate=7.6715 bps/Hz, power=38.21 W (51.0% of budget)
+[SAC (aod0.025)] error=0.03: rate=7.0243 bps/Hz, power=37.93 W (50.6% of budget)
+[SAC (aod0.025)] error=0.04: rate=6.2236 bps/Hz, power=37.61 W (50.1% of budget)
+[SAC (aod0.025)] error=0.05: rate=5.4430 bps/Hz, power=37.27 W (49.7% of budget)
+[SAC (aod0.025)] error=0.06: rate=4.8376 bps/Hz, power=36.74 W (49.0% of budget)
+[SAC (aod0.025)] error=0.07: rate=4.3808 bps/Hz, power=36.23 W (48.3% of budget)
+[SAC (aod0.025)] error=0.08: rate=4.0282 bps/Hz, power=35.69 W (47.6% of budget)
+[SAC (aod0.025)] error=0.09: rate=3.7746 bps/Hz, power=35.11 W (46.8% of budget)
+[SAC (aod0.025)] error=0.10: rate=3.5304 bps/Hz, power=34.57 W (46.1% of budget)
+2026-08-12 14:45:18 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:45:18 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[MMSE matched-power (aod0.025)] error=0.00: rate=9.5184 bps/Hz, power=38.43 W (target 38.43 W)
+[MMSE matched-power (aod0.025)] error=0.01: rate=9.1892 bps/Hz, power=38.35 W (target 38.35 W)
+[MMSE matched-power (aod0.025)] error=0.02: rate=8.2928 bps/Hz, power=38.21 W (target 38.21 W)
+[MMSE matched-power (aod0.025)] error=0.03: rate=6.9794 bps/Hz, power=37.93 W (target 37.93 W)
+[MMSE matched-power (aod0.025)] error=0.04: rate=5.4651 bps/Hz, power=37.61 W (target 37.61 W)
+[MMSE matched-power (aod0.025)] error=0.05: rate=4.3896 bps/Hz, power=37.27 W (target 37.27 W)
+[MMSE matched-power (aod0.025)] error=0.06: rate=3.8247 bps/Hz, power=36.74 W (target 36.74 W)
+[MMSE matched-power (aod0.025)] error=0.07: rate=3.3665 bps/Hz, power=36.23 W (target 36.23 W)
+[MMSE matched-power (aod0.025)] error=0.08: rate=2.9582 bps/Hz, power=35.69 W (target 35.69 W)
+[MMSE matched-power (aod0.025)] error=0.09: rate=2.6421 bps/Hz, power=35.11 W (target 35.11 W)
+[MMSE matched-power (aod0.025)] error=0.10: rate=2.3731 bps/Hz, power=34.57 W (target 34.57 W)
+[aod0.05] checkpoint: /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_2.169
+2026-08-12 14:46:13 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:46:13 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[SAC (aod0.05)] error=0.00: rate=6.5605 bps/Hz, power=40.08 W (53.4% of budget)
+[SAC (aod0.05)] error=0.01: rate=6.5453 bps/Hz, power=40.02 W (53.4% of budget)
+[SAC (aod0.05)] error=0.02: rate=6.4362 bps/Hz, power=40.19 W (53.6% of budget)
+[SAC (aod0.05)] error=0.03: rate=6.2930 bps/Hz, power=40.49 W (54.0% of budget)
+[SAC (aod0.05)] error=0.04: rate=6.1093 bps/Hz, power=40.76 W (54.3% of budget)
+[SAC (aod0.05)] error=0.05: rate=5.8219 bps/Hz, power=40.76 W (54.4% of budget)
+[SAC (aod0.05)] error=0.06: rate=5.5457 bps/Hz, power=40.96 W (54.6% of budget)
+[SAC (aod0.05)] error=0.07: rate=5.1790 bps/Hz, power=40.95 W (54.6% of budget)
+[SAC (aod0.05)] error=0.08: rate=4.8421 bps/Hz, power=40.72 W (54.3% of budget)
+[SAC (aod0.05)] error=0.09: rate=4.5464 bps/Hz, power=40.74 W (54.3% of budget)
+[SAC (aod0.05)] error=0.10: rate=4.2667 bps/Hz, power=40.38 W (53.8% of budget)
+2026-08-12 14:48:35 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:48:35 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[MMSE matched-power (aod0.05)] error=0.00: rate=9.6801 bps/Hz, power=40.08 W (target 40.08 W)
+[MMSE matched-power (aod0.05)] error=0.01: rate=9.3435 bps/Hz, power=40.02 W (target 40.02 W)
+[MMSE matched-power (aod0.05)] error=0.02: rate=8.4757 bps/Hz, power=40.19 W (target 40.19 W)
+[MMSE matched-power (aod0.05)] error=0.03: rate=7.1807 bps/Hz, power=40.49 W (target 40.49 W)
+[MMSE matched-power (aod0.05)] error=0.04: rate=5.6716 bps/Hz, power=40.76 W (target 40.76 W)
+[MMSE matched-power (aod0.05)] error=0.05: rate=4.5740 bps/Hz, power=40.76 W (target 40.76 W)
+[MMSE matched-power (aod0.05)] error=0.06: rate=4.0027 bps/Hz, power=40.96 W (target 40.96 W)
+[MMSE matched-power (aod0.05)] error=0.07: rate=3.5940 bps/Hz, power=40.95 W (target 40.95 W)
+[MMSE matched-power (aod0.05)] error=0.08: rate=3.1760 bps/Hz, power=40.72 W (target 40.72 W)
+[MMSE matched-power (aod0.05)] error=0.09: rate=2.8249 bps/Hz, power=40.74 W (target 40.74 W)
+[MMSE matched-power (aod0.05)] error=0.10: rate=2.5768 bps/Hz, power=40.38 W (target 40.38 W)
+[aod0.0_lambdainit] checkpoint: /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_lwin5000_lambdainit12.2-75_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_3.522
+2026-08-12 14:49:31 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:49:31 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[SAC (aod0.0_lambdainit)] error=0.00: rate=9.0275 bps/Hz, power=34.88 W (46.5% of budget)
+[SAC (aod0.0_lambdainit)] error=0.01: rate=8.7852 bps/Hz, power=34.75 W (46.3% of budget)
+[SAC (aod0.0_lambdainit)] error=0.02: rate=8.0392 bps/Hz, power=34.36 W (45.8% of budget)
+[SAC (aod0.0_lambdainit)] error=0.03: rate=6.8878 bps/Hz, power=33.70 W (44.9% of budget)
+[SAC (aod0.0_lambdainit)] error=0.04: rate=5.5226 bps/Hz, power=32.98 W (44.0% of budget)
+[SAC (aod0.0_lambdainit)] error=0.05: rate=4.5344 bps/Hz, power=32.24 W (43.0% of budget)
+[SAC (aod0.0_lambdainit)] error=0.06: rate=3.9872 bps/Hz, power=31.49 W (42.0% of budget)
+[SAC (aod0.0_lambdainit)] error=0.07: rate=3.6397 bps/Hz, power=30.70 W (40.9% of budget)
+[SAC (aod0.0_lambdainit)] error=0.08: rate=3.2772 bps/Hz, power=29.81 W (39.7% of budget)
+[SAC (aod0.0_lambdainit)] error=0.09: rate=2.9828 bps/Hz, power=28.97 W (38.6% of budget)
+[SAC (aod0.0_lambdainit)] error=0.10: rate=2.7377 bps/Hz, power=28.16 W (37.5% of budget)
+2026-08-12 14:51:55 : INFO     : 14-38-32.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-12 14:51:55 : INFO     : 14-38-32.src.data.user_manager : __init__                  :: user setup complete
+[MMSE matched-power (aod0.0_lambdainit)] error=0.00: rate=9.1488 bps/Hz, power=34.88 W (target 34.88 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.01: rate=8.8201 bps/Hz, power=34.75 W (target 34.75 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.02: rate=7.9386 bps/Hz, power=34.36 W (target 34.36 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.03: rate=6.6156 bps/Hz, power=33.70 W (target 33.70 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.04: rate=5.1656 bps/Hz, power=32.98 W (target 32.98 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.05: rate=4.1312 bps/Hz, power=32.24 W (target 32.24 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.06: rate=3.5206 bps/Hz, power=31.49 W (target 31.49 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.07: rate=3.0821 bps/Hz, power=30.70 W (target 30.70 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.08: rate=2.6885 bps/Hz, power=29.81 W (target 29.81 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.09: rate=2.3712 bps/Hz, power=28.97 W (target 28.97 W)
+[MMSE matched-power (aod0.0_lambdainit)] error=0.10: rate=2.1442 bps/Hz, power=28.16 W (target 28.16 W)
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/error_sweep_ratio_reward_ablation_sumrate.pdf
+funchal
+Wed Aug 12 02:52:56 PM CEST 2026: Finished lwin5000/3GPP triplet rate-power sweep!

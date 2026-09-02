@@ -1,0 +1,8 @@
+anatolien
+2026-08-11 11:10:54 : INFO     : 11-10-54                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:1', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:2', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:3', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:4', device_type='GPU')]
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/error_sweep_ratio_reward_ablation_sumrate.pdf
+[aod0.0] rate delta ratio-reward minus lambda (per error point, bps/Hz): +2.902, +2.882, +2.835, +2.763, +2.557, +2.262, +2.154, +2.038, +2.057, +1.936, +1.914 (mean +2.391)
+[aod0.05] rate delta ratio-reward minus lambda (per error point, bps/Hz): +2.008, +2.071, +2.077, +2.062, +2.077, +2.129, +2.155, +2.204, +2.216, +2.253, +2.238 (mean +2.135)
+[aod0.035] no matched lambda checkpoint -- evaluated standalone, see gzip for raw numbers.
+anatolien
+Tue Aug 11 11:10:56 AM CEST 2026: Finished raw-ratio-reward ablation plotting!

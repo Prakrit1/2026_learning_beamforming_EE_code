@@ -1,0 +1,7 @@
+mumbai
+2026-08-07 11:33:39 : INFO     : 11-33-39                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:1', device_type='GPU')]
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/error_sweep_decomposition_ablation_sumrate.pdf
+[csi_real_imag] rate delta vs. baseline (per error point, bps/Hz): -1.566, -1.475, -1.307, -0.942, -0.529, -0.256, -0.103, -0.082, +0.074, +0.136, +0.206 (mean -0.531)
+[action_rad_phase] rate delta vs. baseline (per error point, bps/Hz): -5.175, -5.030, -4.655, -4.042, -3.248, -2.648, -2.333, -2.191, -1.926, -1.769, -1.639 (mean -3.151)
+mumbai
+Fri Aug  7 11:33:41 AM CEST 2026: Finished decomposition ablation plotting!

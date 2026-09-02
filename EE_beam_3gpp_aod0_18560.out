@@ -1,0 +1,78 @@
+hildesheim
+2026-08-25 14:57:18 : INFO     : 14-57-18                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
+2026-08-25 14:57:18 : INFO     : 14-57-18.src.data.satellite_manager : __init__                  :: satellites setup complete
+2026-08-25 14:57:18 : INFO     : 14-57-18.src.data.user_manager : __init__                  :: user setup complete
+[beampattern] sac_nadir_aod0.0 -> /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_3.518
+[beampattern] sac_nadir_aod0.025 -> /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_2.748
+[beampattern] sac_nadir_aod0.05 -> /home/parajuli/repos/2026_learning_beamforming_EE_code/models/EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow/base/full_snap_energy_effiency_2.169
+Simulation completed: 3.33%, est. finish 2026-08-25 14:57:21Simulation completed: 36.67%, est. finish 2026-08-25 14:57:21Simulation completed: 70.00%, est. finish 2026-08-25 14:57:210 Sat 0 large_scale_fading [1.15847456 1.03597098 1.00655535] additive_error_on_cosine_of_aod [ 0.01656153  0.01567827 -0.03125158] sum rate: sac_nadir_aod0.0 7.48, sac_nadir_aod0.025 6.54, sac_nadir_aod0.05 5.45, mmse 7.09, 
+1 Sat 0 large_scale_fading [1.00228462 1.04254373 0.80648224] additive_error_on_cosine_of_aod [ 0.04063661  0.0004754  -0.01331733] sum rate: sac_nadir_aod0.0 7.61, sac_nadir_aod0.025 7.52, sac_nadir_aod0.05 6.20, mmse 7.81, 
+2 Sat 0 large_scale_fading [0.96424636 0.97943461 0.95400322] additive_error_on_cosine_of_aod [0.00726194 0.04131629 0.04163811] sum rate: sac_nadir_aod0.0 3.96, sac_nadir_aod0.025 7.34, sac_nadir_aod0.05 8.32, mmse 3.94, 
+3 Sat 0 large_scale_fading [1.04432271 0.84709778 1.01575732] additive_error_on_cosine_of_aod [-0.03960545 -0.03131143  0.01036939] sum rate: sac_nadir_aod0.0 4.44, sac_nadir_aod0.025 7.53, sac_nadir_aod0.05 9.20, mmse 4.78, 
+4 Sat 0 large_scale_fading [0.84701084 1.13418274 1.1179673 ] additive_error_on_cosine_of_aod [-0.03748812  0.00749706  0.00908358] sum rate: sac_nadir_aod0.0 7.72, sac_nadir_aod0.025 8.07, sac_nadir_aod0.05 8.03, mmse 7.91, 
+5 Sat 0 large_scale_fading [0.91011025 1.08002083 0.86817331] additive_error_on_cosine_of_aod [ 0.0338058  -0.00284824 -0.03988223] sum rate: sac_nadir_aod0.0 5.90, sac_nadir_aod0.025 7.28, sac_nadir_aod0.05 7.45, mmse 4.86, 
+6 Sat 0 large_scale_fading [0.89143878 0.86878211 1.1164847 ] additive_error_on_cosine_of_aod [-0.0069034   0.02652905  0.03172002] sum rate: sac_nadir_aod0.0 7.34, sac_nadir_aod0.025 9.66, sac_nadir_aod0.05 10.38, mmse 5.79, 
+7 Sat 0 large_scale_fading [0.97526339 1.13150043 1.04978072] additive_error_on_cosine_of_aod [-0.04637296 -0.01378452  0.03800801] sum rate: sac_nadir_aod0.0 3.48, sac_nadir_aod0.025 6.12, sac_nadir_aod0.05 7.91, mmse 3.52, 
+8 Sat 0 large_scale_fading [1.00033672 0.8719019  0.9689473 ] additive_error_on_cosine_of_aod [0.00670498 0.04236333 0.03637095] sum rate: sac_nadir_aod0.0 4.28, sac_nadir_aod0.025 7.60, sac_nadir_aod0.05 7.75, mmse 4.33, 
+9 Sat 0 large_scale_fading [1.17008447 1.02369353 1.00820864] additive_error_on_cosine_of_aod [ 0.04628635  0.00368296 -0.04166833] sum rate: sac_nadir_aod0.0 4.10, sac_nadir_aod0.025 5.00, sac_nadir_aod0.05 6.67, mmse 4.14, 
+10 Sat 0 large_scale_fading [0.84286779 1.05549061 0.83577427] additive_error_on_cosine_of_aod [0.03000508 0.01202523 0.03486952] sum rate: sac_nadir_aod0.0 7.40, sac_nadir_aod0.025 8.37, sac_nadir_aod0.05 8.60, mmse 3.57, 
+11 Sat 0 large_scale_fading [1.07715461 0.95477074 0.95893823] additive_error_on_cosine_of_aod [ 0.0202806   0.03990383 -0.03669502] sum rate: sac_nadir_aod0.0 3.12, sac_nadir_aod0.025 5.79, sac_nadir_aod0.05 5.50, mmse 3.18, 
+12 Sat 0 large_scale_fading [0.89758337 0.85462351 0.98953394] additive_error_on_cosine_of_aod [-0.04369999  0.03047362 -0.03084219] sum rate: sac_nadir_aod0.0 5.75, sac_nadir_aod0.025 9.50, sac_nadir_aod0.05 8.46, mmse 1.92, 
+13 Sat 0 large_scale_fading [0.84053301 0.78075213 1.08000985] additive_error_on_cosine_of_aod [-0.00940017 -0.00876849  0.04978022] sum rate: sac_nadir_aod0.0 8.49, sac_nadir_aod0.025 8.13, sac_nadir_aod0.05 9.12, mmse 8.19, 
+14 Sat 0 large_scale_fading [1.16001402 1.00025284 0.95164782] additive_error_on_cosine_of_aod [ 0.02438132 -0.01707981  0.02024116] sum rate: sac_nadir_aod0.0 10.21, sac_nadir_aod0.025 10.56, sac_nadir_aod0.05 8.42, mmse 7.49, 
+15 Sat 0 large_scale_fading [1.05718278 1.00559551 1.02345098] additive_error_on_cosine_of_aod [-0.04823749  0.00571995 -0.04925512] sum rate: sac_nadir_aod0.0 5.61, sac_nadir_aod0.025 4.43, sac_nadir_aod0.05 3.88, mmse 3.61, 
+16 Sat 0 large_scale_fading [1.05048536 1.10080546 1.02614728] additive_error_on_cosine_of_aod [-0.00231713 -0.02509495  0.03260529] sum rate: sac_nadir_aod0.0 7.08, sac_nadir_aod0.025 6.89, sac_nadir_aod0.05 4.95, mmse 6.71, 
+17 Sat 0 large_scale_fading [1.06883695 0.96388041 1.20930764] additive_error_on_cosine_of_aod [-0.00713238 -0.01332727  0.02585183] sum rate: sac_nadir_aod0.0 9.90, sac_nadir_aod0.025 9.53, sac_nadir_aod0.05 8.89, mmse 9.18, 
+18 Sat 0 large_scale_fading [0.94580752 1.04122837 1.10429224] additive_error_on_cosine_of_aod [-0.0243988   0.02841502 -0.04392052] sum rate: sac_nadir_aod0.0 5.69, sac_nadir_aod0.025 7.73, sac_nadir_aod0.05 6.89, mmse 3.56, 
+19 Sat 0 large_scale_fading [1.00283429 1.00811489 1.01653444] additive_error_on_cosine_of_aod [0.01316952 0.03098108 0.02306228] sum rate: sac_nadir_aod0.0 7.48, sac_nadir_aod0.025 8.22, sac_nadir_aod0.05 8.92, mmse 7.22, 
+20 Sat 0 large_scale_fading [1.04128903 0.92896338 0.95772607] additive_error_on_cosine_of_aod [-0.03097707  0.0398057  -0.00078181] sum rate: sac_nadir_aod0.0 5.00, sac_nadir_aod0.025 5.53, sac_nadir_aod0.05 6.18, mmse 5.38, 
+21 Sat 0 large_scale_fading [1.10559726 0.94402274 1.25760745] additive_error_on_cosine_of_aod [ 0.02294189  0.04185603 -0.0396858 ] sum rate: sac_nadir_aod0.0 2.57, sac_nadir_aod0.025 4.84, sac_nadir_aod0.05 2.47, mmse 2.55, 
+22 Sat 0 large_scale_fading [0.98704089 1.04380284 0.93739868] additive_error_on_cosine_of_aod [0.02475158 0.02568241 0.04552434] sum rate: sac_nadir_aod0.0 4.97, sac_nadir_aod0.025 5.70, sac_nadir_aod0.05 7.55, mmse 4.59, 
+23 Sat 0 large_scale_fading [1.00709227 1.07596378 1.14706608] additive_error_on_cosine_of_aod [-0.03810069 -0.00460379 -0.01419458] sum rate: sac_nadir_aod0.0 7.53, sac_nadir_aod0.025 7.93, sac_nadir_aod0.05 6.37, mmse 7.42, 
+24 Sat 0 large_scale_fading [0.99908008 1.15074046 0.91805451] additive_error_on_cosine_of_aod [-0.04585318  0.00997617  0.01059652] sum rate: sac_nadir_aod0.0 7.80, sac_nadir_aod0.025 8.07, sac_nadir_aod0.05 6.30, mmse 6.90, 
+25 Sat 0 large_scale_fading [0.97252216 1.11294494 1.01639215] additive_error_on_cosine_of_aod [0.0137905  0.01997782 0.01915689] sum rate: sac_nadir_aod0.0 10.15, sac_nadir_aod0.025 8.57, sac_nadir_aod0.05 6.92, mmse 8.75, 
+26 Sat 0 large_scale_fading [0.89728846 0.96308448 1.11168184] additive_error_on_cosine_of_aod [ 0.02534167 -0.02420384 -0.00136015] sum rate: sac_nadir_aod0.0 8.77, sac_nadir_aod0.025 9.16, sac_nadir_aod0.05 9.09, mmse 8.48, 
+27 Sat 0 large_scale_fading [1.07592735 0.9793271  0.96565007] additive_error_on_cosine_of_aod [-0.01866809 -0.03022259  0.04042263] sum rate: sac_nadir_aod0.0 6.52, sac_nadir_aod0.025 7.84, sac_nadir_aod0.05 9.44, mmse 4.25, 
+28 Sat 0 large_scale_fading [0.96227407 0.9402335  0.96984187] additive_error_on_cosine_of_aod [-0.04723214  0.01353412 -0.04504688] sum rate: sac_nadir_aod0.0 4.08, sac_nadir_aod0.025 4.22, sac_nadir_aod0.05 8.80, mmse 3.89, 
+29 Sat 0 large_scale_fading [1.16862376 1.10501057 1.06683535] additive_error_on_cosine_of_aod [ 0.04606838 -0.04958226 -0.04177902] sum rate: sac_nadir_aod0.0 2.78, sac_nadir_aod0.025 4.77, sac_nadir_aod0.05 7.22, mmse 0.68, 
+
+  model              mean bw [deg]  median bw  mean cov median cov mean |off| [deg]  mean rate
+  mmse                        2.14       2.16     0.361      0.260             1.54      5.389
+  sac_nadir_aod0.0            2.19       2.19     0.434      0.350             1.50      6.240
+  sac_nadir_aod0.025          2.52       2.47     0.514      0.450             1.38      7.282
+  sac_nadir_aod0.05           2.99       2.73     0.603      0.624             1.40      7.377
+
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/outputs/metrics/EE_beampattern_stats.gzip
+
+  Realizations ranked by worst-case coverage ratio (min across all precoders/users):
+  realization  min coverage
+           25         0.328
+           14         0.291
+           17         0.244
+           26         0.230
+           12         0.111
+           10         0.094
+           19         0.090
+            6         0.080
+            0         0.078
+           13         0.022
+
+  Auto-selected realization: 25 (worst-case coverage=0.328)
+Plot 0, 0
+3
+1
+mmse sum rate: 8.74696241368536
+3
+1
+sac_nadir_aod0.0 sum rate: 10.15466105461672
+3
+1
+sac_nadir_aod0.025 sum rate: 8.570955943870834
+3
+1
+sac_nadir_aod0.05 sum rate: 6.916158212472512
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/beampattern_realization25.pdf
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/jpg/beampattern_realization25.jpg
+Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/png/beampattern_realization25.png
+hildesheim
+Tue Aug 25 02:57:23 PM CEST 2026: Finished 3GPP nadir aod0.0 beampattern comparison!
