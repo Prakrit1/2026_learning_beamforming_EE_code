@@ -412,14 +412,11 @@ def plot_power_savings_bars(
             ax.text(power_budget * 1.06, y, savings_text, va='center', ha='left',
                     fontsize=9.5, color=savings_color, zorder=4, style='italic')
 
+    # No text label on the budget line -- the dashed red line itself is
+    # self-explanatory (bars reaching it are visibly at the full budget),
+    # per feedback that any text past it (formerly "no savings", then the
+    # $P_{\mathrm{rad}}$ notation) reads as clutter.
     ax.axvline(power_budget, color=budget_line_color, linestyle='--', linewidth=1.5, zorder=1)
-    # annotation sits ABOVE the highest bar's row (n - 1 is the topmost
-    # y-position, bar_height/2 clears its top edge), not squeezed against it.
-    # $P_{\mathrm{rad}}$ notation (99_custommacros.sty's \transmitpower),
-    # not a literal "Power budget (75 W)" string -- matches
-    # plot_rate_error_sweep's error-sweep figure.
-    ax.text(power_budget, n - 1 + bar_height / 2 + 0.15, r'$P_{\mathrm{rad}}$',
-            ha='center', va='bottom', fontsize=11, color=budget_line_color)
 
     ax.set_yticks(y_positions)
     # fontsize=11 matches plot_rate_error_sweep's legend fontsize -- these
