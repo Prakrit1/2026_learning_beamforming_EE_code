@@ -29,6 +29,7 @@ def plot_rate_error_sweep(
         plots_parent_path,
         name: str,
         annotate_power: bool = False,
+        legend_ncols: int = 1,
 ) -> None:
     """
     curves: list of dicts, each describing one line on the figure:
@@ -45,6 +46,9 @@ def plot_rate_error_sweep(
     from that curve's results entry -- opt-in since not every figure using
     this function wants it (e.g. the MMSE/SAC full-vs-matched-power figure
     already encodes power in which curves are drawn, not via annotation).
+
+    legend_ncols: number of legend columns (default 1); use 2 for a compact
+    box when curve labels are short, matching the reference paper's Fig. 3 style.
     """
     matplotlib.rcParams['text.usetex'] = False  # override PlotConfig's reset
 
@@ -76,7 +80,7 @@ def plot_rate_error_sweep(
     ax.set_axisbelow(True)
     ax.legend(
         loc='upper right',
-        ncols=1,
+        ncols=legend_ncols,
         fontsize=9,
         framealpha=0.9,
         frameon=True,

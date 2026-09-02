@@ -127,10 +127,11 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.62
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
-    ax.plot(power_sweep_watt, ee, color=plot_cfg.cp2['blue'], marker='o', markersize=4, linewidth=1.5)
-    ax.axvline(cfg.power_constraint_watt, color=plot_cfg.cp2['gold'], linestyle='--', linewidth=1.3,
+    ax.plot(power_sweep_watt, ee, color=plot_cfg.cp2['black'], marker='o', markersize=4, linewidth=1.5,
+            label='MMSE')
+    ax.axvline(cfg.power_constraint_watt, color='gray', linestyle=':', linewidth=1.3,
                label=f'power budget ({cfg.power_constraint_watt:.0f} W)')
-    ax.axvline(power_sweep_watt[argmax_idx], color=plot_cfg.cp2['magenta'], linestyle='--', linewidth=1.3,
+    ax.axvline(power_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
                label=f'EE maximizer ({power_sweep_watt[argmax_idx]:.1f} W)')
     ax.set_xlabel('Fixed transmit power [W]')
     ax.set_ylabel('EE [bps/Hz/W]')

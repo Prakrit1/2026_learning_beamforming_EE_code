@@ -28,7 +28,7 @@ from src.energy_efficiency.plotting_scenario import (
 
 TRAINING_NAME = CHECKPOINTS['aod0.0']
 RESULT_KEY = 'sac_aod0.0_fullpower'
-CURVE_LABEL = 'EE (75 W, full-power inference)'
+CURVE_LABEL = 'SAC (75 W budget)'
 
 
 def main():

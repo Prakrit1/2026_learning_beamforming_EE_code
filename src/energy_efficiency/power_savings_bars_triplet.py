@@ -140,19 +140,31 @@ if __name__ == '__main__':
 
     plot_cfg = PlotConfig()
 
+    # keys must match the strings run_power_samples()/run_matched_power_mmse_samples()
+    # used when building samples_dict (and thus the cached gzip); the display
+    # labels shown on the chart are remapped separately below so relabeling
+    # here never requires regenerating cached data.
     ordered_labels = [
         'SAC (75 W budget)',
         'MMSE (75 W budget)',
         'SAC (Δε = 0.0, energy-efficient)',
         'MMSE (equal power, Δε = 0.0)',
     ]
-    ordered_samples_dict = {label: data['samples_dict'][label] for label in ordered_labels}
+    display_labels = {
+        'SAC (75 W budget)': 'SAC (75 W budget)',
+        'MMSE (75 W budget)': 'MMSE (75 W budget)',
+        'SAC (Δε = 0.0, energy-efficient)': 'EE (Δε = 0.0)',
+        'MMSE (equal power, Δε = 0.0)': 'MMSE (equal power, Δε = 0.0)',
+    }
+    ordered_samples_dict = {
+        display_labels[label]: data['samples_dict'][label] for label in ordered_labels
+    }
 
     bar_colors = [
         plot_cfg.cp2['gold'],
         plot_cfg.cp2['black'],
         plot_cfg.cp2['green'],
-        plot_cfg.cp2['blue'],
+        plot_cfg.cp2['black'],
     ]
 
     plot_power_savings_bars(

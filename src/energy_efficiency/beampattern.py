@@ -261,7 +261,7 @@ if __name__ == '__main__':
         },
     ]
     colors = {
-        'mmse': plot_cfg.cp2['gold'],
+        'mmse': plot_cfg.cp2['black'],
         'sac_nadir_aod0.0': plot_cfg.cp2['green'],
         'sac_nadir_aod0.025': plot_cfg.cp2['blue'],
         'sac_nadir_aod0.05': plot_cfg.cp2['magenta'],
@@ -280,9 +280,9 @@ if __name__ == '__main__':
     }
     labels = {
         'mmse': 'MMSE',
-        'sac_nadir_aod0.0': 'SAC 0.0',
-        'sac_nadir_aod0.025': 'SAC 0.025',
-        'sac_nadir_aod0.05': 'SAC 0.05',
+        'sac_nadir_aod0.0': 'EE 0.0',
+        'sac_nadir_aod0.025': 'EE 0.025',
+        'sac_nadir_aod0.05': 'EE 0.05',
     }
 
     plot_beam_patterns(

@@ -152,22 +152,22 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.62
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
-    # green for SAC matches its color everywhere else this checkpoint
+    # green for EE matches its color everywhere else this checkpoint
     # (aod=0.0) appears -- plotting_scenario.py's error-sweep figure and
     # power_savings_bars_triplet.py's bar chart.
     ax.plot(power_sweep_watt, ee, color=plot_cfg.cp2['green'], marker='o', markersize=4, linewidth=1.5,
-            label='SAC (Δε = 0.0)')
+            label='EE (Δε = 0.0)')
     if mmse_data is not None:
-        ax.plot(mmse_data['power_sweep_watt'], mmse_data['ee'], color=plot_cfg.cp2['gold'], marker='x',
+        ax.plot(mmse_data['power_sweep_watt'], mmse_data['ee'], color=plot_cfg.cp2['black'], marker='x',
                 markersize=4, linewidth=1.3, linestyle='--', label='MMSE')
-    ax.axvline(cfg.power_constraint_watt, color=plot_cfg.cp2['black'], linestyle=':', linewidth=1.2,
+    ax.axvline(cfg.power_constraint_watt, color='gray', linestyle=':', linewidth=1.2,
                label=f'power budget ({cfg.power_constraint_watt:.0f} W)')
     if not HIDE_MAXIMIZER:
-        ax.axvline(power_sweep_watt[argmax_idx], color=plot_cfg.cp2['magenta'], linestyle='--', linewidth=1.3,
-                   label=f'SAC EE maximizer ({power_sweep_watt[argmax_idx]:.1f} W)')
+        ax.axvline(power_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
+                   label=f'EE maximizer ({power_sweep_watt[argmax_idx]:.1f} W)')
     ax.set_xlabel('Fixed transmit power [W]')
     ax.set_ylabel('EE [bps/Hz/W]')
-    ax.set_title(f'SAC vs. MMSE direction, CSIT error bound={CSIT_ERROR_BOUND:g}', fontsize=9)
+    ax.set_title(f'EE vs. MMSE direction, CSIT error bound={CSIT_ERROR_BOUND:g}', fontsize=9)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
     ax.legend(fontsize=7, loc='upper right')

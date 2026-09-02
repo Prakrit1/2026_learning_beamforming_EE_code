@@ -35,11 +35,11 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.6
 
     curves = [
-        {'result_key': 'sac_aod0.0', 'label': 'SAC (Δε = 0.0, energy-efficient)',
+        {'result_key': 'sac_aod0.0', 'label': 'EE (Δε = 0.0)',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.025', 'label': 'SAC (Δε = 0.025, energy-efficient)',
+        {'result_key': 'sac_aod0.025', 'label': 'EE (Δε = 0.025)',
          'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.05', 'label': 'SAC (Δε = 0.05, energy-efficient)',
+        {'result_key': 'sac_aod0.05', 'label': 'EE (Δε = 0.05)',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-'},
     ]
 

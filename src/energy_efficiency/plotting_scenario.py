@@ -233,10 +233,10 @@ if __name__ == '__main__':
          'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':'},
         {'result_key': 'sac_aod0.0_fullpower', 'label': 'SAC (75 W budget)',
          'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.0', 'label': 'SAC (Δε = 0.0, energy-efficient)',
+        {'result_key': 'sac_aod0.0', 'label': 'EE (Δε = 0.0)',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
         {'result_key': 'mmse_matched_aod0.0', 'label': 'MMSE (equal power, Δε = 0.0)',
-         'color': plot_cfg.cp2['green'], 'marker': 'x', 'linestyle': '--'},
+         'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
     ]
 
     plot_rate_error_sweep(
@@ -247,4 +247,5 @@ if __name__ == '__main__':
         height=plot_height,
         plots_parent_path=plot_cfg.plots_parent_path,
         name='error_sweep_sumrate',
+        legend_ncols=2,
     )
