@@ -49,7 +49,7 @@ from src.data.satellite_manager import SatelliteManager
 from src.data.user_manager import UserManager
 from src.utils.get_precoding import get_precoding_mmse, get_precoding_mrc, get_precoding_zero_forcing
 from src.utils.update_sim import update_sim
-from src.energy_efficiency.tx_power_distribution import plot_power_savings_bars
+from src.energy_efficiency.power_savings_bars_plot import plot_power_savings_bars
 
 MONTE_CARLO_ITERATIONS = 10000
 

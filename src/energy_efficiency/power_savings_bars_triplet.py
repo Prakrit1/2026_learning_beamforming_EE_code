@@ -21,7 +21,7 @@ from src.utils.get_precoding import get_precoding_learned, get_precoding_learned
 from src.utils.load_model import load_model
 from src.utils.update_sim import update_sim
 from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
-from src.energy_efficiency.tx_power_distribution import plot_power_savings_bars
+from src.energy_efficiency.power_savings_bars_plot import plot_power_savings_bars
 
 PLOT_ONLY = '--plot-only' in sys.argv
 

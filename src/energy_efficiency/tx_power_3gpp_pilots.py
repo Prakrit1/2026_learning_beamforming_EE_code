@@ -1,8 +1,8 @@
 """
 Transmit-power distribution for the two 3GPP Set-1 pilot checkpoints
 (jobs 153655 nadir / 153656 elev30) against the CURRENT 75 W budget --
-the tx_power_distribution.py-style "is power being saved?" figure, redone
-for the current system.
+the power_savings_boxplot_plot.py-style "is power being saved?" figure,
+redone for the current system.
 
 Everything here runs at the current config defaults (30 dBi / 75 W; the
 elev30 checkpoint additionally sets EE_TARGET_ELEVATION_DEG=30 to place
@@ -14,8 +14,8 @@ side-by-side comparison.
 
 Scenario matches the rest of the pilot evaluation: config.py's default
 user distribution (100 km mean, +-50 km roam) and the active error-model
-config (zero CSIT error), same convention as tx_power_distribution.py's
-error-bound block. Reuses that script's plot functions unchanged.
+config (zero CSIT error). Reuses power_savings_bars_plot.py's and
+power_savings_boxplot_plot.py's plot functions unchanged.
 """
 import matplotlib
 matplotlib.use('Agg')
@@ -30,10 +30,8 @@ from src.config.config_plotting import PlotConfig
 from src.data.calc_tx_power_distribution import calc_tx_power_distribution
 from src.data.satellite_manager import SatelliteManager
 from src.data.user_manager import UserManager
-from src.energy_efficiency.tx_power_distribution import (
-    plot_power_savings_bars,
-    plot_power_savings_comparison,
-)
+from src.energy_efficiency.power_savings_bars_plot import plot_power_savings_bars
+from src.energy_efficiency.power_savings_boxplot_plot import plot_power_savings_comparison
 from src.utils.get_precoding import get_precoding_learned_clip_only
 from src.utils.load_model import load_model
 from src.utils.update_sim import update_sim
