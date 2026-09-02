@@ -1,7 +1,0 @@
-mumbai
-2026-09-02 15:23:47 : INFO     : 15-23-46                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:1', device_type='GPU')]
-Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/error_sweep_training_triplet.pdf
-Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/jpg/error_sweep_training_triplet.jpg
-Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/png/error_sweep_training_triplet.png
-mumbai
-Wed Sep  2 03:23:48 PM CEST 2026: Finished error-sweep training-triplet figure!

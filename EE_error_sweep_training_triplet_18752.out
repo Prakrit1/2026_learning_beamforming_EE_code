@@ -1,4 +1,0 @@
-mumbai
-2026-09-02 15:01:22 : INFO     : 15-01-21                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU'), PhysicalDevice(name='/physical_device:GPU:1', device_type='GPU')]
-mumbai
-Wed Sep  2 03:01:22 PM CEST 2026: Finished error-sweep training-triplet figure!

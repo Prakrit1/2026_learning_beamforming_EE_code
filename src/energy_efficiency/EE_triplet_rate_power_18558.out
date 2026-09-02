@@ -1,8 +1,0 @@
-hildesheim
-2026-08-25 14:27:29 : INFO     : 14-27-28                       : __logging_setup           :: GPUs detected: [PhysicalDevice(name='/physical_device:GPU:0', device_type='GPU')]
-[system] sat_gain_dBi=30.0, budget=75.0 W, user_center_aod_earth_deg=90.00
-Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/pdf/error_sweep_sumrate.pdf
-Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/jpg/error_sweep_sumrate.jpg
-Saved: /home/parajuli/repos/2026_learning_beamforming_EE_code/reports/figures/png/error_sweep_sumrate.png
-hildesheim
-Tue Aug 25 02:27:30 PM CEST 2026: Finished lwin5000/3GPP triplet rate-power sweep!
