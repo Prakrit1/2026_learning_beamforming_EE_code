@@ -121,10 +121,13 @@ def plot_power_savings_comparison(
     ax.set_axisbelow(True)
 
     ax.axvline(power_budget, color=budget_color, linestyle='--', linewidth=1.5, label='Power budget')
-    ax.set_xlabel('Total transmit power [W]')
-    ax.set_ylabel('Density (log scale)')
+    # Explicit fontsizes here (not PlotConfig's rc default, ~18.3pt for axis
+    # labels) match plot_rate_error_sweep's legend/axis-label balance --
+    # see that function's own comment for why the rc default looks oversized.
+    ax.set_xlabel('Total transmit power [W]', fontsize=13)
+    ax.set_ylabel('Density (log scale)', fontsize=13)
     ax.set_title('Total power distribution (overlaid)', fontsize=11)
-    ax.legend(fontsize=8, loc='upper left')
+    ax.legend(fontsize=11, loc='upper left')
 
     # Callout for any series pinned exactly at the budget: its histogram bar
     # is a single near-zero-width spike sitting right on top of the budget
@@ -142,20 +145,37 @@ def plot_power_savings_comparison(
     # ylim-derived data coordinates sidesteps the bug entirely and doesn't
     # depend on the (log-scale-sensitive) ylim padding matplotlib happens to
     # pick.
+    # Group pinned (near-zero-std) series by their OWN mean, not a hardcoded
+    # power_budget x-position: with >2 curves it's common to have series
+    # pinned at different fixed values (e.g. RM/MMSE pinned at the full
+    # budget, a matched-power MMSE pinned at some other fixed watt value)
+    # -- placing every callout at x=power_budget regardless of which value
+    # a series is actually pinned at stacked them on top of each other and
+    # mislabeled the ones not actually at budget.
     from matplotlib.transforms import blended_transform_factory
     trans = blended_transform_factory(ax.transData, ax.transAxes)
+    pinned_groups: dict[float, list[str]] = {}
     for label, total_power in total_powers.items():
         if total_power.std() < 0.01 * power_budget:
-            # y=0.72, not higher: the legend (loc='upper left') occupies
-            # roughly the top ~20% of the panel, and this callout is
-            # centered at x=power_budget -- for a single pinned series the
-            # x-axis autoscales tightly around the spike, putting that
-            # x-position directly under the legend if placed too high.
-            ax.text(
-                power_budget, 0.72, f'{wrap_label(label, width=22)}\n(pinned at budget)',
-                transform=trans, fontsize=7.5, ha='center', va='top',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='0.5', alpha=0.85),
-            )
+            pinned_groups.setdefault(round(total_power.mean(), 1), []).append(label)
+    for pinned_value, labels_at_value in pinned_groups.items():
+        at_budget = abs(pinned_value - power_budget) < 0.01 * power_budget
+        suffix = '(pinned at budget)' if at_budget else f'(pinned at {pinned_value:.1f} W)'
+        combined_label = ', '.join(wrap_label(l, width=22) for l in labels_at_value)
+        # y=0.72, not higher: the legend (loc='upper left') occupies roughly
+        # the top ~20% of the panel, and this callout is centered at the
+        # series' own pinned value -- for a single pinned series the x-axis
+        # autoscales tightly around the spike, putting that x-position
+        # directly under the legend if placed too high. zorder=10: Legend
+        # artists default to zorder=5 regardless of add-order, so a pinned
+        # value that lands under the legend's footprint (more likely now
+        # that multiple curves can be pinned at different values) would
+        # otherwise render hidden behind it despite being added after.
+        ax.text(
+            pinned_value, 0.72, f'{combined_label}\n{suffix}',
+            transform=trans, fontsize=7.5, ha='center', va='top', zorder=10,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='0.5', alpha=0.85),
+        )
 
     # ---- Panel 2: boxplot, the clearest at-a-glance comparison ----
     # showfliers=False + whis=[0, 100]: with 10k Monte Carlo samples, default
@@ -177,10 +197,10 @@ def plot_power_savings_comparison(
     ax2.axhline(power_budget, color=budget_color, linestyle='--', linewidth=1.5, label='Power budget')
     ax2.grid(True, axis='y', alpha=0.25, linewidth=0.5)
     ax2.set_axisbelow(True)
-    ax2.set_ylabel('Total transmit power [W]')
+    ax2.set_ylabel('Total transmit power [W]', fontsize=13)
     ax2.set_title('Total power: distribution summary', fontsize=11)
     ax2.tick_params(axis='x', labelsize=9)
-    ax2.legend(fontsize=8, loc='lower left')
+    ax2.legend(fontsize=11, loc='lower left')
     if degenerate_range:
         # same reasoning as panel 1's bin-range override: boxplot
         # autoscaling would otherwise zoom into ~1e-5 W floating-point
@@ -223,14 +243,14 @@ def plot_power_savings_comparison(
     ax3.axhline(power_budget, color=budget_color, linestyle='--', linewidth=1.2)
     ax3.grid(True, axis='y', alpha=0.25, linewidth=0.5)
     ax3.set_axisbelow(True)
-    ax3.set_ylabel('Per-user transmit power [W]')
+    ax3.set_ylabel('Per-user transmit power [W]', fontsize=13)
     ax3.set_title('Per-user power allocation', fontsize=11)
     ax3.tick_params(axis='x', labelsize=9)
     legend_handles = [
         Patch(facecolor=user_colors[u % len(user_colors)], alpha=0.65, label=f'User {u + 1}')
         for u in range(user_nr)
     ] + [Line2D([0], [0], color=budget_color, linestyle='--', label='Power budget')]
-    ax3.legend(handles=legend_handles, fontsize=8, loc='upper right')
+    ax3.legend(handles=legend_handles, fontsize=11, loc='upper right')
 
     fig.suptitle('Is power being saved? Total transmit power vs budget', fontsize=13, y=1.02)
     # rect leaves headroom for the suptitle -- plain tight_layout() doesn't

@@ -150,11 +150,19 @@ if __name__ == '__main__':
         'SAC (Δε = 0.0, energy-efficient)',
         'MMSE (equal power, Δε = 0.0)',
     ]
+
+    # Same MMSE/RM/EE notation as plotting_scenario.py's error-sweep figure
+    # ($P$/$P_{\mathrm{rad}}$ from 99_custommacros.sty, not literal
+    # "trained"/"inferred" text) -- watts pulled from the actual measured
+    # samples, not hardcoded.
+    ee_train_watt = round(data['samples_dict']['SAC (Δε = 0.0, energy-efficient)'].sum(axis=1).mean())
+    mmse_matched_watt = round(data['samples_dict']['MMSE (equal power, Δε = 0.0)'].sum(axis=1).mean())
+    p_rad = r'$P_{\mathrm{rad}}$'
     display_labels = {
-        'SAC (75 W budget)': 'SAC (75 W budget)',
-        'MMSE (75 W budget)': 'MMSE (75 W budget)',
-        'SAC (Δε = 0.0, energy-efficient)': 'EE (Δε = 0.0)',
-        'MMSE (equal power, Δε = 0.0)': 'MMSE (equal power, Δε = 0.0)',
+        'SAC (75 W budget)': 'RM',
+        'MMSE (75 W budget)': 'MMSE',
+        'SAC (Δε = 0.0, energy-efficient)': f'EE, $P={ee_train_watt}$ W',
+        'MMSE (equal power, Δε = 0.0)': f'MMSE, $P={mmse_matched_watt}$ W',
     }
     ordered_samples_dict = {
         display_labels[label]: data['samples_dict'][label] for label in ordered_labels
