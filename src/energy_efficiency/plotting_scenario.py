@@ -227,15 +227,17 @@ if __name__ == '__main__':
     plot_width = 0.99 * plot_cfg.textwidth
     plot_height = plot_width * 0.6
 
-    # Legend text uses measured watts (rounded), not fixed placeholders --
-    # ee_infer_watt/rm_watt are the same checkpoint's full-power-projected
-    # measurement, so they're numerically identical for now; they'll diverge
-    # once SAC_rateonly_satg30_p75_nadir.slurm's own checkpoint replaces the
-    # RM curve's data below.
+    # Legend text uses measured watts (rounded), not fixed placeholders.
     ee_train_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
-    ee_infer_watt = round(data['results']['sac_aod0.0_fullpower']['mean_power'][0])
-    rm_watt = round(data['results']['sac_aod0.0_fullpower']['mean_power'][0])
     mmse_matched_watt = round(data['results']['mmse_matched_aod0.0']['mean_power'][0])
+
+    # Notation from the paper's own macros (99_custommacros.sty): \precoderpower
+    # ($P$, a precoder's own measured radiated power) and \transmitpower
+    # ($P_{\text{rad}}$, the fixed budget) -- "inferred at full power" is by
+    # definition P_rad, so it's written as the symbol, not a re-measured watt
+    # value. matplotlib mathtext (usetex=False) needs \mathrm{} in place of
+    # \text{} -- otherwise matches the draft's LaTeX exactly.
+    p_rad = r'$P_{\mathrm{rad}}$'
 
     curves = [
         {'result_key': 'mmse_nadir', 'label': 'MMSE',
@@ -246,11 +248,11 @@ if __name__ == '__main__':
         # swap 'sac_aod0.0_fullpower' for that checkpoint's result_key then.
         {'result_key': 'sac_aod0.0_fullpower', 'label': 'RM',
          'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE, trained {ee_train_watt} W, inferred {ee_infer_watt} W',
+        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE, $P={ee_train_watt}$ W, {p_rad}',
          'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
-        {'result_key': 'sac_aod0.0', 'label': f'EE, trained {ee_train_watt} W, inferred {ee_train_watt} W',
+        {'result_key': 'sac_aod0.0', 'label': f'EE, $P={ee_train_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE, inferred {mmse_matched_watt} W',
+        {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE, $P={mmse_matched_watt}$ W',
          'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
     ]
 
