@@ -227,15 +227,30 @@ if __name__ == '__main__':
     plot_width = 0.99 * plot_cfg.textwidth
     plot_height = plot_width * 0.6
 
+    # Legend text uses measured watts (rounded), not fixed placeholders --
+    # ee_infer_watt/rm_watt are the same checkpoint's full-power-projected
+    # measurement, so they're numerically identical for now; they'll diverge
+    # once SAC_rateonly_satg30_p75_nadir.slurm's own checkpoint replaces the
+    # RM curve's data below.
+    ee_train_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
+    ee_infer_watt = round(data['results']['sac_aod0.0_fullpower']['mean_power'][0])
+    rm_watt = round(data['results']['sac_aod0.0_fullpower']['mean_power'][0])
+    mmse_matched_watt = round(data['results']['mmse_matched_aod0.0']['mean_power'][0])
 
     curves = [
-        {'result_key': 'mmse_nadir', 'label': 'MMSE (75 W budget)',
+        {'result_key': 'mmse_nadir', 'label': 'MMSE',
          'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':'},
-        {'result_key': 'sac_aod0.0_fullpower', 'label': 'SAC (75 W budget)',
+        # RM = rate-maximization baseline. Reuses the EE (Δε=0.0) checkpoint's
+        # full-power-inference data as a stand-in until SAC_rateonly_
+        # satg30_p75_nadir.slurm's own separately-trained checkpoint exists --
+        # swap 'sac_aod0.0_fullpower' for that checkpoint's result_key then.
+        {'result_key': 'sac_aod0.0_fullpower', 'label': 'RM',
          'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.0', 'label': 'EE (Δε = 0.0)',
+        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE, trained {ee_train_watt} W, inferred {ee_infer_watt} W',
+         'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
+        {'result_key': 'sac_aod0.0', 'label': f'EE, trained {ee_train_watt} W, inferred {ee_train_watt} W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'mmse_matched_aod0.0', 'label': 'MMSE (equal power, Δε = 0.0)',
+        {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE, inferred {mmse_matched_watt} W',
          'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
     ]
 
