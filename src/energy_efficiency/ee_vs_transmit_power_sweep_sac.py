@@ -98,6 +98,8 @@ def run_ee_vs_power_sweep_sac(cfg, norm_factors, precoder_network):
     return mean_rate, std_rate
 
 
+PLOT_ONLY = '--plot-only' in sys.argv
+
 if __name__ == '__main__':
     cfg = Config()
     cfg.show_plots = False
@@ -108,35 +110,64 @@ if __name__ == '__main__':
     model_path = get_best_model_path(cfg.trained_models_path, TRAINING_NAME)
     print(f'[ee_vs_transmit_power_sweep_sac] checkpoint: {model_path}, csit_error_bound={CSIT_ERROR_BOUND}')
 
-    precoder_network, norm_factors = load_model(model_path)
-    if norm_factors != {}:
-        cfg.config_learner.get_state_args['norm_state'] = True
-
-    mean_rate, std_rate = run_ee_vs_power_sweep_sac(cfg, norm_factors, precoder_network)
-    total_power = np.array([total_power_watt(cfg, p) for p in power_sweep_watt])
-    ee = mean_rate / total_power
-
     out_path = Path(cfg.output_metrics_path, 'EE_vs_transmit_power')
     out_path.mkdir(parents=True, exist_ok=True)
     gzip_path = Path(out_path, f'ee_vs_power_sweep_sac_error{CSIT_ERROR_BOUND:g}.gzip')
-    with gzip.open(gzip_path, 'wb') as file:
-        pickle.dump({
-            'power_sweep_watt': power_sweep_watt,
-            'mean_rate': mean_rate,
-            'std_rate': std_rate,
-            'total_power_watt': total_power,
-            'ee': ee,
-            'power_budget': cfg.power_constraint_watt,
-            'training_name': TRAINING_NAME,
-            'checkpoint': str(model_path),
-            'csit_error_bound': CSIT_ERROR_BOUND,
-        }, file=file)
-    print(f'Saved: {gzip_path}')
+
+    if PLOT_ONLY and gzip_path.exists():
+        with gzip.open(gzip_path, 'rb') as file:
+            cached = pickle.load(file)
+        mean_rate, total_power, ee = cached['mean_rate'], cached['total_power_watt'], cached['ee']
+    else:
+        precoder_network, norm_factors = load_model(model_path)
+        if norm_factors != {}:
+            cfg.config_learner.get_state_args['norm_state'] = True
+
+        mean_rate, std_rate = run_ee_vs_power_sweep_sac(cfg, norm_factors, precoder_network)
+        total_power = np.array([total_power_watt(cfg, p) for p in power_sweep_watt])
+        ee = mean_rate / total_power
+
+        with gzip.open(gzip_path, 'wb') as file:
+            pickle.dump({
+                'power_sweep_watt': power_sweep_watt,
+                'mean_rate': mean_rate,
+                'std_rate': std_rate,
+                'total_power_watt': total_power,
+                'ee': ee,
+                'power_budget': cfg.power_constraint_watt,
+                'training_name': TRAINING_NAME,
+                'checkpoint': str(model_path),
+                'csit_error_bound': CSIT_ERROR_BOUND,
+            }, file=file)
+        print(f'Saved: {gzip_path}')
 
     argmax_idx = int(np.argmax(ee))
     print(f'SAC EE maximizer: transmit_power={power_sweep_watt[argmax_idx]:.2f} W '
           f'(budget={cfg.power_constraint_watt:.0f} W), EE={ee[argmax_idx]:.5f} bps/Hz/W, '
           f'rate={mean_rate[argmax_idx]:.4f} bps/Hz')
+
+    # Where the DEPLOYED policy actually sits: it doesn't transmit a fixed
+    # power on every channel like the sweep above does -- it picks power
+    # adaptively per realization (clip-only projection), and this is the
+    # population mean of that adaptive choice. Pulled from the real
+    # rate_power_triplet.gzip data (same checkpoint, same error bound), not
+    # hardcoded, so this stays correct if the checkpoint is retrained.
+    # Plotting both points on the same axes is what makes the "fixed vs.
+    # adaptive power" distinction legible instead of looking like two
+    # figures disagree with each other.
+    deployed_point = None
+    triplet_gzip = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet', 'rate_power_triplet.gzip')
+    if triplet_gzip.exists():
+        with gzip.open(triplet_gzip, 'rb') as file:
+            triplet_data = pickle.load(file)
+        error_idx = int(np.argmin(np.abs(triplet_data['error_sweep_range'] - CSIT_ERROR_BOUND)))
+        deployed_power = triplet_data['results']['sac_aod0.0']['mean_power'][error_idx]
+        deployed_rate = triplet_data['results']['sac_aod0.0']['mean_rate'][error_idx]
+        deployed_total_power = total_power_watt(cfg, deployed_power)
+        deployed_ee = deployed_rate / deployed_total_power
+        deployed_point = (deployed_power, deployed_ee)
+        print(f'Deployed policy (adaptive power, mean): transmit_power={deployed_power:.2f} W, '
+              f'EE={deployed_ee:.5f} bps/Hz/W, rate={deployed_rate:.4f} bps/Hz')
 
     # overlay against the MMSE curve at the same error bound, if available
     mmse_gzip = Path(out_path, f'ee_vs_power_sweep_error{CSIT_ERROR_BOUND:g}.gzip')
@@ -156,21 +187,34 @@ if __name__ == '__main__':
     # (aod=0.0) appears -- plotting_scenario.py's error-sweep figure and
     # power_savings_bars_triplet.py's bar chart.
     ax.plot(power_sweep_watt, ee, color=plot_cfg.cp2['green'], marker='o', markersize=4, linewidth=1.5,
-            label='EE (Δε = 0.0)')
+            label='EE')
     if mmse_data is not None:
         ax.plot(mmse_data['power_sweep_watt'], mmse_data['ee'], color=plot_cfg.cp2['black'], marker='x',
                 markersize=4, linewidth=1.3, linestyle='--', label='MMSE')
     ax.axvline(cfg.power_constraint_watt, color='gray', linestyle=':', linewidth=1.2,
-               label=f'power budget ({cfg.power_constraint_watt:.0f} W)')
+               label=r'$P_{\mathrm{rad}}$')
     if not HIDE_MAXIMIZER:
         ax.axvline(power_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
-                   label=f'EE maximizer ({power_sweep_watt[argmax_idx]:.1f} W)')
-    ax.set_xlabel('Fixed transmit power [W]')
-    ax.set_ylabel('EE [bps/Hz/W]')
-    ax.set_title(f'EE vs. MMSE direction, CSIT error bound={CSIT_ERROR_BOUND:g}', fontsize=9)
+                   label=f'best fixed $P={power_sweep_watt[argmax_idx]:.0f}$ W')
+    if deployed_point is not None:
+        # Distinct marker/color (gold, matches "RM"/deployed-policy styling
+        # elsewhere) and its own legend entry -- this is NOT a point on the
+        # constant-power curve, it's the deployed policy's own adaptive-
+        # power operating point, shown on the same axes on purpose so the
+        # "12 W vs 35 W" difference reads as two different quantities
+        # instead of a contradiction between figures. Terse label (matches
+        # the other figures' MMSE/RM/EE convention) -- legend text length
+        # matters here specifically because a wide legend box can visually
+        # cover the very data it's meant to explain.
+        ax.plot(*deployed_point, color=plot_cfg.cp2['gold'], marker='*', markersize=12,
+                linestyle='none', zorder=5,
+                label=f'deployed, $P={deployed_point[0]:.0f}$ W')
+    ax.set_xlabel('Transmit power, held constant across channels [W]', fontsize=13)
+    ax.set_ylabel('EE [bps/Hz/W]', fontsize=13)
+    ax.set_title(f'EE vs. constant transmit power, $\\Delta\\epsilon={CSIT_ERROR_BOUND:g}$', fontsize=11)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
-    ax.legend(fontsize=7, loc='upper right')
+    ax.legend(fontsize=11, loc='lower right')
     fig.tight_layout(pad=0.4)
 
     name_suffix = '_paper' if HIDE_MAXIMIZER else ''
