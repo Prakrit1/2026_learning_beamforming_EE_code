@@ -74,7 +74,7 @@ def plot_power_savings_bars(
     ax.set_yticks(y_positions)
     ax.set_yticklabels(labels, fontsize=11)  # this chart's equivalent of a legend
     ax.set_xlabel('Transmit power [W]', fontsize=13)
-    ax.set_xlim(0, power_budget * 1.6)
+    ax.set_xlim(0, power_budget * 1.1)
     ax.set_ylim(-0.7, n - 1 + bar_height / 2 + 0.55)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
