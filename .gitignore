@@ -13,8 +13,6 @@ venv/
 /.pylintrc
 nohup.out.nfs*
 .giosave*
-*.err
-*.out
 /claude/
 
 # Separate Overleaf-synced git repo (own .git, own remote) -- see handoff
