@@ -16,6 +16,11 @@ def plot_power_savings_bars(
     model_colors: list = None,
     title: str = 'How much power does each model actually use?',
 ):
+    # Re-assert here, not just at import time: PlotConfig() (constructed by
+    # the calling script right before this) resets text.usetex to True,
+    # which makes matplotlib invoke real LaTeX for every text/label and
+    # crash if it isn't installed.
+    matplotlib.rcParams['text.usetex'] = False
 
     track_color = '#e2e2e2'
     budget_line_color = '#d03b3b'

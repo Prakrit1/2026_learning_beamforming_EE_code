@@ -28,6 +28,11 @@ def plot_power_savings_comparison(
                   original fixed 2-color categorical pair -- pass an explicit
                   list for anything other than a plain 2-model comparison.
     """
+    # Re-assert here, not just at import time: PlotConfig() (constructed by
+    # the calling script right before this) resets text.usetex to True,
+    # which makes matplotlib invoke real LaTeX for every text/label and
+    # crash if it isn't installed.
+    matplotlib.rcParams['text.usetex'] = False
     from matplotlib.patches import Patch
     from matplotlib.lines import Line2D
 
