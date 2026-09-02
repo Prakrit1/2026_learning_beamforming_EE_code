@@ -30,8 +30,7 @@ monte_carlo_iterations = 10000
 
 
 def run_power_samples(cfg, label, get_precoder_func):
-    """Per-user transmit power for monte_carlo_iterations draws at a fixed CSIT error bound.
-    Returns an array of shape (monte_carlo_iterations, user_nr), the input plot_power_savings_bars expects."""
+
     satellite_manager = SatelliteManager(config=cfg)
     user_manager = UserManager(config=cfg)
 
@@ -54,10 +53,7 @@ def run_power_samples(cfg, label, get_precoder_func):
 
 
 def run_matched_power_mmse_samples(cfg, label, target_mean_power):
-    """Per-user transmit power for MMSE rescaled to target_mean_power -- the fair
-    equal-power comparison against SAC's own measured power. Same rescaling as
-    plotting_scenario.py's run_matched_power_mmse_sweep, but a single fixed
-    target (this figure is one CSIT error point, not a sweep)."""
+
     satellite_manager = SatelliteManager(config=cfg)
     user_manager = UserManager(config=cfg)
 
@@ -98,9 +94,6 @@ if __name__ == '__main__':
         mmse_full_label = 'MMSE (75 W budget)'
         samples_dict[mmse_full_label] = run_power_samples(cfg, mmse_full_label, get_precoding_mmse)
 
-        # aod0.0 checkpoint, evaluated both ways: always-rescale-to-budget
-        # ("full power") and clip-only ("energy-efficient") -- same trained
-        # network, matching plotting_scenario.py's error-sweep figure.
         training_name = CHECKPOINTS['aod0.0']
         cfg.config_learner.training_name = training_name
         model_path = get_best_model_path(cfg.trained_models_path, training_name)
@@ -122,8 +115,6 @@ if __name__ == '__main__':
             lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
         )
 
-        # MMSE rescaled to SAC-EE's own measured mean power -- the fair
-        # equal-power comparison, same pairing as the error-sweep figure.
         sac_ee_mean_power = samples_dict[sac_ee_label].sum(axis=1).mean()
         mmse_matched_label = 'MMSE (equal power, Δε = 0.0)'
         samples_dict[mmse_matched_label] = run_matched_power_mmse_samples(
@@ -140,10 +131,6 @@ if __name__ == '__main__':
 
     plot_cfg = PlotConfig()
 
-    # keys must match the strings run_power_samples()/run_matched_power_mmse_samples()
-    # used when building samples_dict (and thus the cached gzip); the display
-    # labels shown on the chart are remapped separately below so relabeling
-    # here never requires regenerating cached data.
     ordered_labels = [
         'SAC (75 W budget)',
         'MMSE (75 W budget)',
@@ -151,10 +138,7 @@ if __name__ == '__main__':
         'MMSE (equal power, Δε = 0.0)',
     ]
 
-    # Same MMSE/RM/EE notation as plotting_scenario.py's error-sweep figure
-    # ($P$/$P_{\mathrm{rad}}$ from 99_custommacros.sty, not literal
-    # "trained"/"inferred" text) -- watts pulled from the actual measured
-    # samples, not hardcoded.
+
     ee_train_watt = round(data['samples_dict']['SAC (Δε = 0.0, energy-efficient)'].sum(axis=1).mean())
     mmse_matched_watt = round(data['samples_dict']['MMSE (equal power, Δε = 0.0)'].sum(axis=1).mean())
     p_rad = r'$P_{\mathrm{rad}}$'
