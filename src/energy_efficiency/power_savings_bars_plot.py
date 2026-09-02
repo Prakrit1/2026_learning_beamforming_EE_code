@@ -55,8 +55,6 @@ def plot_power_savings_bars(
                 [y, y], color=text_color, alpha=0.5, linewidth=1, zorder=3, solid_capstyle='round')
 
         pct_used = 100 * mean_power / power_budget
-        watts_saved = power_budget - mean_power
-        pct_saved = 100 * watts_saved / power_budget
         value_label = f'{mean_power:.0f} W ({pct_used:.0f}%)'
 
         # No reliable way to know rendered text width before drawing, so
