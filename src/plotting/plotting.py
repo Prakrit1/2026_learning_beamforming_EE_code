@@ -74,14 +74,18 @@ def plot_rate_error_sweep(
                 fontsize=7, color=curve['color'], fontweight='bold',
             )
 
-    ax.set_xlabel('Error Bound (Δε)')
-    ax.set_ylabel('Rate R [bps/Hz]')
+    # PlotConfig's rc default (axes.labelsize=2*9.13≈18.3) makes the axis
+    # titles look oversized next to the legend's hardcoded fontsize=9 --
+    # pulled both toward a matching size explicitly rather than relying on
+    # the rc default here.
+    ax.set_xlabel('Error Bound (Δε)', fontsize=13)
+    ax.set_ylabel('Rate R [bps/Hz]', fontsize=13)
     ax.grid(True, alpha=0.5, linewidth=0.7)
     ax.set_axisbelow(True)
     ax.legend(
         loc='upper right',
         ncols=legend_ncols,
-        fontsize=9,
+        fontsize=11,
         framealpha=0.9,
         frameon=True,
         handlelength=1.6,
