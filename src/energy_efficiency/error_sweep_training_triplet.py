@@ -44,11 +44,11 @@ if __name__ == '__main__':
     p_rad = r'$P_{\mathrm{rad}}$'
 
     curves = [
-        {'result_key': 'sac_aod0.025', 'label': f'EE, $P={aod0025_watt}$ W',
-         'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.025_fullpower', 'label': f'EE, $P={aod0025_watt}$ W, {p_rad}',
+        {'result_key': 'sac_aod0.025_fullpower', 'label': f'EE, $P={aod0025_watt}$ W, {p_rad}, Δε = 0.025',
          'color': plot_cfg.cp2['gold'], 'marker': 'D', 'linestyle': '-.'},
-        {'result_key': 'sac_aod0.05', 'label': f'EE, $P={aod05_watt}$ W',
+        {'result_key': 'sac_aod0.025', 'label': f'EE, $P={aod0025_watt}$ W, Δε = 0.025',
+         'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-'},
+        {'result_key': 'sac_aod0.05', 'label': f'EE, $P={aod05_watt}$ W, Δε = 0.05',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-'},
     ]
 
