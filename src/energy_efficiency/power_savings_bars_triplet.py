@@ -23,7 +23,6 @@ from src.utils.update_sim import update_sim
 from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
 from src.energy_efficiency.power_savings_bars_plot import plot_power_savings_bars
 
-PLOT_ONLY = '--plot-only' in sys.argv
 
 eval_error_bound = 0.0  # "zero eval error" -- matches the archived reference figures
 monte_carlo_iterations = 10000
