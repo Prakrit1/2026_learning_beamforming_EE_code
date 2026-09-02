@@ -16,16 +16,7 @@ def plot_power_savings_bars(
     model_colors: list = None,
     title: str = 'How much power does each model actually use?',
 ):
-    """
-    One horizontal loading-bar per model: a light gray track spans the full
-    power budget, a colored fill shows the actual mean power used. The
-    unfilled portion is the savings, readable at a glance without a legend.
 
-    samples_dict: {label: samples_array}, samples_array shape
-                  (monte_carlo_iterations, user_nr). Total power per draw is
-                  samples.sum(axis=1); only the mean is shown as the bar's
-                  fill (a thin whisker marks +-1 std).
-    """
     track_color = '#e2e2e2'
     budget_line_color = '#d03b3b'
     text_color = '#2b2b2b'
@@ -57,9 +48,7 @@ def plot_power_savings_bars(
         pct_used = 100 * mean_power / power_budget
         value_label = f'{mean_power:.0f} W ({pct_used:.0f}%)'
 
-        # No reliable way to know rendered text width before drawing, so
-        # approximate it (generously, to avoid overflow) to decide whether
-        # the value label fits past the bar or needs to go inside it.
+
         approx_char_width = 0.013 * power_budget
         label_width_est = approx_char_width * len(value_label)
         margin = 0.02 * power_budget
@@ -73,8 +62,7 @@ def plot_power_savings_bars(
                     va='center', ha='right', fontsize=9.5, color='white', zorder=4, fontweight='bold')
 
     ax.axvline(power_budget, color=budget_line_color, linestyle='--', linewidth=1.5, zorder=1)
-    # $P_{\mathrm{rad}}$ notation (99_custommacros.sty's \transmitpower),
-    # matching the error-sweep figure's legend.
+
     ax.text(power_budget, n - 1 + bar_height / 2 + 0.15, r'$P_{\mathrm{rad}}$',
             ha='center', va='bottom', fontsize=11, color=budget_line_color)
 
