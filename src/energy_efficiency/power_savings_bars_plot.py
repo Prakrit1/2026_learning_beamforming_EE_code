@@ -15,6 +15,7 @@ def plot_power_savings_bars(
     name: str = 'power_savings_bars',
     model_colors: list = None,
     title: str = 'How much power does each model actually use?',
+    width: float = 9,
 ):
     # Re-assert here, not just at import time: PlotConfig() (constructed by
     # the calling script right before this) resets text.usetex to True,
@@ -39,7 +40,7 @@ def plot_power_savings_bars(
 
     n = len(labels)
     fig_height = max(2.2, 0.9 * n + 0.8)
-    fig, ax = plt.subplots(figsize=(9, fig_height))
+    fig, ax = plt.subplots(figsize=(width, fig_height))
 
     y_positions = np.arange(n)[::-1]  # first entry in samples_dict drawn at the top
     bar_height = 0.5

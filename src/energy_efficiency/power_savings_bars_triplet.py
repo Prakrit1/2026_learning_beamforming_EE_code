@@ -166,4 +166,9 @@ if __name__ == '__main__':
         name='power_savings_bars',
         model_colors=bar_colors,
         title='transmit power used vs. budget',
+        # Same physical width as plot_rate_error_sweep's figures (0.99 *
+        # textwidth) -- both get inserted at \linewidth in the paper, so
+        # matching canvas width is what makes the same point-size text
+        # render at the same apparent size once LaTeX scales it down.
+        width=0.99 * plot_cfg.textwidth,
     )
