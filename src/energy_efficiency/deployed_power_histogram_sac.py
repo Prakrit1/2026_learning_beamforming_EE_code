@@ -44,6 +44,11 @@ CSIT_ERROR_BOUND = 0.0  # matches power_savings_bars_triplet.py's source data, s
 if __name__ == '__main__':
     cfg = Config()
     plot_cfg = PlotConfig()
+    # PlotConfig() resets rcParams['text.usetex'] to True internally, which
+    # needs a local `latex` binary the compute nodes don't have -- every
+    # other script in this repo re-asserts False here for the same reason
+    # (see commit 86244ba, "restore text.usetex=False re-assertion").
+    matplotlib.rcParams['text.usetex'] = False
 
     gzip_path = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet', 'power_savings_bars.gzip')
     with gzip.open(gzip_path, 'rb') as file:
