@@ -194,28 +194,42 @@ if __name__ == '__main__':
     ax.axvline(cfg.power_constraint_watt, color='gray', linestyle=':', linewidth=1.2,
                label=r'$P_{\mathrm{rad}}$')
     if not HIDE_MAXIMIZER:
+        # $P^\star$: the single fixed power that maximizes EE on this sweep
+        # (a deterministic sweep location, not a mean over anything -- no
+        # bar). Value shown inline, matching power_savings_bars_plot.py's
+        # "name, $P=XX$ W" convention (there: 'EE, $P=35$ W' etc.) so this
+        # figure's legend reads the same way as that one. Full explanation
+        # of why this differs from $\bar P_{\mathrm{EE}}$ belongs in the
+        # caption, not the legend.
         ax.axvline(power_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
-                   label=f'best fixed $P={power_sweep_watt[argmax_idx]:.0f}$ W')
+                   label=fr'$P^\star \approx {power_sweep_watt[argmax_idx]:.0f}$ W')
     if deployed_point is not None:
-        # Distinct marker/color (gold, matches "RM"/deployed-policy styling
-        # elsewhere) and its own legend entry -- this is NOT a point on the
-        # constant-power curve, it's the deployed policy's own adaptive-
-        # power operating point, shown on the same axes on purpose so the
-        # "12 W vs 35 W" difference reads as two different quantities
-        # instead of a contradiction between figures. Terse label (matches
-        # the other figures' MMSE/RM/EE convention) -- legend text length
-        # matters here specifically because a wide legend box can visually
-        # cover the very data it's meant to explain.
+        # $\bar P_{\mathrm{EE}}$: mean transmit power of the deployed EE
+        # policy (subscript ties it to the same policy the green 'EE' curve
+        # sweeps, and to the 'EE' bar in power_savings_bars_plot.py; bar
+        # accent marks it as a population mean over adaptive per-channel
+        # choices, unlike the single fixed value $P^\star$). Distinct
+        # marker/color (gold, matches "RM"/deployed-policy styling
+        # elsewhere) -- this is NOT a point on the constant-power curve,
+        # it's the deployed policy's own adaptive-power operating point,
+        # shown on the same axes on purpose so the "12 W vs 35 W"
+        # difference reads as two different quantities instead of a
+        # contradiction between figures. Full explanation belongs in the
+        # caption, not the legend.
         ax.plot(*deployed_point, color=plot_cfg.cp2['gold'], marker='*', markersize=12,
                 linestyle='none', zorder=5,
-                label=f'deployed, $P={deployed_point[0]:.0f}$ W')
+                label=fr'$\bar P_{{\mathrm{{EE}}}} \approx {deployed_point[0]:.0f}$ W')
     ax.set_xlabel('Transmit power, held constant across channels [W]', fontsize=13)
     ax.set_ylabel('EE [bps/Hz/W]', fontsize=13)
-    ax.set_title(f'EE vs. constant transmit power, $\\Delta\\epsilon={CSIT_ERROR_BOUND:g}$', fontsize=11)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
-    ax.legend(fontsize=11, loc='lower right')
-    fig.tight_layout(pad=0.4)
+    # Legend above the axes (not overlapping the curve/star) -- title text
+    # moves to the caption (paper convention), freeing this space.
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.08),
+               ncol=len(labels), fontsize=11, frameon=False, columnspacing=1.4,
+               handletextpad=0.5)
+    fig.tight_layout(rect=(0, 0, 1, 0.88))
 
     name_suffix = '_paper' if HIDE_MAXIMIZER else ''
     out = Path(pdf_path, f'ee_vs_transmit_power_sac_error{CSIT_ERROR_BOUND:g}{name_suffix}.pdf')
