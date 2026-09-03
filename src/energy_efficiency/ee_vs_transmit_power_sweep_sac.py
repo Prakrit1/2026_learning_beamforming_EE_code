@@ -1,5 +1,16 @@
 
+import os
 import sys
+
+# Guard against leftover shell env vars from other ablation runs (elevation/
+# gain/budget sweeps) silently changing this system's configuration --
+# power_savings_bars_triplet.py and plotting_scenario.py already do this;
+# this script needs the same guard so its sweep is on the same system as
+# the deployed-policy comparison it's plotted against.
+os.environ.pop('EE_SAT_GAIN_DBI', None)
+os.environ.pop('EE_POWER_BUDGET_WATT', None)
+os.environ.pop('EE_TARGET_ELEVATION_DEG', None)
+
 import gzip
 import pickle
 from pathlib import Path

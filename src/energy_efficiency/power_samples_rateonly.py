@@ -16,6 +16,16 @@ just their means), so their distributions can be histogrammed directly.
 
 Saves outputs/metrics/EE_lwin5000_3gpp_triplet/power_samples_rateonly.gzip
 """
+import os
+
+# Guard against leftover shell env vars from other ablation runs (elevation/
+# gain/budget sweeps) silently changing this system's configuration --
+# power_savings_bars_triplet.py and plotting_scenario.py already do this;
+# this script needs the same guard for direct comparability with their data.
+os.environ.pop('EE_SAT_GAIN_DBI', None)
+os.environ.pop('EE_POWER_BUDGET_WATT', None)
+os.environ.pop('EE_TARGET_ELEVATION_DEG', None)
+
 import gzip
 import pickle
 from pathlib import Path
