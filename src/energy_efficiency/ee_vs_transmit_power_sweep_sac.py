@@ -19,10 +19,6 @@ lambda-init variant, job 1175, which the handoff confirms converges to
 essentially the same policy -- but using a genuinely different checkpoint
 than the other two figures was worth fixing regardless).
 
-Plots the SAC curve against the already-saved MMSE curve at the same error
-bound from outputs/metrics/EE_vs_transmit_power/ee_vs_power_sweep_error{X}.gzip
-(run ee_vs_transmit_power_sweep.py --error X first if missing).
-
 Saves outputs/metrics/EE_vs_transmit_power/ee_vs_power_sweep_sac_error{X}.gzip
 and reports/figures/pdf/ee_vs_transmit_power_sac_error{X}.pdf.
 """
@@ -169,13 +165,6 @@ if __name__ == '__main__':
         print(f'Deployed policy (adaptive power, mean): transmit_power={deployed_power:.2f} W, '
               f'EE={deployed_ee:.5f} bps/Hz/W, rate={deployed_rate:.4f} bps/Hz')
 
-    # overlay against the MMSE curve at the same error bound, if available
-    mmse_gzip = Path(out_path, f'ee_vs_power_sweep_error{CSIT_ERROR_BOUND:g}.gzip')
-    mmse_data = None
-    if mmse_gzip.exists():
-        with gzip.open(mmse_gzip, 'rb') as file:
-            mmse_data = pickle.load(file)
-
     pdf_path = Path(plot_cfg.plots_parent_path, 'pdf')
     pdf_path.mkdir(parents=True, exist_ok=True)
 
@@ -188,9 +177,6 @@ if __name__ == '__main__':
     # power_savings_bars_triplet.py's bar chart.
     ax.plot(power_sweep_watt, ee, color=plot_cfg.cp2['green'], marker='o', markersize=4, linewidth=1.5,
             label='EE')
-    if mmse_data is not None:
-        ax.plot(mmse_data['power_sweep_watt'], mmse_data['ee'], color=plot_cfg.cp2['black'], marker='x',
-                markersize=4, linewidth=1.3, linestyle='--', label='MMSE')
     ax.axvline(cfg.power_constraint_watt, color='gray', linestyle=':', linewidth=1.2,
                label=r'$P_{\mathrm{rad}}$')
     if not HIDE_MAXIMIZER:
@@ -219,7 +205,10 @@ if __name__ == '__main__':
         ax.plot(*deployed_point, color=plot_cfg.cp2['gold'], marker='*', markersize=12,
                 linestyle='none', zorder=5,
                 label=fr'$\bar P_{{\mathrm{{EE}}}} \approx {deployed_point[0]:.0f}$ W')
-    ax.set_xlabel('Transmit power, held constant across channels [W]', fontsize=13)
+    # $P$ matches \precoderpower in the paper's macros (99_custommacros.sty),
+    # the same bare-P symbol already used in the P^star / P_bar_EE legend
+    # entries above.
+    ax.set_xlabel(r'Transmit power $P$, held constant across channels [W]', fontsize=13)
     ax.set_ylabel('EE [bps/Hz/W]', fontsize=13)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
