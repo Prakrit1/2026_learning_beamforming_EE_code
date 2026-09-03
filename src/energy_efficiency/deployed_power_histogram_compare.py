@@ -1,5 +1,6 @@
 """Overlay the EE-trained policy's and the rate-only-trained policy's own
-per-channel radiated power distributions on the same axes.
+per-channel radiated power distributions on the same axes, as continuous
+KDE density curves (not binned bars) with an explicit gain annotation.
 
 Companion/superset of deployed_power_histogram_sac.py: that script only
 plots the Dinkelbach-adaptive-EE checkpoint's histogram (source:
@@ -24,6 +25,7 @@ import pickle
 from pathlib import Path
 
 import numpy as np
+from scipy.stats import gaussian_kde
 
 import matplotlib
 matplotlib.use('Agg')
@@ -34,6 +36,18 @@ from src.config.config import Config
 from src.config.config_plotting import PlotConfig
 
 CSIT_ERROR_BOUND = 0.0  # matches both source gzips, see docstring
+
+
+def density_curve(samples, x_grid, min_std=1e-3):
+    """Gaussian-KDE density over x_grid, or a narrow synthetic spike if the
+    samples are (near-)degenerate -- gaussian_kde needs nonzero variance,
+    and the rate-only policy is expected to land at essentially the same
+    power (the budget) on every realization."""
+    std = samples.std()
+    if std < min_std:
+        spike_std = max(min_std, x_grid[-1] * 0.003)
+        return np.exp(-0.5 * ((x_grid - samples.mean()) / spike_std) ** 2) / (spike_std * np.sqrt(2 * np.pi))
+    return gaussian_kde(samples)(x_grid)
 
 
 if __name__ == '__main__':
@@ -70,22 +84,36 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.62
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
-    bins = np.linspace(0, power_budget, 41)
+    x_grid = np.linspace(0, power_budget * 1.05, 500)
+    ee_density = density_curve(ee_power, x_grid)
+    rateonly_density = density_curve(rateonly_power, x_grid)
+
     # green matches the EE checkpoint's color everywhere else it appears;
     # black matches the MMSE/baseline convention used in the other figures.
-    ax.hist(ee_power, bins=bins, color=plot_cfg.cp2['green'], alpha=0.6,
-            edgecolor='white', linewidth=0.4, label='EE',
-            weights=np.full(len(ee_power), 1.0 / len(ee_power)))
-    ax.hist(rateonly_power, bins=bins, color=plot_cfg.cp2['black'], alpha=0.6,
-            edgecolor='white', linewidth=0.4, label='rate-only',
-            weights=np.full(len(rateonly_power), 1.0 / len(rateonly_power)))
-    ax.axvline(ee_power.mean(), color=plot_cfg.cp2['gold'], linestyle='-.', linewidth=1.5, zorder=5,
-               label=fr'$\bar P_{{\mathrm{{EE}}}} \approx {ee_power.mean():.0f}$ W')
+    ax.plot(x_grid, ee_density, color=plot_cfg.cp2['green'], linewidth=1.8)
+    ax.fill_between(x_grid, ee_density, color=plot_cfg.cp2['green'], alpha=0.35, label='EE')
+    ax.plot(x_grid, rateonly_density, color=plot_cfg.cp2['black'], linewidth=1.8)
+    ax.fill_between(x_grid, rateonly_density, color=plot_cfg.cp2['black'], alpha=0.35, label='rate-only')
+
     ax.axvline(power_budget, color='gray', linestyle=':', linewidth=1.2,
                label=r'$P_{\mathrm{rad}}$')
 
+    # Gain annotation: make the Watt/percent gap between the two policies'
+    # means an explicit, labeled feature of the figure instead of something
+    # the reader has to eyeball off two peak locations.
+    ee_mean, rateonly_mean = ee_power.mean(), rateonly_power.mean()
+    gain_watt = rateonly_mean - ee_mean
+    gain_pct = 100 * gain_watt / rateonly_mean
+    arrow_y = 1.08 * max(ee_density.max(), rateonly_density.max())
+    ax.annotate('', xy=(rateonly_mean, arrow_y), xytext=(ee_mean, arrow_y),
+                arrowprops=dict(arrowstyle='<->', color=plot_cfg.cp2['gold'], linewidth=1.5))
+    ax.text((ee_mean + rateonly_mean) / 2, arrow_y * 1.06,
+            fr'$\approx${gain_watt:.0f} W saved ({gain_pct:.0f}%)',
+            ha='center', va='bottom', fontsize=10.5, color=plot_cfg.cp2['gold'])
+    ax.set_ylim(top=arrow_y * 1.35)
+
     ax.set_xlabel(r'Radiated power $P$ per channel realization [W]', fontsize=13)
-    ax.set_ylabel('Fraction of realizations', fontsize=13)
+    ax.set_ylabel('Probability density', fontsize=13)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
 
