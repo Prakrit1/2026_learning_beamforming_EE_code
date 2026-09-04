@@ -238,21 +238,23 @@ if __name__ == '__main__':
     mmse_matched_watt = round(data['results']['mmse_matched_aod0.0']['mean_power'][0])
 
     curves = [
-        # MMSE and RM sit almost exactly on top of each other since both
-        # run at full/near-full power -- markevery staggers which points
-        # get a marker (MMSE odd indices, RM even) so the markers don't
-        # sit on top of each other, while the (intentionally coincident)
-        # lines themselves stay untouched.
+        # MMSE, RM, and EE-at-full-power all cluster together (RM and
+        # EE-at-full-power even share the exact same 'sac_aod0.0_fullpower'
+        # data -- RM is currently a placeholder reusing that checkpoint's
+        # full-power inference). markevery staggers which points get a
+        # marker across all three (offsets 0/1/2 of every 3) so no two
+        # markers land on the same spot, while the lines themselves --
+        # correctly coincident/near-coincident -- stay untouched.
         {'result_key': 'mmse_nadir', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_eval_watt}$ W',
-         'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':', 'markevery': (1, 2)},
+         'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':', 'markevery': (0, 3)},
         # RM = rate-maximization baseline. Reuses the EE (Δε=0.0) checkpoint's
         # full-power-inference data as a stand-in until SAC_rateonly_
         # satg30_p75_nadir.slurm's own separately-trained checkpoint exists --
         # swap 'sac_aod0.0_fullpower' for that checkpoint's result_key then.
         {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W',
-         'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (0, 2)},
+         'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3)},
         {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{trained_watt}}}$, $P={trained_watt}$ W',
-         'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
+         'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.', 'markevery': (2, 3)},
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
         {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_matched_watt}$ W',
