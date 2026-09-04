@@ -73,7 +73,7 @@ if __name__ == '__main__':
         name='error_sweep_training_triplet',
         annotate_power=False,  # power is already in the legend labels
         legend_ncols=3,
-        legend_loc='upper center',
-        legend_bbox_to_anchor=(0.5, -0.2),
+        legend_loc='lower center',
+        legend_bbox_to_anchor=(0.5, 1.02),
         legend_fontsize=9,
     )
