@@ -248,11 +248,11 @@ if __name__ == '__main__':
         # swap 'sac_aod0.0_fullpower' for that checkpoint's result_key then.
         {'result_key': 'sac_aod0.0_fullpower', 'label': 'RM',
          'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE, $P={ee_train_watt}$ W, {p_rad}',
+        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{ee_train_watt}}}$, {p_rad}',
          'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
-        {'result_key': 'sac_aod0.0', 'label': f'EE, $P={ee_train_watt}$ W',
+        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{ee_train_watt}}}$, $P={ee_train_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE, $P={mmse_matched_watt}$ W',
+        {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE$^{{{ee_train_watt}}}$, $P={mmse_matched_watt}$ W',
          'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
     ]
 
