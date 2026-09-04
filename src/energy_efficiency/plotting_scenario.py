@@ -245,7 +245,11 @@ if __name__ == '__main__':
         # satg30_p75_nadir.slurm's own separately-trained checkpoint exists --
         # swap 'sac_aod0.0_fullpower' for that checkpoint's result_key then.
         {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W',
-         'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
+         'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-',
+         # MMSE and RM sit almost exactly on top of each other since both
+         # run at full/near-full power -- small visual-only nudge so the
+         # two lines are distinguishable. Tune this after seeing the render.
+         'y_offset': 0.05},
         {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{trained_watt}}}$, $P={trained_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',

@@ -60,6 +60,12 @@ def plot_rate_error_sweep(
     -- savefig's bbox_inches='tight' below already expands to include it.
 
     legend_fontsize: shrink for figures with many/long curve labels.
+
+    curve['y_offset']: optional constant added to that curve's plotted
+    mean_rate only (default 0) -- a purely visual nudge so two curves with
+    near-identical rate don't draw exactly on top of each other. Does not
+    touch the underlying data, so power annotations/legend values (which
+    read straight from `results`) stay accurate.
     """
     matplotlib.rcParams['text.usetex'] = False  # override PlotConfig's reset
 
@@ -68,7 +74,7 @@ def plot_rate_error_sweep(
     for curve in curves:
         series = results[curve['result_key']]
         ax.plot(
-            error_sweep_range, series['mean_rate'],
+            error_sweep_range, series['mean_rate'] + curve.get('y_offset', 0),
             color=curve['color'],
             marker=curve.get('marker', 'o'),
             linestyle=curve.get('linestyle', '-'),
