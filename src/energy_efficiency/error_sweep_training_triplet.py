@@ -71,6 +71,9 @@ if __name__ == '__main__':
         height=plot_height,
         plots_parent_path=plot_cfg.plots_parent_path,
         name='error_sweep_training_triplet',
-        annotate_power=True,
-        legend_ncols=2,
+        annotate_power=False,  # power is already in the legend labels
+        legend_ncols=3,
+        legend_loc='upper center',
+        legend_bbox_to_anchor=(0.5, -0.2),
+        legend_fontsize=9,
     )

@@ -30,6 +30,9 @@ def plot_rate_error_sweep(
         name: str,
         annotate_power: bool = False,
         legend_ncols: int = 1,
+        legend_loc: str = 'upper right',
+        legend_bbox_to_anchor=None,
+        legend_fontsize: int = 11,
 ) -> None:
     """
     curves: list of dicts, each describing one line on the figure:
@@ -49,6 +52,14 @@ def plot_rate_error_sweep(
 
     legend_ncols: number of legend columns (default 1); use 2 for a compact
     box when curve labels are short, matching the reference paper's Fig. 3 style.
+
+    legend_loc/legend_bbox_to_anchor: for figures with too many curves for
+    an in-axes legend to avoid covering the lines (e.g. the 6-curve
+    training-triplet figure), pass e.g. loc='upper center',
+    bbox_to_anchor=(0.5, -0.15) to place the legend below the axes instead
+    -- savefig's bbox_inches='tight' below already expands to include it.
+
+    legend_fontsize: shrink for figures with many/long curve labels.
     """
     matplotlib.rcParams['text.usetex'] = False  # override PlotConfig's reset
 
@@ -83,9 +94,10 @@ def plot_rate_error_sweep(
     ax.grid(True, alpha=0.5, linewidth=0.7)
     ax.set_axisbelow(True)
     ax.legend(
-        loc='upper right',
+        loc=legend_loc,
+        bbox_to_anchor=legend_bbox_to_anchor,
         ncols=legend_ncols,
-        fontsize=11,
+        fontsize=legend_fontsize,
         framealpha=0.9,
         frameon=True,
         handlelength=1.6,
