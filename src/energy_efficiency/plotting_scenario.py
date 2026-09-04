@@ -237,14 +237,6 @@ if __name__ == '__main__':
     ee_eval_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
     mmse_matched_watt = round(data['results']['mmse_matched_aod0.0']['mean_power'][0])
 
-    # Notation from the paper's own macros (99_custommacros.sty): \precoderpower
-    # ($P$, a precoder's own measured radiated power) and \transmitpower
-    # ($P_{\text{rad}}$, the fixed budget) -- "inferred at full power" is by
-    # definition P_rad, so it's written as the symbol, not a re-measured watt
-    # value. matplotlib mathtext (usetex=False) needs \mathrm{} in place of
-    # \text{} -- otherwise matches the draft's LaTeX exactly.
-    p_rad = r'$P_{\mathrm{rad}}$'
-
     curves = [
         {'result_key': 'mmse_nadir', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_eval_watt}$ W',
          'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':'},
@@ -254,7 +246,7 @@ if __name__ == '__main__':
         # swap 'sac_aod0.0_fullpower' for that checkpoint's result_key then.
         {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W',
          'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{trained_watt}}}$, {p_rad}',
+        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{trained_watt}}}$, $P={trained_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
