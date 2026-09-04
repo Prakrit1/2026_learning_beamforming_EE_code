@@ -115,12 +115,6 @@ if __name__ == '__main__':
             lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, norm_factors, precoder_network),
         )
 
-        sac_ee_mean_power = samples_dict[sac_ee_label].sum(axis=1).mean()
-        mmse_matched_label = 'MMSE (equal power, Δε = 0.0)'
-        samples_dict[mmse_matched_label] = run_matched_power_mmse_samples(
-            cfg, mmse_matched_label, sac_ee_mean_power,
-        )
-
         with gzip.open(gzip_path, 'wb') as file:
             pickle.dump({'power_budget': power_budget, 'samples_dict': samples_dict}, file=file)
         print(f'Saved: {gzip_path}')
@@ -135,7 +129,6 @@ if __name__ == '__main__':
         'SAC (75 W budget)',
         'MMSE (75 W budget)',
         'SAC (Δε = 0.0, energy-efficient)',
-        'MMSE (equal power, Δε = 0.0)',
     ]
 
 
@@ -145,8 +138,7 @@ if __name__ == '__main__':
     display_labels = {
         'SAC (75 W budget)': 'RM',
         'MMSE (75 W budget)': 'MMSE',
-        'SAC (Δε = 0.0, energy-efficient)': f'EE, $P={ee_train_watt}$ W',
-        'MMSE (equal power, Δε = 0.0)': f'MMSE, $P={mmse_matched_watt}$ W',
+        'SAC (Δε = 0.0, energy-efficient)': f'EE',
     }
     ordered_samples_dict = {
         display_labels[label]: data['samples_dict'][label] for label in ordered_labels
@@ -156,7 +148,6 @@ if __name__ == '__main__':
         plot_cfg.cp2['gold'],
         plot_cfg.cp2['black'],
         plot_cfg.cp2['green'],
-        plot_cfg.cp2['black'],
     ]
 
     plot_power_savings_bars(
@@ -165,10 +156,7 @@ if __name__ == '__main__':
         plots_parent_path=plot_cfg.plots_parent_path,
         name='power_savings_bars',
         model_colors=bar_colors,
-        title='transmit power used vs. budget',
-        # Same physical width as plot_rate_error_sweep's figures (0.99 *
-        # textwidth) -- both get inserted at \linewidth in the paper, so
-        # matching canvas width is what makes the same point-size text
-        # render at the same apparent size once LaTeX scales it down.
+        title='Total power budget vs. transmit power',
+        
         width=0.99 * plot_cfg.textwidth,
     )

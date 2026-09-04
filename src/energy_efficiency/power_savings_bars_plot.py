@@ -17,10 +17,7 @@ def plot_power_savings_bars(
     title: str = 'How much power does each model actually use?',
     width: float = 9,
 ):
-    # Re-assert here, not just at import time: PlotConfig() (constructed by
-    # the calling script right before this) resets text.usetex to True,
-    # which makes matplotlib invoke real LaTeX for every text/label and
-    # crash if it isn't installed.
+    
     matplotlib.rcParams['text.usetex'] = False
 
     track_color = '#e2e2e2'
@@ -86,16 +83,6 @@ def plot_power_savings_bars(
     ax.set_title(title, fontsize=13, pad=14)
 
     fig.tight_layout()
-
-    pdf_path = Path(plots_parent_path, 'pdf')
-    pdf_path.mkdir(parents=True, exist_ok=True)
-    fig.savefig(Path(pdf_path, f'{name}.pdf'), bbox_inches='tight', dpi=300, transparent=True)
-    print(f'Saved: {Path(pdf_path, f"{name}.pdf")}')
-
-    jpg_path = Path(plots_parent_path, 'jpg')
-    jpg_path.mkdir(parents=True, exist_ok=True)
-    fig.savefig(Path(jpg_path, f'{name}.jpg'), bbox_inches='tight', dpi=200)
-    print(f'Saved: {Path(jpg_path, f"{name}.jpg")}')
 
     png_path = Path(plots_parent_path, 'png')
     png_path.mkdir(parents=True, exist_ok=True)
