@@ -228,7 +228,13 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.6
 
     # Legend text uses measured watts (rounded), not fixed placeholders.
-    ee_train_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
+    # trained_watt is the fixed training-time power budget (cfg.power_constraint_watt) --
+    # the same for every curve here, since the EE reward's subtraction/lambda term shapes
+    # what power the policy converges to *using*, not the budget it was trained under.
+    trained_watt = round(data['results']['mmse_nadir']['power_budget'])
+    mmse_eval_watt = round(data['results']['mmse_nadir']['mean_power'][0])
+    rm_eval_watt = round(data['results']['sac_aod0.0_fullpower']['mean_power'][0])
+    ee_eval_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
     mmse_matched_watt = round(data['results']['mmse_matched_aod0.0']['mean_power'][0])
 
     # Notation from the paper's own macros (99_custommacros.sty): \precoderpower
@@ -240,19 +246,19 @@ if __name__ == '__main__':
     p_rad = r'$P_{\mathrm{rad}}$'
 
     curves = [
-        {'result_key': 'mmse_nadir', 'label': 'MMSE',
+        {'result_key': 'mmse_nadir', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_eval_watt}$ W',
          'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':'},
         # RM = rate-maximization baseline. Reuses the EE (Δε=0.0) checkpoint's
         # full-power-inference data as a stand-in until SAC_rateonly_
         # satg30_p75_nadir.slurm's own separately-trained checkpoint exists --
         # swap 'sac_aod0.0_fullpower' for that checkpoint's result_key then.
-        {'result_key': 'sac_aod0.0_fullpower', 'label': 'RM',
+        {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W',
          'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{ee_train_watt}}}$, {p_rad}',
+        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{trained_watt}}}$, {p_rad}',
          'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
-        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{ee_train_watt}}}$, $P={ee_train_watt}$ W',
+        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE$^{{{ee_train_watt}}}$, $P={mmse_matched_watt}$ W',
+        {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_matched_watt}$ W',
          'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
     ]
 
