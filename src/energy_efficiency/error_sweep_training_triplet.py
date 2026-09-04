@@ -51,15 +51,15 @@ if __name__ == '__main__':
         # fills column-major into matching color pairs -- top row green/
         # blue/magenta dashed (full power), bottom row the same colors
         # solid (own power).
-        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={trained_watt}$ W',
+        {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={trained_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'D', 'linestyle': '-.'},
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={aod0_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.025_fullpower', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.025}}}}$, $P={trained_watt}$ W',
+        {'result_key': 'sac_aod0.025_fullpower', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.025}}}}$, $P={trained_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
         {'result_key': 'sac_aod0.025', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.025}}}}$, $P={aod0025_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'sac_aod0.05_fullpower', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.05}}}}$, $P={trained_watt}$ W',
+        {'result_key': 'sac_aod0.05_fullpower', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.05}}}}$, $P={trained_watt}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 'D', 'linestyle': '-.'},
         {'result_key': 'sac_aod0.05', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.05}}}}$, $P={aod05_watt}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-'},
