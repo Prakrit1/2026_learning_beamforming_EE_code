@@ -61,11 +61,11 @@ def plot_rate_error_sweep(
 
     legend_fontsize: shrink for figures with many/long curve labels.
 
-    curve['y_offset']: optional constant added to that curve's plotted
-    mean_rate only (default 0) -- a purely visual nudge so two curves with
-    near-identical rate don't draw exactly on top of each other. Does not
-    touch the underlying data, so power annotations/legend values (which
-    read straight from `results`) stay accurate.
+    curve['markevery']: optional matplotlib markevery spec (e.g. (0, 2) or
+    (1, 2)), for when two curves' lines coincide almost exactly (e.g.
+    MMSE vs RM, both near full power) -- staggering which x-positions get
+    a marker keeps the markers visually distinguishable without altering
+    the (intentionally identical) line itself.
     """
     matplotlib.rcParams['text.usetex'] = False  # override PlotConfig's reset
 
@@ -74,9 +74,10 @@ def plot_rate_error_sweep(
     for curve in curves:
         series = results[curve['result_key']]
         ax.plot(
-            error_sweep_range, series['mean_rate'] + curve.get('y_offset', 0),
+            error_sweep_range, series['mean_rate'],
             color=curve['color'],
             marker=curve.get('marker', 'o'),
+            markevery=curve.get('markevery', None),
             linestyle=curve.get('linestyle', '-'),
             linewidth=1.5, markersize=5,
             label=curve['label'],

@@ -238,18 +238,19 @@ if __name__ == '__main__':
     mmse_matched_watt = round(data['results']['mmse_matched_aod0.0']['mean_power'][0])
 
     curves = [
+        # MMSE and RM sit almost exactly on top of each other since both
+        # run at full/near-full power -- markevery staggers which points
+        # get a marker (MMSE odd indices, RM even) so the markers don't
+        # sit on top of each other, while the (intentionally coincident)
+        # lines themselves stay untouched.
         {'result_key': 'mmse_nadir', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_eval_watt}$ W',
-         'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':'},
+         'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':', 'markevery': (1, 2)},
         # RM = rate-maximization baseline. Reuses the EE (Δε=0.0) checkpoint's
         # full-power-inference data as a stand-in until SAC_rateonly_
         # satg30_p75_nadir.slurm's own separately-trained checkpoint exists --
         # swap 'sac_aod0.0_fullpower' for that checkpoint's result_key then.
         {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W',
-         'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-',
-         # MMSE and RM sit almost exactly on top of each other since both
-         # run at full/near-full power -- small visual-only nudge so the
-         # two lines are distinguishable. Tune this after seeing the render.
-         'y_offset': 0.05},
+         'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (0, 2)},
         {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{trained_watt}}}$, $P={trained_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.'},
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',
