@@ -128,19 +128,26 @@ if __name__ == '__main__':
           f'rate={mean_rate[argmax_idx]:.4f} bps/Hz')
 
 
-    deployed_point = None
+    # Traces the deployed (adaptive, clip-only) policy's own mean power/EE
+    # across the full evaluation error sweep (Δε=0 to 0.10) already cached
+    # in rate_power_triplet.gzip -- no new simulation needed. This is NOT
+    # the same quantity as the green curve above: here x is each error
+    # level's *empirical mean* power (which the policy lets vary per
+    # channel realization), not a value forced constant across channels.
+    deployed_curve = None
     triplet_gzip = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet', 'rate_power_triplet.gzip')
     if triplet_gzip.exists():
         with gzip.open(triplet_gzip, 'rb') as file:
             triplet_data = pickle.load(file)
-        error_idx = int(np.argmin(np.abs(triplet_data['error_sweep_range'] - CSIT_ERROR_BOUND)))
-        deployed_power = triplet_data['results']['sac_aod0.0']['mean_power'][error_idx]
-        deployed_rate = triplet_data['results']['sac_aod0.0']['mean_rate'][error_idx]
-        deployed_total_power = total_power_watt(cfg, deployed_power)
-        deployed_ee = deployed_rate / deployed_total_power
-        deployed_point = (deployed_power, deployed_ee)
-        print(f'Deployed policy (adaptive power, mean): transmit_power={deployed_power:.2f} W, '
-              f'EE={deployed_ee:.5f} bps/Hz/W, rate={deployed_rate:.4f} bps/Hz')
+        deployed_power_arr = triplet_data['results']['sac_aod0.0']['mean_power']
+        deployed_rate_arr = triplet_data['results']['sac_aod0.0']['mean_rate']
+        deployed_total_power_arr = np.array([total_power_watt(cfg, p) for p in deployed_power_arr])
+        deployed_ee_arr = deployed_rate_arr / deployed_total_power_arr
+        deployed_curve = (deployed_power_arr, deployed_ee_arr)
+
+        error0_idx = int(np.argmin(np.abs(triplet_data['error_sweep_range'] - 0.0)))
+        print(f'Deployed policy (adaptive power) at Δε=0.0: transmit_power={deployed_power_arr[error0_idx]:.2f} W, '
+              f'EE={deployed_ee_arr[error0_idx]:.5f} bps/Hz/W, rate={deployed_rate_arr[error0_idx]:.4f} bps/Hz')
 
     pdf_path = Path(plot_cfg.plots_parent_path, 'pdf')
     pdf_path.mkdir(parents=True, exist_ok=True)
@@ -158,11 +165,11 @@ if __name__ == '__main__':
 
         ax.axvline(power_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
                    label=fr'$P^\star \approx {power_sweep_watt[argmax_idx]:.0f}$ W')
-    if deployed_point is not None:
-
-        ax.plot(*deployed_point, color=plot_cfg.cp2['gold'], marker='*', markersize=12,
-                linestyle='none', zorder=5,
-                label=fr'$\bar P_{{\mathrm{{EE}}}} \approx {deployed_point[0]:.0f}$ W')
+    if deployed_curve is not None:
+        deployed_power_arr, deployed_ee_arr = deployed_curve
+        ax.plot(deployed_power_arr, deployed_ee_arr, color=plot_cfg.cp2['gold'], marker='*', markersize=8,
+                linestyle='-', linewidth=1.5, zorder=5,
+                label=r'Deployed (adaptive), $\Delta\epsilon \in [0.00, 0.10]$')
 
     ax.set_xlabel(r' $P$, held constant across channels [W]', fontsize=13)
     ax.set_ylabel('EE [bps/Hz/W]', fontsize=13)
