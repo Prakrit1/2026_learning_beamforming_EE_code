@@ -39,7 +39,7 @@ export PYTHONPATH=/home/parajuli/repos/2026_learning_beamforming_EE_code
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/ee_vs_transmit_power_sweep_sac.py --plot-only
+srun python3 src/energy_efficiency/ee_vs_transmit_power_sweep_sac.py
 srun echo $HOSTNAME
 wait
 
