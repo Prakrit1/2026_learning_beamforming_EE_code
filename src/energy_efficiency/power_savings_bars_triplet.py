@@ -52,30 +52,6 @@ def run_power_samples(cfg, label, get_precoder_func):
     return samples
 
 
-def run_matched_power_mmse_samples(cfg, label, target_mean_power):
-
-    satellite_manager = SatelliteManager(config=cfg)
-    user_manager = UserManager(config=cfg)
-
-    error_param = 'additive_error_on_cosine_of_aod'
-    cfg.config_error_model.error_rng_parametrizations[error_param]['args']['low'] = -eval_error_bound
-    cfg.config_error_model.error_rng_parametrizations[error_param]['args']['high'] = eval_error_bound
-
-    samples = np.zeros((monte_carlo_iterations, cfg.user_nr))
-    for iter_idx in range(monte_carlo_iterations):
-        update_sim(cfg, satellite_manager, user_manager)
-        w_mmse = get_precoding_mmse(cfg, user_manager, satellite_manager)
-        current_power = np.real(np.trace(np.matmul(w_mmse.conj().T, w_mmse)))
-        w_precoder = w_mmse * np.sqrt(target_mean_power / current_power)
-        samples[iter_idx, :] = calc_tx_power_distribution(w_precoder=w_precoder)
-        if iter_idx % 1000 == 0:
-            print(f'[{label}] {iter_idx}/{monte_carlo_iterations}')
-
-    total_power = samples.sum(axis=1)
-    print(f'[{label}] mean total power: {total_power.mean():.2f} W (target {target_mean_power:.2f} W)')
-    return samples
-
-
 if __name__ == '__main__':
     cfg = Config()
     cfg.show_plots = False
@@ -132,9 +108,6 @@ if __name__ == '__main__':
     ]
 
 
-    ee_train_watt = round(data['samples_dict']['SAC (Δε = 0.0, energy-efficient)'].sum(axis=1).mean())
-    mmse_matched_watt = round(data['samples_dict']['MMSE (equal power, Δε = 0.0)'].sum(axis=1).mean())
-    p_rad = r'$P_{\mathrm{rad}}$'
     display_labels = {
         'SAC (75 W budget)': 'RM',
         'MMSE (75 W budget)': 'MMSE',
