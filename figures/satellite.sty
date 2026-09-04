@@ -1,0 +1,42 @@
+
+\def\satellite#1#2#3#4{
+	\begin{scope}[shift={#1}, rotate=#2, scale=#3, thick, #4]
+		\tikzmath{%
+			real \wingwidth \wingheight \satwidth \distance;
+			\wingwidth = 0.9;
+			\wingheight = 0.9;
+			\satwidth = 0.5;
+			\distance = 0.2;
+			\xleft = - (0.5 * (2 * \wingwidth + 2 * \distance + \satwidth));
+			\xmid = \xleft + \wingwidth + \distance;
+			\xright = \xmid + \satwidth + \distance;
+			real \frontcenter \arc \arcstartdeg \arcenddeg \radius \secondarcscale;
+			\frontcenter = \xmid + 0.5 * \satwidth;
+			\arc = 70;
+			\radius = 0.4;
+			\secondarccale = 1.5;
+			\arcstartdeg = 270 - 0.5 * \arc;
+			\arcenddeg = 270 + 0.5 * \arc;
+			\arcstartcartx = \frontcenter + \radius * cos(\arcstartdeg);
+			\arcstartcarty = 0 + \radius * sin(\arcstartdeg);
+			\arctwostartcartx = \frontcenter + \secondarccale * \radius * cos(\arcstartdeg);
+			\arctwostartcarty = 0 + \secondarccale * \radius * sin(\arcstartdeg);
+		}
+		
+		% wing, mid, wing
+		\draw [anchor=center, rounded corners=2] (\xleft, 0) rectangle +(\wingwidth, \wingheight);
+		\draw [anchor=center, rounded corners=2] (\xmid, 0) rectangle +(\satwidth, \wingheight);
+		\draw [anchor=center, rounded corners=2] (\xright, 0) rectangle +(\wingwidth, \wingheight);
+		
+		% connections
+		\draw [] (\xleft + \wingwidth, 0.5*\wingheight) -- (\xmid, 0.5*\wingheight);
+		\draw [] (\xmid + \satwidth, 0.5*\wingheight) -- (\xright, 0.5*\wingheight);
+		
+		% wing pattern
+		\draw [] (\xleft + 0.5*\wingwidth, 0) -- (\xleft + 0.5*\wingwidth, \wingheight);
+		\draw [] (\xright + 0.5*\wingwidth, 0) -- (\xright + 0.5*\wingwidth, \wingheight);
+		
+		\draw [ultra thick] (\arcstartcartx, \arcstartcarty) arc (\arcstartdeg:\arcenddeg:\radius);
+		\draw [ultra thick] (\arctwostartcartx, \arctwostartcarty) arc (\arcstartdeg:\arcenddeg:\secondarccale * \radius);
+	\end{scope}
+}

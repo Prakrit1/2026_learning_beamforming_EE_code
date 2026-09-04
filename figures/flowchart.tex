@@ -1,0 +1,338 @@
+\pgfmathsetmacro{\xshiftspacing}{15}
+\begin{tikzpicture}
+[
+	scale=1,
+	every node/.style={font=\sffamily\scriptsize},
+	iblock/.style={
+		fill=uniblue1,
+		text=white,
+		rounded corners=1,
+		align=center,
+%		minimum width=80,
+	},
+	lblock/.style={
+		fill=unired2,
+		text=white,
+		rounded corners=1,
+		align=center,
+%		minimum width=80,
+	},
+	iblocksplit/.style={
+		rectangle split,
+		rectangle split parts=2,
+		rectangle split part fill={uniblue1,uniblue1!15},
+		rounded corners,
+		align=center,
+%		inner sep=4pt,
+%		minimum width=80,
+	},
+	lblocksplit/.style={
+		rectangle split,
+		rectangle split parts=2,
+		rectangle split part fill={unired2,unired2!15},
+		rounded corners,
+		align=center,
+%		minimum width=80,
+	},
+    criticblocksplit/.style={
+		rectangle split,
+		rectangle split parts=2,
+		rectangle split part fill={unipeach1,unired2!15},
+		rounded corners,
+		align=center,
+%		minimum width=80,
+	},
+    actorblocksplit/.style={
+		rectangle split,
+		rectangle split parts=2,
+		rectangle split part fill={black,unired2!15},
+		rounded corners,
+		align=center,
+%		minimum width=80,
+	},
+    actorbubble/.style={
+        circle,
+        draw=white,
+        thick,
+        text=white,
+        fill= black,
+%        font=\bfseries,
+        minimum size=12pt,
+        inner sep=0pt,
+        align=center
+    },
+    criticbubble/.style={
+        circle,
+        draw=black,
+        thick,
+        text=black,
+        fill= white,
+%        font=\bfseries,
+        minimum size=12pt,
+        inner sep=0pt,
+        align=center
+    },
+	a/.style={
+		-{Stealth[scale=1.5]},
+		dashed,
+        thick,
+		rounded corners,
+	},
+	ia/.style={
+		a,
+		color=uniblue1,
+	},
+	la/.style={
+		a,
+		color=unired2,
+	},
+	asmol/.style={
+		-{Stealth},
+		dashed,
+%		thick,
+		rounded corners,
+	}
+]
+
+	\input{figures/satellite.sty}
+	\input{figures/satellitedish.sty}
+
+	\satellite{(-1.5, 1)}{30}{0.5}{color=uniblue1}
+	\satellitedish{(2.8, 0.6)}{0}{0.5}{color=unired2}
+
+	% inference
+	
+	\node (igetcsi)
+		[iblock]
+		{\bfseries Get CSIT Estimate};
+		
+	\node (itransformcsi)
+		[iblocksplit, below = of igetcsi]
+		{%
+			\color{white}
+			\bfseries
+			Transform CSIT
+			\nodepart[align=left]{two}
+			1. Flatten
+			\\[.3ex]
+			2. Polar decomposition
+		};
+		
+	\node (ipollactor)
+		[iblocksplit, below = of itransformcsi]
+		{%
+			\color{white}
+			\bfseries
+			Poll Actor
+			\nodepart[align=left]{two}
+			1. Get Actor output
+			\\[.3ex]
+			2. Draw action
+			\phantom{aaaaaaaa}
+		};
+		
+	\node (itransformaction)
+		[iblocksplit, below = of ipollactor]
+		{%
+			\color{white}
+			\bfseries
+			Transform Action
+			\nodepart[align=left]{two}
+			1. Complex recomposition
+			\\[.3ex]
+			2. Reshape into Matrix
+			\\[.3ex]
+			3. Normalize Power
+		};
+		
+	\node (ievaluate)
+		[iblock, below = of itransformaction]
+		{\bfseries Evaluate Precoding};
+		
+	% learning
+	
+	\node (lcriterion)
+		[lblock, right = 1.9 of igetcsi]
+		{%
+			\textbf{if} \( \timeindex \text{ mod } \stepsperupdate == 0 \)
+		};
+		
+	\node (ldrawbatch)
+		[lblocksplit, below = of lcriterion]
+		{%
+			\color{white}
+			\bfseries
+			Experience Buffer
+			\nodepart[align=left]{two}
+			Draw batch \({ \batchset(\timeindex) }\)
+			\phantom{aaaa}
+		};
+	
+	\node (ltraincritic)
+		[lblocksplit, below right = 1 and -2.5 of ldrawbatch]
+		{%
+			\color{white}
+			\bfseries
+			Train Critics
+			\nodepart[align=left]{two}
+			Each Critic:
+			\\[.3ex]
+			1. Poll Critic
+			\\[.3ex]
+			2. Calc. loss on batch
+			\\[.3ex]
+			3. SGD parameter update
+		};
+
+	\node (ltrainactor)
+		[lblocksplit, below left = 1 and -2.5 of ltraincritic]
+		{%
+			\color{white}
+			\bfseries
+			Train Actor
+			\nodepart[align=left]{two}
+			1. Poll Actor
+			\\[.3ex]
+			2. Poll Critics
+			\\[.3ex]
+			3. Calc. loss on batch
+			\\[.3ex]
+			4. SGD parameter update
+		};
+
+    \node (actorbubblepoll) at  (ipollactor.north east) 
+        [actorbubble]    
+        {\bfseries A};
+
+    \node (criticbubblecritic) at  (ltraincritic.north east) 
+        [criticbubble]    
+        {\bfseries C};
+
+    \node (criticbubbleactor) at  (ltrainactor.north east) 
+        [criticbubble]    
+        {\bfseries C};
+    \node (actorbubbleactor) at  ([xshift=-10pt]ltrainactor.north east) 
+        [actorbubble]    
+        {\bfseries A};
+
+		
+	% inference arrows
+	\draw [ia]
+		([xshift=\xshiftspacing]igetcsi.south)
+		--
+		node [left, align=right] {\acs{csit} Estimate \\ \( \csimatrixestimate(\timeindex)\)}
+		([xshift=\xshiftspacing]itransformcsi.north);
+		
+	\draw [ia]
+		([xshift=\xshiftspacing]itransformcsi.south)
+		--
+		node [left, align=right] { State\\  \( \statevec(\timeindex) = \genericfunction (\csimatrixestimate(\timeindex)) \)}
+		([xshift=\xshiftspacing]ipollactor.north);
+		
+	\draw [ia]
+		([xshift=\xshiftspacing]ipollactor.south)
+		--
+		node [left, align=right] {Action\\\( \actoroutputsampled(\timeindex) \)}
+		([xshift=\xshiftspacing]itransformaction.north);
+		
+	\draw [ia]
+		([xshift=\xshiftspacing]itransformaction.south)
+		--
+		node [left, align=right] {Precoding\\  \( \precodingmatrix_\totalidx(\timeindex) = \genericfunction(\actoroutputsampled(\timeindex)) \)}
+		([xshift=\xshiftspacing]ievaluate.north);
+		
+	\draw [ia]
+		(ievaluate.west)
+		--
+		++(-0.6, 0)
+		|- node [rotate=90, above, pos=0.3] {\(\timeindex \leftarrow \timeindex+1\), repeat}
+		(igetcsi.west);
+		
+	% learning arrows
+	\draw [la]
+		(lcriterion)
+		--
+		(ldrawbatch);
+	
+	\draw [la]
+		(ldrawbatch.south)
+		--
+		++(0, -0.4)
+		-|
+		(ltraincritic.north);
+		
+		
+	\draw [la]
+		(ldrawbatch.south)
+		--
+		++(0, -0.4)
+		--
+		++(-1.5, 0)
+		--
+		++(0, -2.85)
+		-|
+		(ltrainactor.north);
+		
+	% saving experience arrows
+	\draw [asmol]
+		([xshift=\xshiftspacing]itransformcsi.south)
+		--
+		++(0, -0.3)
+		-|
+		(2.2, -2.1)
+		|- node [above, pos=0.7] {Save}
+		(ldrawbatch.west);
+		
+	\draw [asmol]
+		([xshift=\xshiftspacing]ipollactor.south)
+		--
+		++(0, -0.3)
+		-|
+		(2.2, -2)
+		|-
+		(ldrawbatch.west);
+		
+	\draw [asmol]
+		(ievaluate.east)
+		-|
+		(2.2, -2)
+		|-
+		(ldrawbatch.west);
+	
+	% update actor arrow
+		
+	% separating line
+	\draw [dotted]
+		(2, 1)
+		--
+		(2, -8.5)
+		;
+		
+	% text headers
+	\node (iheader)
+		[above = 1.25 of igetcsi, anchor = north, color=uniblue1, align=center]
+		{\textbf{Inference}\\ at satellite \\or on ground
+        };
+		
+	\node (lheader)
+		[above = 1.25 of lcriterion, anchor = north, color=unired2, align=center]
+		{\textbf{Learning}\\ on ground};
+		
+	\node (actorbubblelegend) 
+        [actorbubble, below left = 0.5 and -1 of ltrainactor, draw=black]    
+        {\bfseries A};
+    \node (actorbubbledescription)
+        [right = 0 of actorbubblelegend]
+        {= Actor required};
+
+    \node (criticbubblelegend) 
+        [criticbubble, below = 0.075 of actorbubblelegend]    
+        {\bfseries C};
+    \node (criticbubbledescription)
+        [right = 0 of criticbubblelegend]
+        {= Critic required};
+
+
+	
+	
+\end{tikzpicture}

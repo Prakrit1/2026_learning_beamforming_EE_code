@@ -1,0 +1,56 @@
+
+\def\satellitedish#1#2#3#4{
+	\begin{scope}[shift={#1}, rotate=#2, scale=#3, thick, #4]
+		\tikzmath{%
+			real \footwidth \footsize;
+			\footwidth = 1;
+			\footsize = 1;
+			real \footleftx \footrightx;
+			\footleftx = -0.5 * \footwidth;
+			\footrightx = 0.5 * \footwidth;
+			\foottopx = 0;
+			real \dishflatside \antennalength \antennaradius;
+			\dishflatside = 1.6 * \footwidth;
+			\antennalength = 0.2 * \dishflatside;
+			\antennaradius = 0.2 * \antennalength;
+		}
+		
+		% triangle
+		\draw [rounded corners=1] (\footleftx, 0) -- (\footrightx, 0) -- (\foottopx, \footsize) -- cycle;
+		
+		% dish semicircle
+		\draw [rounded corners=1, fill=white]
+		(0.5 * \footleftx, 1.9 * \footsize)
+		--
+		++(-45:\dishflatside)
+		arc[start angle=-45, end angle=-225, x radius=0.5*\dishflatside, y radius=0.5*\dishflatside]
+		;
+		
+		% antenna
+		\draw []
+		(0.5 * \footleftx, 1.9 * \footsize) ++(-45:0.5*\dishflatside)
+		--
+		++(45:\antennalength)
+		++(45:\antennaradius)
+		circle (\antennaradius)
+		;
+		
+		% waves
+		\draw [ultra thick]
+		(0.5 * \footleftx, 1.9 * \footsize) 
+		++(-45:0.5*\dishflatside)
+		++(45:\antennalength)
+		++(45:\antennaradius)
+		++(0:0.3)
+		arc [start angle=0, end angle=90, radius = 0.3];
+		
+		\draw [ultra thick]
+		(0.5 * \footleftx, 1.9 * \footsize) 
+		++(-45:0.5*\dishflatside)
+		++(45:\antennalength)
+		++(45:\antennaradius)
+		++(0:0.5)
+		arc [start angle=0, end angle=90, radius = 0.5];
+		
+	\end{scope}
+}
