@@ -92,8 +92,11 @@ if __name__ == '__main__':
           f'rate={rm_rate:.4f} bps/Hz, ratio={rm_ratio:.4f} bps/Hz/W')
     print(f'EE is {100 * (ee_ratio / rm_ratio - 1):.1f}% more efficient than RM at full power')
 
-    plot_width = 0.6 * plot_cfg.textwidth
-    plot_height = plot_width * 0.9
+    # Match the other error-sweep figures' aspect (height = 0.6 * width) so
+    # this figure renders at the same on-page size when included at
+    # \linewidth -- it previously used a taller 0.9 aspect and looked bigger.
+    plot_width = 0.99 * plot_cfg.textwidth
+    plot_height = plot_width * 0.6
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
 
