@@ -107,10 +107,6 @@ if __name__ == '__main__':
     x_ee = bars[0].get_x() + bars[0].get_width() / 2
     x_rm = bars[1].get_x() + bars[1].get_width() / 2
 
-    for bar, ratio in zip(bars, ratios):
-        ax.annotate(f'{ratio:.3f}', xy=(bar.get_x() + bar.get_width() / 2, ratio),
-                    xytext=(0, 4), textcoords='offset points', ha='center', fontsize=11)
-
     # Dashed guide at EE's level, extended across to the RM bar so the
     # double-headed "gain" arrow above RM visibly reaches EE's height.
     ax.hlines(ee_ratio, x_ee, x_rm, color='gray', linestyle='--', linewidth=1.0, zorder=1)
