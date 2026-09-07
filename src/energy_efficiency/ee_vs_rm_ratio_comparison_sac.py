@@ -97,16 +97,33 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
 
-    labels = [fr'EE, $\lambda_{{\mathrm{{ee}}}} = {LAMBDA_EE:.2f}$' + f'\n(${ee_power:.0f}$ W radiated)', 'RM\n(75 W radiated)']
+    # x-axis carries only the bare method names; the operating powers
+    # (EE ~35 W, RM 75 W) go in the caption, not on the axis.
+    labels = ['EE', 'RM']
     ratios = [ee_ratio, rm_ratio]
     colors = [plot_cfg.cp2['green'], plot_cfg.cp2['gold']]
 
     bars = ax.bar(labels, ratios, color=colors, width=0.6)
+    x_ee = bars[0].get_x() + bars[0].get_width() / 2
+    x_rm = bars[1].get_x() + bars[1].get_width() / 2
+
     for bar, ratio in zip(bars, ratios):
         ax.annotate(f'{ratio:.3f}', xy=(bar.get_x() + bar.get_width() / 2, ratio),
                     xytext=(0, 4), textcoords='offset points', ha='center', fontsize=11)
 
+    # Dashed guide at EE's level, extended across to the RM bar so the
+    # double-headed "gain" arrow above RM visibly reaches EE's height.
+    ax.hlines(ee_ratio, x_ee, x_rm, color='gray', linestyle='--', linewidth=1.0, zorder=1)
+
+    # Double-headed arrow over the RM bar, from RM's top up to EE's level.
+    ax.annotate('', xy=(x_rm, ee_ratio), xytext=(x_rm, rm_ratio),
+                arrowprops=dict(arrowstyle='<->', color='black', lw=1.5), zorder=3)
+    ax.text(x_rm + 0.33, (ee_ratio + rm_ratio) / 2, 'gain', ha='left', va='center',
+            fontsize=12, rotation=0)
+
     ax.set_ylabel(r'EE [bits/s/Hz/W]', fontsize=13)
+    ax.set_ylim(0, ee_ratio * 1.22)
+    ax.set_xlim(-0.6, 1.9)  # room on the right for the 'gain' label
     ax.grid(True, axis='y', alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
     fig.tight_layout()
