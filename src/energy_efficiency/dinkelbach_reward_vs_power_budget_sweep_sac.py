@@ -135,28 +135,28 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.62
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
-    ax_power = ax.twinx()
 
+    # Both curves in bps/Hz on one shared axis -- no Watts here, so the
+    # vertical gap between them is directly meaningful: it equals exactly
+    # the power-penalty term lambda_ee * total_power_normalized(B), not an
+    # artifact of two differently-scaled axes.
+    line_rate, = ax.plot(
+        budget_sweep_watt, mean_rate, color=plot_cfg.cp2['blue'], marker='s', markersize=4,
+        linestyle='--', linewidth=1.5, label='Sum rate (no power penalty)',
+    )
     line_reward, = ax.plot(
         budget_sweep_watt, dinkelbach_reward, color=plot_cfg.cp2['green'], marker='o', markersize=4,
         linewidth=1.5, label=fr'Dinkelbach reward, $\lambda_{{\mathrm{{ee}}}} = {LAMBDA_EE:.2f}$ (trained)',
-    )
-    line_power, = ax_power.plot(
-        budget_sweep_watt, total_power_watt_arr, color=plot_cfg.cp2['blue'], marker='s', markersize=4,
-        linestyle='--', linewidth=1.5, label=r'Overall transmit power $P_{\mathrm{total}}$',
     )
     vline = ax.axvline(budget_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
                         label=fr'$B^\star \approx {budget_sweep_watt[argmax_idx]:.0f}$ W')
 
     ax.set_xlabel(r'Available power budget $B$ [W]', fontsize=13)
-    ax.set_ylabel(r'Dinkelbach reward [bps/Hz]', fontsize=13, color=plot_cfg.cp2['green'])
-    ax_power.set_ylabel(r'$P_{\mathrm{total}}$ [W]', fontsize=13, color=plot_cfg.cp2['blue'])
-    ax.tick_params(axis='y', labelcolor=plot_cfg.cp2['green'])
-    ax_power.tick_params(axis='y', labelcolor=plot_cfg.cp2['blue'])
+    ax.set_ylabel(r'bps/Hz', fontsize=13)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
 
-    handles = [line_reward, line_power, vline]
+    handles = [line_rate, line_reward, vline]
     labels = [h.get_label() for h in handles]
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.12),
                ncol=1, fontsize=11, frameon=False, columnspacing=1.4,
