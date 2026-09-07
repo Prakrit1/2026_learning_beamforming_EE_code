@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 
 from src.config.config import Config
 from src.config.config_plotting import PlotConfig
+from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
 
 """
 The classical ratio EE = rate/total_power (ee_vs_transmit_power_sweep_sac.py,
@@ -31,28 +32,39 @@ trained to maximize -- training uses the Dinkelbach reward
 not raw watts -- see total_power_dinkelbach there). This script re-plots
 the already-cached adaptive clip-only sweep
 (ee_vs_power_budget_sweep_sac_error{X}.gzip) against THIS objective
-instead, to check whether the policy's own ~35 W operating point is
-actually where its true training reward peaks (unlike the ratio, which
-peaks at ~12.4 W regardless of allocation strategy -- see the chat
-discussion this script came out of).
+instead.
 
-lambda_ee is NOT recoverable exactly: it's only ever printed to the
-training log ("Dinkelbach lambda updated to X", EE_sac.py:533), never
-saved into the checkpoint file, and the actual training log for this
-checkpoint no longer exists (confirmed by searching full git history,
-including the d5669cf..0530fd3 window when slurm logs were briefly
-tracked -- job 156358's log was never committed). LAMBDA_EE_ESTIMATE
-below is therefore an approximation, back-derived from the fixed-point
-condition Dinkelbach's EMA update converges to (lambda_ee ~= rate_ema /
-power_ema at steady state), using this checkpoint's own known converged
-operating averages at the 75 W training budget (rate_power_triplet.gzip,
-'sac_aod0.0', error=0). If you find the actual logged value, hardcode it
-here instead and note where it came from.
+lambda_ee is now read from the ACTUAL training run instead of estimated:
+EE_sac.py was instrumented (this session) to save dinkelbach_lambda_ee.txt
+next to every checkpoint it saves, and the aod=0.0 checkpoint was
+retrained specifically to capture this. Earlier versions of this script
+had to back-derive lambda_ee (first from the deployed ~35 W point, which
+produced an invalid ~9.15 that peaked at an arbitrary ~18 W; then from
+the ratio's own peak via Dinkelbach's theorem, which is only guaranteed
+to reproduce the ratio's 12.4 W peak, not reveal anything new) because
+the original checkpoint's training log was lost. Neither estimate is
+needed anymore now that the real value is saved.
+
+IMPORTANT: this script's rate/power sweep data (from
+ee_vs_power_budget_sweep_sac_error{X}.gzip) MUST come from the SAME
+checkpoint as the lambda_ee it's paired with, or the reward computed
+here is meaningless. get_best_model_path is session-aware (picks the
+best-scoring checkpoint from the most recent training session, see
+plotting_scenario.py), so after retraining, re-run
+ee_vs_power_budget_sweep_sac.slurm again FIRST to regenerate that gzip
+against the new checkpoint before running this script.
+
+Also plots "overall transmit power" (P_total = P/eta_PA + P_circuit,
+the paper's \\ptotal, i.e. actual DC draw including circuit power and PA
+inefficiency -- not just the raw radiated/swept budget) on a second axis
+against the same x, so the reward's shape can be read directly against
+how much power it actually costs.
 
 Saves reports/figures/{pdf,jpg,png}/dinkelbach_reward_vs_power_budget_sac_error{X}.*
 """
 
 CSIT_ERROR_BOUND = float(sys.argv[sys.argv.index('--error') + 1]) if '--error' in sys.argv else 0.0
+TRAINING_NAME = CHECKPOINTS['aod0.0']
 
 
 def total_power_watt(cfg, transmit_power_watt):
@@ -67,6 +79,19 @@ if __name__ == '__main__':
 
     TRAINING_BUDGET_WATT = cfg.power_constraint_watt  # 75 W -- the fixed normalizer, not the swept budget below
 
+    checkpoint_path = get_best_model_path(cfg.trained_models_path, TRAINING_NAME)
+    lambda_ee_path = Path(checkpoint_path, 'config', 'dinkelbach_lambda_ee.txt')
+    if not lambda_ee_path.exists():
+        raise FileNotFoundError(
+            f'{lambda_ee_path} not found -- this checkpoint predates the lambda_ee-saving '
+            f'instrumentation in EE_sac.py. Retrain (or point get_best_model_path at a '
+            f'checkpoint saved after that change) before running this script.'
+        )
+    with open(lambda_ee_path, 'r') as file:
+        LAMBDA_EE = float(file.read().strip())
+    print(f'[dinkelbach_reward_vs_power_budget_sweep_sac] checkpoint: {checkpoint_path}')
+    print(f'Real trained lambda_ee: {LAMBDA_EE:.4f} (read from {lambda_ee_path})')
+
     metrics_path = Path(cfg.output_metrics_path, 'EE_vs_transmit_power')
     budget_sweep_gzip = Path(metrics_path, f'ee_vs_power_budget_sweep_sac_error{CSIT_ERROR_BOUND:g}.gzip')
     if not budget_sweep_gzip.exists():
@@ -80,35 +105,27 @@ if __name__ == '__main__':
     mean_rate = sweep_data['mean_rate']
     mean_power = sweep_data['mean_power']
 
-    # lambda_ee estimate: back out from this checkpoint's own converged
-    # operating point at the training budget (rate_power_triplet.gzip's
-    # error-sweep results, evaluated at the same CSIT_ERROR_BOUND).
-    triplet_gzip = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet', 'rate_power_triplet.gzip')
-    if not triplet_gzip.exists():
-        raise FileNotFoundError(
-            f'{triplet_gzip} not found -- run plotting_scenario.py first, '
-            f'needed here to estimate lambda_ee from the deployed operating point.'
+    if sweep_data.get('checkpoint') != str(checkpoint_path):
+        print(
+            f'[dinkelbach_reward_vs_power_budget_sweep_sac] WARNING: cached sweep gzip was '
+            f'generated from checkpoint {sweep_data.get("checkpoint")}, but lambda_ee was just '
+            f'read from a different checkpoint ({checkpoint_path}). Re-run '
+            f'ee_vs_power_budget_sweep_sac.py first so both come from the same checkpoint -- '
+            f'proceeding anyway, but the reward below may not be meaningful.'
         )
-    with gzip.open(triplet_gzip, 'rb') as file:
-        triplet_data = pickle.load(file)
-    error_idx = int(np.argmin(np.abs(triplet_data['error_sweep_range'] - CSIT_ERROR_BOUND)))
-    deployed_rate = triplet_data['results']['sac_aod0.0']['mean_rate'][error_idx]
-    deployed_power = triplet_data['results']['sac_aod0.0']['mean_power'][error_idx]
-    deployed_total_power_normalized = total_power_watt(cfg, deployed_power) / TRAINING_BUDGET_WATT
-    LAMBDA_EE_ESTIMATE = deployed_rate / deployed_total_power_normalized
-    print(f'lambda_ee estimate: {LAMBDA_EE_ESTIMATE:.4f} '
-          f'(back-derived from deployed point: rate={deployed_rate:.4f} bps/Hz, '
-          f'power={deployed_power:.2f} W, training_budget={TRAINING_BUDGET_WATT:.0f} W -- '
-          f'NOT the exact logged training-time value, see module docstring)')
 
-    total_power_normalized = np.array([total_power_watt(cfg, p) for p in mean_power]) / TRAINING_BUDGET_WATT
-    dinkelbach_reward = mean_rate - LAMBDA_EE_ESTIMATE * total_power_normalized
+    total_power_watt_arr = np.array([total_power_watt(cfg, p) for p in mean_power])
+    total_power_normalized = total_power_watt_arr / TRAINING_BUDGET_WATT
+
+    dinkelbach_reward = mean_rate - LAMBDA_EE * total_power_normalized
 
     argmax_idx = int(np.argmax(dinkelbach_reward))
     print(f'Dinkelbach-reward maximizer over the swept budget: budget={budget_sweep_watt[argmax_idx]:.2f} W, '
-          f'achieved mean_power={mean_power[argmax_idx]:.2f} W, reward={dinkelbach_reward[argmax_idx]:.4f}, '
-          f'rate={mean_rate[argmax_idx]:.4f} bps/Hz')
+          f'achieved mean_power={mean_power[argmax_idx]:.2f} W, '
+          f'overall (total) power={total_power_watt_arr[argmax_idx]:.2f} W, '
+          f'reward={dinkelbach_reward[argmax_idx]:.4f}, rate={mean_rate[argmax_idx]:.4f} bps/Hz')
     print(f'At the full training-time budget (75 W): achieved mean_power={mean_power[-1]:.2f} W, '
+          f'overall (total) power={total_power_watt_arr[-1]:.2f} W, '
           f'reward={dinkelbach_reward[-1]:.4f}, rate={mean_rate[-1]:.4f} bps/Hz')
 
     pdf_path = Path(plot_cfg.plots_parent_path, 'pdf')
@@ -118,25 +135,33 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.62
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
+    ax_power = ax.twinx()
 
-    ax.plot(budget_sweep_watt, dinkelbach_reward, color=plot_cfg.cp2['green'], marker='o', markersize=4,
-            linewidth=1.5, label=r'Dinkelbach reward, $\lambda_{\mathrm{ee}} \approx$' + f'{LAMBDA_EE_ESTIMATE:.2f}')
-    ax.axvline(budget_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
-               label=fr'$B^\star \approx {budget_sweep_watt[argmax_idx]:.0f}$ W')
-    ax.plot(budget_sweep_watt[-1], dinkelbach_reward[-1], color=plot_cfg.cp2['gold'], marker='*', markersize=12,
-            linestyle='none', zorder=5,
-            label=fr'Deployed (75 W budget), $\bar P \approx {mean_power[-1]:.0f}$ W')
+    line_reward, = ax.plot(
+        budget_sweep_watt, dinkelbach_reward, color=plot_cfg.cp2['green'], marker='o', markersize=4,
+        linewidth=1.5, label=fr'Dinkelbach reward, $\lambda_{{\mathrm{{ee}}}} = {LAMBDA_EE:.2f}$ (trained)',
+    )
+    line_power, = ax_power.plot(
+        budget_sweep_watt, total_power_watt_arr, color=plot_cfg.cp2['blue'], marker='s', markersize=4,
+        linestyle='--', linewidth=1.5, label=r'Overall transmit power $P_{\mathrm{total}}$',
+    )
+    vline = ax.axvline(budget_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
+                        label=fr'$B^\star \approx {budget_sweep_watt[argmax_idx]:.0f}$ W')
 
     ax.set_xlabel(r'Available power budget $B$ [W]', fontsize=13)
-    ax.set_ylabel(r'Dinkelbach reward [bps/Hz]', fontsize=13)
+    ax.set_ylabel(r'Dinkelbach reward [bps/Hz]', fontsize=13, color=plot_cfg.cp2['green'])
+    ax_power.set_ylabel(r'$P_{\mathrm{total}}$ [W]', fontsize=13, color=plot_cfg.cp2['blue'])
+    ax.tick_params(axis='y', labelcolor=plot_cfg.cp2['green'])
+    ax_power.tick_params(axis='y', labelcolor=plot_cfg.cp2['blue'])
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
 
-    handles, labels = ax.get_legend_handles_labels()
-    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.1),
+    handles = [line_reward, line_power, vline]
+    labels = [h.get_label() for h in handles]
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.12),
                ncol=1, fontsize=11, frameon=False, columnspacing=1.4,
                handletextpad=0.5)
-    fig.tight_layout(rect=(0, 0, 1, 0.82))
+    fig.tight_layout(rect=(0, 0, 1, 0.80))
 
     out = Path(pdf_path, f'dinkelbach_reward_vs_power_budget_sac_error{CSIT_ERROR_BOUND:g}.pdf')
     fig.savefig(out, bbox_inches='tight', dpi=300, transparent=True)

@@ -14,14 +14,15 @@
 # Plotting-only, no GPU/simulation: re-plots the already-cached
 # ee_vs_power_budget_sweep_sac_error{X}.gzip against the actual Dinkelbach
 # training reward (sumrate - lambda_ee * normalized power) instead of the
-# classical rate/power ratio -- see dinkelbach_reward_vs_power_budget_sweep_sac.py's
-# module docstring for why the ratio isn't the right objective to plot,
-# and for the caveat that lambda_ee is an estimate (the exact training-time
-# logged value no longer exists).
+# classical rate/power ratio, using the REAL trained lambda_ee (read from
+# dinkelbach_lambda_ee.txt next to the checkpoint, now that EE_sac.py
+# saves it) rather than an estimate. Also plots overall transmit power
+# (P_total, including circuit power/PA efficiency) on a second axis.
 # REQUIRES outputs/metrics/EE_vs_transmit_power/ee_vs_power_budget_sweep_sac_error{X}.gzip
-# (run ee_vs_power_budget_sweep_sac.slurm first if it doesn't exist) AND
-# outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip (run
-# plotting_scenario.slurm first if it doesn't exist).
+# generated from the SAME checkpoint this reads lambda_ee from -- if you
+# just retrained, re-run ee_vs_power_budget_sweep_sac.slurm again FIRST so
+# both come from the current (session-aware best) checkpoint, or this
+# script will warn and use mismatched data.
 # Pass --error X to match a sweep run at a different CSIT error bound.
 
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
