@@ -137,6 +137,16 @@ def train_sac_energy_effiency(
         with gzip.open(Path(checkpoint_path, 'config', 'norm_dict.gzip'), 'wb') as file:
             pickle.dump(norm_dict, file)
 
+        # save the Dinkelbach lambda_ee in effect at this exact checkpoint --
+        # previously only ever printed to the training log, never saved
+        # anywhere, which made it unrecoverable once a log was lost (see
+        # chat history). Written for every run (harmless 0.0 for non-
+        # Dinkelbach rewards) so it's tied directly to this checkpoint
+        # rather than needing to correlate against the end-of-run metrics
+        # gzip by episode index.
+        with open(Path(checkpoint_path, 'config', 'dinkelbach_lambda_ee.txt'), 'w') as file:
+            file.write(f'{lambda_ee}\n')
+
         # clean model checkpoints
         for high_score_prior_id, high_score_prior in enumerate(reversed(high_scores)):
             if high_score > 1.05 * high_score_prior or high_score_prior_id > 3:
@@ -194,7 +204,15 @@ def train_sac_energy_effiency(
     )
 
     metrics: dict = {
-        'mean_reward_per_episode': -np.inf * np.ones(config.config_learner.training_episodes)
+        'mean_reward_per_episode': -np.inf * np.ones(config.config_learner.training_episodes),
+        # only populated for reward 'energy_efficiency_dinkelbach_adaptive' --
+        # lambda_ee is otherwise only ever printed to the training log, never
+        # saved anywhere, which made it unrecoverable after the fact once a
+        # log was lost (see chat history: had to fall back to a back-derived
+        # estimate for an already-trained checkpoint because of this).
+        'lambda_ee_per_episode': np.nan * np.ones(config.config_learner.training_episodes),
+        'episode_mean_rate_dinkelbach': np.nan * np.ones(config.config_learner.training_episodes),
+        'episode_mean_power_dinkelbach': np.nan * np.ones(config.config_learner.training_episodes),
     }
     high_score = -np.inf
     high_scores = []
@@ -536,6 +554,10 @@ def train_sac_energy_effiency(
                     f'= {episode_mean_power * config.power_constraint_watt:.2f} W DC draw)'
                 )
             checkpoint_score = episode_mean_rate / episode_mean_power if episode_mean_power > 1e-9 else -np.inf
+
+            metrics['lambda_ee_per_episode'][training_episode_id] = lambda_ee
+            metrics['episode_mean_rate_dinkelbach'][training_episode_id] = episode_mean_rate
+            metrics['episode_mean_power_dinkelbach'][training_episode_id] = episode_mean_power
 
         # save network snapshot
         is_past_dinkelbach_warmup = (
