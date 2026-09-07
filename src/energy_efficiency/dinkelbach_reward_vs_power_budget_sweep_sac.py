@@ -54,11 +54,17 @@ plotting_scenario.py), so after retraining, re-run
 ee_vs_power_budget_sweep_sac.slurm again FIRST to regenerate that gzip
 against the new checkpoint before running this script.
 
-Also plots "overall transmit power" (P_total = P/eta_PA + P_circuit,
-the paper's \\ptotal, i.e. actual DC draw including circuit power and PA
-inefficiency -- not just the raw radiated/swept budget) on a second axis
-against the same x, so the reward's shape can be read directly against
-how much power it actually costs.
+Also draws a flat reference line for the full-power ("RM") baseline sum
+rate -- this checkpoint's own precoding direction, always rescaled to the
+75 W training budget regardless of the swept budget on the x-axis here,
+so it's a genuine horizontal constant, not a function of B. The shaded
+gap between that flat line and the rising Dinkelbach reward curve is the
+visual "EE saves power for a modest, saturating rate cost" argument.
+
+The B* marker uses a saturation threshold (first B within 2% of the
+reward's plateau value), not raw argmax -- argmax can land anywhere
+inside an already-flat plateau due to MC noise once the curve has
+saturated, which doesn't reflect where it visually "knees".
 
 Saves reports/figures/{pdf,jpg,png}/dinkelbach_reward_vs_power_budget_sac_error{X}.*
 """
@@ -119,14 +125,38 @@ if __name__ == '__main__':
 
     dinkelbach_reward = mean_rate - LAMBDA_EE * total_power_normalized
 
-    argmax_idx = int(np.argmax(dinkelbach_reward))
-    print(f'Dinkelbach-reward maximizer over the swept budget: budget={budget_sweep_watt[argmax_idx]:.2f} W, '
-          f'achieved mean_power={mean_power[argmax_idx]:.2f} W, '
-          f'overall (total) power={total_power_watt_arr[argmax_idx]:.2f} W, '
-          f'reward={dinkelbach_reward[argmax_idx]:.4f}, rate={mean_rate[argmax_idx]:.4f} bps/Hz')
+    # Saturation point instead of raw argmax: once the reward has plateaued,
+    # MC noise can make argmax land anywhere in that flat region (e.g. 54 W
+    # instead of the ~35 W where it visually knees). Find the first budget
+    # within 2% of the plateau value (taken as the mean of the last 5 points).
+    plateau_value = float(np.mean(dinkelbach_reward[-5:]))
+    saturation_tolerance = 0.02 * abs(plateau_value)
+    saturated_mask = np.abs(dinkelbach_reward - plateau_value) <= saturation_tolerance
+    saturation_idx = int(np.argmax(saturated_mask))  # first True index
+
+    print(f'Dinkelbach reward saturates at: budget={budget_sweep_watt[saturation_idx]:.2f} W, '
+          f'achieved mean_power={mean_power[saturation_idx]:.2f} W, '
+          f'overall (total) power={total_power_watt_arr[saturation_idx]:.2f} W, '
+          f'reward={dinkelbach_reward[saturation_idx]:.4f} (plateau={plateau_value:.4f}), '
+          f'rate={mean_rate[saturation_idx]:.4f} bps/Hz')
     print(f'At the full training-time budget (75 W): achieved mean_power={mean_power[-1]:.2f} W, '
           f'overall (total) power={total_power_watt_arr[-1]:.2f} W, '
           f'reward={dinkelbach_reward[-1]:.4f}, rate={mean_rate[-1]:.4f} bps/Hz')
+
+    # Full-power ("RM") baseline: this checkpoint's own precoding direction,
+    # always rescaled to the 75 W training budget -- a flat reference,
+    # independent of the swept budget on the x-axis here.
+    triplet_gzip = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet', 'rate_power_triplet.gzip')
+    if not triplet_gzip.exists():
+        raise FileNotFoundError(
+            f'{triplet_gzip} not found -- run plotting_scenario.py first, needed here for the '
+            f'full-power (RM) baseline reference line.'
+        )
+    with gzip.open(triplet_gzip, 'rb') as file:
+        triplet_data = pickle.load(file)
+    error_idx = int(np.argmin(np.abs(triplet_data['error_sweep_range'] - CSIT_ERROR_BOUND)))
+    rm_full_power_rate = float(triplet_data['results']['sac_aod0.0_fullpower']['mean_rate'][error_idx])
+    print(f'Full-power (RM) baseline sum rate: {rm_full_power_rate:.4f} bps/Hz (flat, always at 75 W)')
 
     pdf_path = Path(plot_cfg.plots_parent_path, 'pdf')
     pdf_path.mkdir(parents=True, exist_ok=True)
@@ -136,27 +166,32 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
 
-    # Both curves in bps/Hz on one shared axis -- no Watts here, so the
-    # vertical gap between them is directly meaningful: it equals exactly
-    # the power-penalty term lambda_ee * total_power_normalized(B), not an
-    # artifact of two differently-scaled axes.
-    line_rate, = ax.plot(
-        budget_sweep_watt, mean_rate, color=plot_cfg.cp2['blue'], marker='s', markersize=4,
-        linestyle='--', linewidth=1.5, label='Sum rate (no power penalty)',
+    # Both curves in bps/Hz on one shared axis. The flat RM baseline is a
+    # true constant (doesn't depend on the swept budget); the shaded gap
+    # between it and the rising/saturating reward curve is the "EE gets
+    # most of the value for far less power" argument.
+    line_rm, = ax.plot(
+        budget_sweep_watt, np.full_like(budget_sweep_watt, rm_full_power_rate),
+        color=plot_cfg.cp2['blue'], linestyle='--', linewidth=1.5,
+        label='RM baseline (always 75 W)',
     )
     line_reward, = ax.plot(
         budget_sweep_watt, dinkelbach_reward, color=plot_cfg.cp2['green'], marker='o', markersize=4,
-        linewidth=1.5, label=fr'Dinkelbach reward, $\lambda_{{\mathrm{{ee}}}} = {LAMBDA_EE:.2f}$ (trained)',
+        linewidth=1.5, label=fr'EE (Dinkelbach reward), $\lambda_{{\mathrm{{ee}}}} = {LAMBDA_EE:.2f}$',
     )
-    vline = ax.axvline(budget_sweep_watt[argmax_idx], color='gray', linestyle='-.', linewidth=1.3,
-                        label=fr'$B^\star \approx {budget_sweep_watt[argmax_idx]:.0f}$ W')
+    ax.fill_between(
+        budget_sweep_watt, dinkelbach_reward, rm_full_power_rate,
+        color=plot_cfg.cp2['gold'], alpha=0.15, zorder=0,
+    )
+    vline = ax.axvline(budget_sweep_watt[saturation_idx], color='gray', linestyle='-.', linewidth=1.3,
+                        label=fr'$B^\star \approx {budget_sweep_watt[saturation_idx]:.0f}$ W (saturates)')
 
     ax.set_xlabel(r'Available power budget $B$ [W]', fontsize=13)
     ax.set_ylabel(r'bps/Hz', fontsize=13)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
 
-    handles = [line_rate, line_reward, vline]
+    handles = [line_rm, line_reward, vline]
     labels = [h.get_label() for h in handles]
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.12),
                ncol=1, fontsize=11, frameon=False, columnspacing=1.4,
