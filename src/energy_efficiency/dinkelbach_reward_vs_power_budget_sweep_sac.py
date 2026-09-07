@@ -22,49 +22,39 @@ from src.config.config_plotting import PlotConfig
 from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
 
 """
-The classical ratio EE = rate/total_power (ee_vs_transmit_power_sweep_sac.py,
-ee_vs_power_budget_sweep_sac.py) is NOT what the SAC-EE policy is actually
-trained to maximize -- training uses the Dinkelbach reward
+Plots the classical EE ratio (rate / total_power, bits/s/Hz/W) for the
+adaptive clip-only policy, swept over available power budget, against a
+flat full-power ("RM") baseline reference line -- both sides computed as
+each one's own rate divided by its own total power, so the whole figure
+is in consistent bps/Hz/W units throughout.
 
-    reward(P) = sumrate(P) - lambda_ee * (total_power_watt(P) / TRAINING_BUDGET_WATT)
+This script started out plotting the actual Dinkelbach training reward
+(sumrate - lambda_ee * normalized_power, EE_sac.py:330) instead of the
+ratio, since the ratio isn't what the policy is trained to maximize.
+That's why it still reads the real trained lambda_ee (see below) and
+prints it for reference. But per the chat discussion this went through:
+dividing the reward by power a second time to get per-Watt units double-
+counts power in a non-standard way, whereas dividing each side's own
+rate by its own power (the ratio) is the clean, dimensionally consistent
+choice for a bps/Hz/W axis -- so that's what's actually plotted now.
 
-(EE_sac.py:330, note power is normalized by the *training-time* budget,
-not raw watts -- see total_power_dinkelbach there). This script re-plots
-the already-cached adaptive clip-only sweep
-(ee_vs_power_budget_sweep_sac_error{X}.gzip) against THIS objective
-instead.
-
-lambda_ee is now read from the ACTUAL training run instead of estimated:
+lambda_ee is read from the ACTUAL training run instead of estimated:
 EE_sac.py was instrumented (this session) to save dinkelbach_lambda_ee.txt
 next to every checkpoint it saves, and the aod=0.0 checkpoint was
 retrained specifically to capture this. Earlier versions of this script
 had to back-derive lambda_ee (first from the deployed ~35 W point, which
 produced an invalid ~9.15 that peaked at an arbitrary ~18 W; then from
-the ratio's own peak via Dinkelbach's theorem, which is only guaranteed
-to reproduce the ratio's 12.4 W peak, not reveal anything new) because
-the original checkpoint's training log was lost. Neither estimate is
-needed anymore now that the real value is saved.
+the ratio's own peak via Dinkelbach's theorem) because the original
+checkpoint's training log was lost.
 
 IMPORTANT: this script's rate/power sweep data (from
 ee_vs_power_budget_sweep_sac_error{X}.gzip) MUST come from the SAME
-checkpoint as the lambda_ee it's paired with, or the reward computed
-here is meaningless. get_best_model_path is session-aware (picks the
+checkpoint as the lambda_ee it's paired with (checked below, prints a
+warning if not). get_best_model_path is session-aware (picks the
 best-scoring checkpoint from the most recent training session, see
 plotting_scenario.py), so after retraining, re-run
 ee_vs_power_budget_sweep_sac.slurm again FIRST to regenerate that gzip
 against the new checkpoint before running this script.
-
-Also draws a flat reference line for the full-power ("RM") baseline sum
-rate -- this checkpoint's own precoding direction, always rescaled to the
-75 W training budget regardless of the swept budget on the x-axis here,
-so it's a genuine horizontal constant, not a function of B. The shaded
-gap between that flat line and the rising Dinkelbach reward curve is the
-visual "EE saves power for a modest, saturating rate cost" argument.
-
-The B* marker uses a saturation threshold (first B within 2% of the
-reward's plateau value), not raw argmax -- argmax can land anywhere
-inside an already-flat plateau due to MC noise once the curve has
-saturated, which doesn't reflect where it visually "knees".
 
 Saves reports/figures/{pdf,jpg,png}/dinkelbach_reward_vs_power_budget_sac_error{X}.*
 """
@@ -121,31 +111,29 @@ if __name__ == '__main__':
         )
 
     total_power_watt_arr = np.array([total_power_watt(cfg, p) for p in mean_power])
-    total_power_normalized = total_power_watt_arr / TRAINING_BUDGET_WATT
 
-    dinkelbach_reward = mean_rate - LAMBDA_EE * total_power_normalized
+    # Real trained lambda_ee is still read above and printed below for
+    # reference/logging, but the plotted quantities here are the classical
+    # ratio (rate / total power) for both curves -- not the Dinkelbach
+    # reward -- per the chat discussion: dividing the reward by power a
+    # second time double-counts power in a non-standard way, whereas
+    # dividing each side's own rate by its own power is a clean, dimensionally
+    # consistent bps/Hz/W quantity for both the EE curve and the RM baseline.
+    ee_ratio_arr = mean_rate / total_power_watt_arr
 
-    # Saturation point instead of raw argmax: once the reward has plateaued,
-    # MC noise can make argmax land anywhere in that flat region (e.g. 54 W
-    # instead of the ~35 W where it visually knees). Find the first budget
-    # within 2% of the plateau value (taken as the mean of the last 5 points).
-    plateau_value = float(np.mean(dinkelbach_reward[-5:]))
-    saturation_tolerance = 0.02 * abs(plateau_value)
-    saturated_mask = np.abs(dinkelbach_reward - plateau_value) <= saturation_tolerance
-    saturation_idx = int(np.argmax(saturated_mask))  # first True index
-
-    print(f'Dinkelbach reward saturates at: budget={budget_sweep_watt[saturation_idx]:.2f} W, '
-          f'achieved mean_power={mean_power[saturation_idx]:.2f} W, '
-          f'overall (total) power={total_power_watt_arr[saturation_idx]:.2f} W, '
-          f'reward={dinkelbach_reward[saturation_idx]:.4f} (plateau={plateau_value:.4f}), '
-          f'rate={mean_rate[saturation_idx]:.4f} bps/Hz')
+    peak_idx = int(np.argmax(ee_ratio_arr))
+    print(f'EE ratio (rate/total_power) peaks at: budget={budget_sweep_watt[peak_idx]:.2f} W, '
+          f'achieved mean_power={mean_power[peak_idx]:.2f} W, '
+          f'overall (total) power={total_power_watt_arr[peak_idx]:.2f} W, '
+          f'EE={ee_ratio_arr[peak_idx]:.4f} bps/Hz/W, rate={mean_rate[peak_idx]:.4f} bps/Hz')
     print(f'At the full training-time budget (75 W): achieved mean_power={mean_power[-1]:.2f} W, '
           f'overall (total) power={total_power_watt_arr[-1]:.2f} W, '
-          f'reward={dinkelbach_reward[-1]:.4f}, rate={mean_rate[-1]:.4f} bps/Hz')
+          f'EE={ee_ratio_arr[-1]:.4f} bps/Hz/W, rate={mean_rate[-1]:.4f} bps/Hz')
 
     # Full-power ("RM") baseline: this checkpoint's own precoding direction,
     # always rescaled to the 75 W training budget -- a flat reference,
-    # independent of the swept budget on the x-axis here.
+    # independent of the swept budget on the x-axis here. Its own ratio
+    # (rate / its own total power) is likewise a flat constant.
     triplet_gzip = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet', 'rate_power_triplet.gzip')
     if not triplet_gzip.exists():
         raise FileNotFoundError(
@@ -156,7 +144,10 @@ if __name__ == '__main__':
         triplet_data = pickle.load(file)
     error_idx = int(np.argmin(np.abs(triplet_data['error_sweep_range'] - CSIT_ERROR_BOUND)))
     rm_full_power_rate = float(triplet_data['results']['sac_aod0.0_fullpower']['mean_rate'][error_idx])
-    print(f'Full-power (RM) baseline sum rate: {rm_full_power_rate:.4f} bps/Hz (flat, always at 75 W)')
+    rm_full_power_power = float(triplet_data['results']['sac_aod0.0_fullpower']['mean_power'][error_idx])
+    rm_ratio = rm_full_power_rate / total_power_watt(cfg, rm_full_power_power)
+    print(f'Full-power (RM) baseline: rate={rm_full_power_rate:.4f} bps/Hz, '
+          f'EE={rm_ratio:.4f} bps/Hz/W (flat, always at 75 W)')
 
     pdf_path = Path(plot_cfg.plots_parent_path, 'pdf')
     pdf_path.mkdir(parents=True, exist_ok=True)
@@ -166,32 +157,34 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
 
-    # Both curves in bps/Hz on one shared axis. The flat RM baseline is a
-    # true constant (doesn't depend on the swept budget); the shaded gap
-    # between it and the rising/saturating reward curve is the "EE gets
-    # most of the value for far less power" argument.
+    # Both curves are the classical ratio (rate / total power), each side
+    # using its own rate and power -- true bps/Hz/W throughout, no mixing
+    # of a power-penalized reward with a raw rate. The flat RM baseline is
+    # a true constant (doesn't depend on the swept budget); the shaded gap
+    # to the EE ratio curve is the "EE gets most of the value for far less
+    # power" argument, now in consistent per-Watt units.
     line_rm, = ax.plot(
-        budget_sweep_watt, np.full_like(budget_sweep_watt, rm_full_power_rate),
+        budget_sweep_watt, np.full_like(budget_sweep_watt, rm_ratio),
         color=plot_cfg.cp2['blue'], linestyle='--', linewidth=1.5,
         label='RM baseline (always 75 W)',
     )
-    line_reward, = ax.plot(
-        budget_sweep_watt, dinkelbach_reward, color=plot_cfg.cp2['green'], marker='o', markersize=4,
-        linewidth=1.5, label=fr'EE (Dinkelbach reward), $\lambda_{{\mathrm{{ee}}}} = {LAMBDA_EE:.2f}$',
+    line_ee, = ax.plot(
+        budget_sweep_watt, ee_ratio_arr, color=plot_cfg.cp2['green'], marker='o', markersize=4,
+        linewidth=1.5, label='EE (rate / total power)',
     )
     ax.fill_between(
-        budget_sweep_watt, dinkelbach_reward, rm_full_power_rate,
+        budget_sweep_watt, ee_ratio_arr, rm_ratio,
         color=plot_cfg.cp2['gold'], alpha=0.15, zorder=0,
     )
-    vline = ax.axvline(budget_sweep_watt[saturation_idx], color='gray', linestyle='-.', linewidth=1.3,
-                        label=fr'$B^\star \approx {budget_sweep_watt[saturation_idx]:.0f}$ W (saturates)')
+    vline = ax.axvline(budget_sweep_watt[peak_idx], color='gray', linestyle='-.', linewidth=1.3,
+                        label=fr'$B^\star \approx {budget_sweep_watt[peak_idx]:.0f}$ W (EE peak)')
 
     ax.set_xlabel(r'Available power budget $B$ [W]', fontsize=13)
-    ax.set_ylabel(r'bps/Hz', fontsize=13)
+    ax.set_ylabel(r'EE [bits/s/Hz/W]', fontsize=13)
     ax.grid(True, alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
 
-    handles = [line_rm, line_reward, vline]
+    handles = [line_rm, line_ee, vline]
     labels = [h.get_label() for h in handles]
     fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 1.12),
                ncol=1, fontsize=11, frameon=False, columnspacing=1.4,
