@@ -88,42 +88,58 @@ if __name__ == '__main__':
     fig, ax_p = plt.subplots(figsize=(plot_width, plot_height))
     ax_r = ax_p.twinx()
 
-    x = np.array([0.0, 1.0])          # learned, RM
-    bar_w = 0.36
+    # Group by QUANTITY: the two power bars (EE, RM) together on the left axis,
+    # the two rate bars (EE, RM) together on the right axis. Within each group
+    # EE is solid and RM is hatched, so the same scheme reads across groups.
+    from matplotlib.patches import Patch
+
+    bar_w = 0.7
+    x_power = np.array([0.0, 1.0])        # EE, RM  -- power group (left axis, blue)
+    x_rate = np.array([2.6, 3.6])         # EE, RM  -- rate group (right axis, green)
     powers = [p_learned, p_rm]
     rates = [r_learned, r_rm]
 
-    bars_p = ax_p.bar(x - bar_w / 2, powers, width=bar_w, color=power_color,
-                      edgecolor='black', linewidth=0.5, label='Transmit power', zorder=3)
-    bars_r = ax_r.bar(x + bar_w / 2, rates, width=bar_w, color=rate_color,
-                      edgecolor='black', linewidth=0.5, label='Sum rate', zorder=3)
+    bars_p = ax_p.bar(x_power, powers, width=bar_w, color=power_color,
+                      edgecolor='black', linewidth=0.6, zorder=3)
+    bars_r = ax_r.bar(x_rate, rates, width=bar_w, color=rate_color,
+                      edgecolor='black', linewidth=0.6, zorder=3)
+    bars_p[1].set_hatch('//')             # RM power
+    bars_r[1].set_hatch('//')             # RM rate
 
-    # value labels; on the learned bars also show the delta vs RM
-    ax_p.text(bars_p[0].get_x() + bar_w / 2, powers[0], f'{powers[0]:.0f} W\n(-{power_saved_pct:.0f}%)',
-              ha='center', va='bottom', fontsize=9.5, color=power_color)
-    ax_p.text(bars_p[1].get_x() + bar_w / 2, powers[1], f'{powers[1]:.0f} W',
-              ha='center', va='bottom', fontsize=9.5, color=power_color)
-    ax_r.text(bars_r[0].get_x() + bar_w / 2, rates[0], f'{rates[0]:.1f}\n(-{rate_lost_pct:.0f}%)',
-              ha='center', va='bottom', fontsize=9.5, color=rate_color)
-    ax_r.text(bars_r[1].get_x() + bar_w / 2, rates[1], f'{rates[1]:.1f}',
-              ha='center', va='bottom', fontsize=9.5, color=rate_color)
+    # value labels on every bar
+    for b, v in zip(bars_p, powers):
+        ax_p.text(b.get_x() + b.get_width() / 2, v, f'{v:.0f} W',
+                  ha='center', va='bottom', fontsize=10, color=power_color)
+    for b, v in zip(bars_r, rates):
+        ax_r.text(b.get_x() + b.get_width() / 2, v, f'{v:.1f}',
+                  ha='center', va='bottom', fontsize=10, color=rate_color)
 
-    ax_p.set_xticks(x)
-    ax_p.set_xticklabels(['EE', 'RM'], fontsize=12)
+    # per-bar EE/RM labels, plus a group label under each pair
+    ax_p.set_xticks([x_power[0], x_power[1], x_rate[0], x_rate[1]])
+    ax_p.set_xticklabels(['EE', 'RM', 'EE', 'RM'], fontsize=11)
+    ax_p.text(x_power.mean(), -0.15, 'Transmit power', ha='center', va='top',
+              fontsize=12, color=power_color, transform=ax_p.get_xaxis_transform())
+    ax_p.text(x_rate.mean(), -0.15, 'Sum rate', ha='center', va='top',
+              fontsize=12, color=rate_color, transform=ax_p.get_xaxis_transform())
+
     ax_p.set_ylabel('Transmit power [W]', fontsize=13, color=power_color)
     ax_r.set_ylabel('Sum rate [bits/s/Hz]', fontsize=13, color=rate_color)
     ax_p.tick_params(axis='y', labelcolor=power_color)
     ax_r.tick_params(axis='y', labelcolor=rate_color)
 
-    ax_p.set_ylim(0, max(powers) * 1.25)
-    ax_r.set_ylim(0, max(rates) * 1.25)
-    ax_p.set_xlim(-0.6, 1.6)
+    ax_p.set_ylim(0, max(powers) * 1.28)
+    ax_r.set_ylim(0, max(rates) * 1.28)
+    ax_p.set_xlim(-0.8, 4.4)
     ax_p.set_axisbelow(True)
     ax_p.grid(True, axis='y', alpha=0.2, linewidth=0.5)
 
-    fig.legend(handles=[bars_p, bars_r], loc='upper center', bbox_to_anchor=(0.5, 1.05),
-               ncol=2, fontsize=11, frameon=False, columnspacing=1.8, handletextpad=0.5)
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    legend_handles = [
+        Patch(facecolor='0.75', edgecolor='black', label='EE (~35 W)'),
+        Patch(facecolor='0.75', edgecolor='black', hatch='//', label='RM (75 W)'),
+    ]
+    ax_p.legend(handles=legend_handles, loc='upper center', ncol=2, fontsize=10,
+                frameon=False, columnspacing=1.6, handletextpad=0.5)
+    fig.tight_layout()
 
     for subdir, dpi, transparent in [('pdf', 300, True), ('jpg', 200, False), ('png', 200, True)]:
         target = Path(plot_cfg.plots_parent_path, subdir)
