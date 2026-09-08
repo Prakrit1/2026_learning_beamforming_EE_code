@@ -36,18 +36,16 @@ Energy-efficiency-vs-transmit-power figure for the deployed SAC policy
 (checkpoint 'aod0.0'): single EE axis, two curves.
 
 The constant-power sweep rescales the policy's raw (un-normalized) precoder
-to each fixed transmit power P across the budget range, giving rate(P). Both
-curves share this same numerator and differ only in the power they charge:
+to each fixed transmit power P across the budget range, giving rate(P), and
 
-    proposed  EE(P) = rate(P) / P_total(P)     -- pays only the power it
-                                                  uses; rises, peaks, falls
-    RM        EE(P) = rate(P) / P_total(75 W)   -- always charged the full
-                                                  budget; tracks (scaled)
-                                                  rate, so it saturates flat
+    proposed  EE(P) = rate(P) / P_total(P)   -- pays only the power it uses;
+                                                rises, peaks, then falls,
 
-where P_total(P) = P / eta_PA + N_ant * P_circuit. The two curves necessarily
-meet at P = 75 W, where the denominators coincide; everywhere to the left the
-proposed curve sits above RM -- i.e. backing off and paying only for the power
+with P_total(P) = P / eta_PA + N_ant * P_circuit. RM always transmits at the
+full 75 W budget, so it is a single operating point, not a curve: its EE is
+the constant rate(75 W) / P_total(75 W), drawn as a horizontal reference line.
+The proposed curve exceeds RM's flat line across the whole back-off region and
+meets it exactly at P = 75 W -- i.e. backing off and paying only for the power
 actually used is more efficient than always paying the full 75 W budget.
 
 Run fresh (sbatch) to (re)compute the sweep, or with --plot-only to replot
@@ -189,17 +187,15 @@ if __name__ == '__main__':
     print(f'full power P={P_full:.1f} W: EE={ee_full:.5f} bps/Hz/W, rate={rate_full:.4f} bps/Hz')
     print(f'-> +{ee_gain_pct:.1f}% EE for -{rate_loss_pct:.1f}% rate by backing off to {P_prop:.0f} W')
 
-    # ---- single EE axis, two curves --------------------------------------
-    # Same numerator rate(P); the curves differ only in the power charged:
-    #   proposed -- pays the power actually used: rate/P_tot(P) (peaks, falls)
-    #   RM       -- always charged the full 75 W budget: rate/P_tot(75 W), so
-    #               it just tracks (scaled) rate and saturates flat.
-    # They meet at P = 75 W, where the two denominators coincide.
-    p_tot_full = total_power_watt(cfg, cfg.power_constraint_watt)
-    rm_ee = mean_rate / p_tot_full
-    rm_at_prop = float(np.interp(P_prop, power_sweep_watt, rm_ee))
+    # ---- single EE axis: proposed curve vs RM's fixed operating point -----
+    # RM always transmits at the full 75 W budget, so it is a SINGLE operating
+    # point, not a curve: its EE is the constant rate(75 W)/P_tot(75 W), drawn
+    # as a horizontal reference line. The proposed policy can trade power for
+    # efficiency along its curve; it exceeds RM's flat line across the whole
+    # back-off region and meets it exactly at P = 75 W.
+    rm_ee_const = ee_full  # = rate(75 W) / P_tot(75 W)
     print(f'at operating point P={P_prop:.0f} W: proposed EE={ee_prop_curve:.5f} vs '
-          f'RM EE={rm_at_prop:.5f} bps/Hz/W (+{100 * (ee_prop_curve / rm_at_prop - 1):.0f}%)')
+          f'RM EE={rm_ee_const:.5f} bps/Hz/W (+{100 * (ee_prop_curve / rm_ee_const - 1):.0f}%)')
 
     prop_color = plot_cfg.cp2['green']
     rm_color = plot_cfg.cp2['gold']
@@ -211,8 +207,8 @@ if __name__ == '__main__':
 
     line_prop, = ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0,
                          label=r'Proposed:  $R(P)/P_{\mathrm{tot}}(P)$', zorder=3)
-    line_rm, = ax.plot(power_sweep_watt, rm_ee, color=rm_color, linestyle='--',
-                       linewidth=2.0, label=r'RM:  $R(P)/P_{\mathrm{tot}}(75\,\mathrm{W})$', zorder=2)
+    line_rm = ax.axhline(rm_ee_const, color=rm_color, linestyle='--', linewidth=2.0,
+                         label=r'RM (fixed 75 W):  $R(75)/P_{\mathrm{tot}}(75)$', zorder=2)
 
     # deployed operating point on the proposed curve
     ax.axvline(P_prop, color='0.7', linestyle=':', linewidth=1.0, zorder=1)
