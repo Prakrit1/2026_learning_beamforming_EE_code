@@ -205,50 +205,34 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
 
-    # same proposed policy, but with an ideal power amplifier (eta_PA = 1):
-    # total power drops the PA-efficiency tax, P_tot -> P_tx + N*P_circuit.
-    # Shifts the EE curve up and pushes its peak toward higher transmit power.
-    circuit_power_watt = cfg.sat_nr * cfg.sat_ant_nr * cfg.circuit_power_watt
-    ee_ideal_pa = mean_rate / (power_sweep_watt + circuit_power_watt)
+    # legend in the trained^ / evaluated-P notation of the other figures
+    trained_watt = int(round(cfg.power_constraint_watt))
+    ee_eval_watt = int(round(P_prop))
+    rm_eval_watt = int(round(P_full))
 
+    # two curves only: EE(P) (green) and RM's fixed-75 W level (flat dashed line)
     line_prop, = ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0,
-                         label=r'Proposed:  $R(P)/P_{\mathrm{tot}}(P)$', zorder=3)
-    line_ideal, = ax.plot(power_sweep_watt, ee_ideal_pa, color=plot_cfg.cp2['blue'],
-                          linestyle='-.', linewidth=2.0,
-                          label=r'Proposed, ideal PA ($\eta_{\mathrm{PA}}=1$)', zorder=3)
+                         label=rf'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W', zorder=3)
     line_rm = ax.axhline(rm_ee_const, color=rm_color, linestyle='--', linewidth=2.0,
-                         label=r'RM (fixed 75 W):  $R(75)/P_{\mathrm{tot}}(75)$', zorder=2)
+                         label=rf'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W', zorder=2)
 
-    # rate labels make "stays in the high-rate regime" explicit: the proposed
-    # point keeps most of RM's rate while operating at far lower power.
-    rate_retained_pct = 100.0 * rate_prop / rate_full
-
-    # deployed operating point on the proposed curve
-    ax.axvline(P_prop, color='0.7', linestyle=':', linewidth=1.0, zorder=1)
-    ax.scatter([P_prop], [ee_prop_curve], marker='*', s=200, color=plot_cfg.cp2['magenta'],
-               edgecolor='black', linewidth=0.6, zorder=5)
-    ax.annotate(f'proposed: {P_prop:.0f} W\n{rate_prop:.1f} bits/s/Hz'
-                f' ({rate_retained_pct:.0f}% of RM)',
-                xy=(P_prop, ee_prop_curve), xytext=(P_prop + 3.5, ee_prop_curve * 0.60),
-                fontsize=9.5, ha='left', va='top',
-                arrowprops=dict(arrowstyle='-', color='0.4', lw=0.8))
-
-    # RM operating point (full power), where the proposed curve meets the line
-    ax.scatter([P_full], [ee_full], marker='o', s=55, facecolor='white',
-               edgecolor='black', linewidth=1.0, zorder=5)
-    ax.annotate(f'RM: {P_full:.0f} W\n{rate_full:.1f} bits/s/Hz',
-                xy=(P_full, ee_full), xytext=(P_full - 3, ee_full + 0.012),
-                fontsize=9.5, ha='right', va='bottom',
-                arrowprops=dict(arrowstyle='-', color='0.4', lw=0.8))
+    # energy-efficient operating point: small open circle with dashed
+    # projections onto both axes
+    ax.plot([P_prop, P_prop], [0, ee_prop_curve], color='0.5', linestyle='--',
+            linewidth=1.0, zorder=1)
+    ax.plot([0, P_prop], [ee_prop_curve, ee_prop_curve], color='0.5', linestyle='--',
+            linewidth=1.0, zorder=1)
+    ax.scatter([P_prop], [ee_prop_curve], marker='o', s=45, facecolor='white',
+               edgecolor=prop_color, linewidth=1.4, zorder=5)
 
     ax.set_xlabel(r'Transmit power $P_{\mathrm{tx}}$ [W]', fontsize=13)
     ax.set_ylabel('Energy efficiency [bits/s/Hz/W]', fontsize=13)
     ax.set_xlim(0, 78)
-    ax.set_ylim(0, float(max(np.max(ee), np.max(ee_ideal_pa))) * 1.18)
+    ax.set_ylim(0, float(np.max(ee)) * 1.18)
     ax.grid(True, axis='y', alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
 
-    ax.legend(loc='upper right', fontsize=10, frameon=False)
+    ax.legend(handles=[line_prop, line_rm], loc='upper right', fontsize=11, frameon=False)
     fig.tight_layout()
 
     for subdir, dpi, transparent in [('pdf', 300, True), ('jpg', 200, False), ('png', 200, True)]:
