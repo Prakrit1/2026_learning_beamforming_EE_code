@@ -32,29 +32,23 @@ from src.utils.update_sim import update_sim
 from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
 
 """
-Dual-axis energy-efficiency-vs-transmit-power figure for the deployed SAC
-policy (checkpoint 'aod0.0').
+Energy-efficiency-vs-transmit-power figure for the deployed SAC policy
+(checkpoint 'aod0.0'): single EE axis, two curves.
 
-The single physical object is the constant-power sweep: the policy's raw
-(un-normalized) precoder is rescaled to each fixed transmit power P across
-the whole budget range, giving
+The constant-power sweep rescales the policy's raw (un-normalized) precoder
+to each fixed transmit power P across the budget range, giving rate(P). Both
+curves share this same numerator and differ only in the power they charge:
 
-    rate(P)   -- sum rate at that power (right axis, saturating), and
-    EE(P) = rate(P) / P_total(P)   -- energy efficiency (left axis, concave),
+    proposed  EE(P) = rate(P) / P_total(P)     -- pays only the power it
+                                                  uses; rises, peaks, falls
+    RM        EE(P) = rate(P) / P_total(75 W)   -- always charged the full
+                                                  budget; tracks (scaled)
+                                                  rate, so it saturates flat
 
-where P_total(P) = P / eta_PA + N_ant * P_circuit.
-
-Two operating points are marked ON these curves:
-  - proposed (~35 W): where the deployed clip-only policy actually operates
-    (mean transmit power read from rate_power_triplet.gzip at Delta-eps=0),
-  - full power (75 W): the no-back-off baseline (same policy rescaled to the
-    full budget) -- the right end of the sweep.
-
-Reading both curves at those two powers shows the trade-off honestly: going
-35 W -> 75 W buys little extra rate (the rate curve has saturated) while
-lowering EE, so the ~40 % EE gain is a real move along the rate/power curve,
-not an artifact of comparing two differently-labelled bars. It also answers
-"why not push to the EE peak (~12 W)?" -- the rate curve there has collapsed.
+where P_total(P) = P / eta_PA + N_ant * P_circuit. The two curves necessarily
+meet at P = 75 W, where the denominators coincide; everywhere to the left the
+proposed curve sits above RM -- i.e. backing off and paying only for the power
+actually used is more efficient than always paying the full 75 W budget.
 
 Run fresh (sbatch) to (re)compute the sweep, or with --plot-only to replot
 from the cached gzip. Saves reports/figures/{pdf,jpg,png}/
@@ -195,64 +189,57 @@ if __name__ == '__main__':
     print(f'full power P={P_full:.1f} W: EE={ee_full:.5f} bps/Hz/W, rate={rate_full:.4f} bps/Hz')
     print(f'-> +{ee_gain_pct:.1f}% EE for -{rate_loss_pct:.1f}% rate by backing off to {P_prop:.0f} W')
 
-    # ---- dual-axis figure -------------------------------------------------
-    ee_color = plot_cfg.cp2['green']
-    rate_color = plot_cfg.cp2['blue']
-    prop_color = plot_cfg.cp2['magenta']
-    full_color = plot_cfg.cp2['gold']
+    # ---- single EE axis, two curves --------------------------------------
+    # Same numerator rate(P); the curves differ only in the power charged:
+    #   proposed -- pays the power actually used: rate/P_tot(P) (peaks, falls)
+    #   RM       -- always charged the full 75 W budget: rate/P_tot(75 W), so
+    #               it just tracks (scaled) rate and saturates flat.
+    # They meet at P = 75 W, where the two denominators coincide.
+    p_tot_full = total_power_watt(cfg, cfg.power_constraint_watt)
+    rm_ee = mean_rate / p_tot_full
+    rm_at_prop = float(np.interp(P_prop, power_sweep_watt, rm_ee))
+    print(f'at operating point P={P_prop:.0f} W: proposed EE={ee_prop_curve:.5f} vs '
+          f'RM EE={rm_at_prop:.5f} bps/Hz/W (+{100 * (ee_prop_curve / rm_at_prop - 1):.0f}%)')
+
+    prop_color = plot_cfg.cp2['green']
+    rm_color = plot_cfg.cp2['gold']
 
     plot_width = 0.99 * plot_cfg.textwidth
     plot_height = plot_width * 0.6  # match the other draft figures' aspect
 
-    fig, ax_ee = plt.subplots(figsize=(plot_width, plot_height))
-    ax_rate = ax_ee.twinx()
+    fig, ax = plt.subplots(figsize=(plot_width, plot_height))
 
-    # faint guides at the two operating powers so both curves are readable there
-    for P in (P_prop, P_full):
-        ax_ee.axvline(P, color='0.7', linestyle=':', linewidth=1.0, zorder=1)
+    line_prop, = ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0,
+                         label=r'Proposed:  $R(P)/P_{\mathrm{tot}}(P)$', zorder=3)
+    line_rm, = ax.plot(power_sweep_watt, rm_ee, color=rm_color, linestyle='--',
+                       linewidth=2.0, label=r'RM:  $R(P)/P_{\mathrm{tot}}(75\,\mathrm{W})$', zorder=2)
 
-    # rate on the right axis (dashed, drawn behind), EE on the left (solid)
-    line_rate, = ax_rate.plot(power_sweep_watt, mean_rate, color=rate_color,
-                              linestyle='--', linewidth=1.8, label='Sum rate', zorder=2)
-    line_ee, = ax_ee.plot(power_sweep_watt, ee, color=ee_color,
-                          linewidth=2.0, label='Energy efficiency', zorder=3)
+    # deployed operating point on the proposed curve
+    ax.axvline(P_prop, color='0.7', linestyle=':', linewidth=1.0, zorder=1)
+    ax.scatter([P_prop], [ee_prop_curve], marker='*', s=200, color=plot_cfg.cp2['magenta'],
+               edgecolor='black', linewidth=0.6, zorder=5)
+    ax.annotate(f'operating point\n{P_prop:.0f} W', xy=(P_prop, ee_prop_curve),
+                xytext=(P_prop + 3.5, ee_prop_curve * 0.62),
+                fontsize=10, ha='left', va='top',
+                arrowprops=dict(arrowstyle='-', color='0.4', lw=0.8))
 
-    # operating-point markers on the EE curve
-    ax_ee.scatter([P_prop], [ee_prop_curve], marker='*', s=200, color=prop_color,
-                  edgecolor='black', linewidth=0.6, zorder=5)
-    ax_ee.scatter([P_full], [ee_full], marker='o', s=80, color=full_color,
-                  edgecolor='black', linewidth=0.6, zorder=5)
+    # the two curves converge at full power
+    ax.scatter([P_full], [ee_full], marker='o', s=55, facecolor='white',
+               edgecolor='black', linewidth=1.0, zorder=5)
+    ax.annotate('converge\nat 75 W', xy=(P_full, ee_full),
+                xytext=(P_full - 3, ee_full + 0.010),
+                fontsize=9.5, ha='right', va='bottom',
+                arrowprops=dict(arrowstyle='-', color='0.4', lw=0.8))
 
-    ax_ee.annotate(f'proposed\n{P_prop:.0f} W', xy=(P_prop, ee_prop_curve),
-                   xytext=(P_prop + 3.5, ee_prop_curve * 0.72),
-                   fontsize=10, color=prop_color, ha='left', va='top',
-                   arrowprops=dict(arrowstyle='-', color=prop_color, lw=0.8))
-    ax_ee.annotate(f'full power\n{P_full:.0f} W', xy=(P_full, ee_full),
-                   xytext=(P_full - 3.5, ee_full * 1.28),
-                   fontsize=10, color=full_color, ha='right', va='bottom',
-                   arrowprops=dict(arrowstyle='-', color=full_color, lw=0.8))
+    ax.set_xlabel(r'Transmit power $P_{\mathrm{tx}}$ [W]', fontsize=13)
+    ax.set_ylabel('Energy efficiency [bits/s/Hz/W]', fontsize=13)
+    ax.set_xlim(0, 78)
+    ax.set_ylim(0, float(np.max(ee)) * 1.18)
+    ax.grid(True, axis='y', alpha=0.25, linewidth=0.5)
+    ax.set_axisbelow(True)
 
-    # headline gain, placed near the proposed marker
-    ax_ee.text(P_prop + 3.5, ee_prop_curve * 1.06,
-               f'+{ee_gain_pct:.0f}% EE\n(-{rate_loss_pct:.0f}% rate)',
-               fontsize=9.5, color='black', ha='left', va='bottom')
-
-    ax_ee.set_xlabel(r'Transmit power $P_{\mathrm{tx}}$ [W]', fontsize=13)
-    ax_ee.set_ylabel('Energy efficiency [bits/s/Hz/W]', fontsize=13, color=ee_color)
-    ax_rate.set_ylabel('Sum rate [bits/s/Hz]', fontsize=13, color=rate_color)
-    ax_ee.tick_params(axis='y', labelcolor=ee_color)
-    ax_rate.tick_params(axis='y', labelcolor=rate_color)
-
-    ax_ee.set_xlim(0, 78)
-    ax_ee.set_ylim(0, float(np.max(ee)) * 1.18)
-    ax_rate.set_ylim(0, float(np.max(mean_rate)) * 1.12)
-    ax_ee.grid(True, axis='y', alpha=0.25, linewidth=0.5)
-    ax_ee.set_axisbelow(True)
-
-    fig.legend(handles=[line_ee, line_rate], loc='upper center',
-               bbox_to_anchor=(0.5, 1.06), ncol=2, fontsize=11,
-               frameon=False, columnspacing=1.6, handletextpad=0.5)
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    ax.legend(loc='upper right', fontsize=10, frameon=False)
+    fig.tight_layout()
 
     for subdir, dpi, transparent in [('pdf', 300, True), ('jpg', 200, False), ('png', 200, True)]:
         target = Path(plot_cfg.plots_parent_path, subdir)
