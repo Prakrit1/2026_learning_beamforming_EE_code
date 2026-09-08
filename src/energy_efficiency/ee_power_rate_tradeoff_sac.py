@@ -106,36 +106,44 @@ if __name__ == '__main__':
     bars_p[1].set_hatch('//')             # RM power
     bars_r[1].set_hatch('//')             # RM rate
 
-    # value labels on every bar
-    for b, v in zip(bars_p, powers):
-        ax_p.text(b.get_x() + b.get_width() / 2, v, f'{v:.0f} W',
-                  ha='center', va='bottom', fontsize=10, color=power_color)
-    for b, v in zip(bars_r, rates):
-        ax_r.text(b.get_x() + b.get_width() / 2, v, f'{v:.1f}',
-                  ha='center', va='bottom', fontsize=10, color=rate_color)
+    # Decrement arrows (no on-bar values): a dashed guide at the EE level and a
+    # double-headed arrow just right of each RM bar, labelled with the percent
+    # drop -- so "power down X%, rate down only Y%" reads off the notation.
+    def decrement_arrow(ax, x_ee, x_rm, y_ee, y_rm, pct):
+        arrow_x = x_rm + bar_w / 2 + 0.10
+        ax.hlines(y_ee, x_ee, arrow_x, colors='0.45', linestyles='--', linewidth=1.0, zorder=4)
+        ax.annotate('', xy=(arrow_x, y_ee), xytext=(arrow_x, y_rm),
+                    arrowprops=dict(arrowstyle='<->', color='black', lw=1.5), zorder=6)
+        ax.text(arrow_x + 0.10, 0.5 * (y_ee + y_rm), rf'$-{pct:.0f}\%$',
+                ha='left', va='center', fontsize=12, zorder=6)
 
-    # per-bar EE/RM labels, plus a group label under each pair
+    decrement_arrow(ax_p, x_power[0], x_power[1], p_learned, p_rm, power_saved_pct)
+    decrement_arrow(ax_r, x_rate[0], x_rate[1], r_learned, r_rm, rate_lost_pct)
+
+    # per-bar EE/RM labels only (group identity is given by the left/right axes)
     ax_p.set_xticks([x_power[0], x_power[1], x_rate[0], x_rate[1]])
     ax_p.set_xticklabels(['EE', 'RM', 'EE', 'RM'], fontsize=11)
-    ax_p.text(x_power.mean(), -0.15, 'Transmit power', ha='center', va='top',
-              fontsize=12, color=power_color, transform=ax_p.get_xaxis_transform())
-    ax_p.text(x_rate.mean(), -0.15, 'Sum rate', ha='center', va='top',
-              fontsize=12, color=rate_color, transform=ax_p.get_xaxis_transform())
 
     ax_p.set_ylabel('Transmit power [W]', fontsize=13, color=power_color)
     ax_r.set_ylabel('Sum rate [bits/s/Hz]', fontsize=13, color=rate_color)
     ax_p.tick_params(axis='y', labelcolor=power_color)
     ax_r.tick_params(axis='y', labelcolor=rate_color)
 
-    ax_p.set_ylim(0, max(powers) * 1.28)
-    ax_r.set_ylim(0, max(rates) * 1.28)
-    ax_p.set_xlim(-0.8, 4.4)
+    ax_p.set_ylim(0, max(powers) * 1.30)
+    ax_r.set_ylim(0, max(rates) * 1.30)
+    ax_p.set_xlim(-0.8, 4.9)
     ax_p.set_axisbelow(True)
     ax_p.grid(True, axis='y', alpha=0.2, linewidth=0.5)
 
+    # legend in the trained^ / evaluated-P style of the triplet figures
+    trained_watt = int(round(cfg.power_constraint_watt))
+    ee_eval_watt = int(round(p_learned))
+    rm_eval_watt = int(round(p_rm))
     legend_handles = [
-        Patch(facecolor='0.75', edgecolor='black', label='EE (~35 W)'),
-        Patch(facecolor='0.75', edgecolor='black', hatch='//', label='RM (75 W)'),
+        Patch(facecolor='0.75', edgecolor='black',
+              label=rf'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W'),
+        Patch(facecolor='0.75', edgecolor='black', hatch='//',
+              label=rf'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W'),
     ]
     ax_p.legend(handles=legend_handles, loc='upper center', ncol=2, fontsize=10,
                 frameon=False, columnspacing=1.6, handletextpad=0.5)
