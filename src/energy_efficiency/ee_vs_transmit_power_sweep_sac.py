@@ -210,20 +210,25 @@ if __name__ == '__main__':
     line_rm = ax.axhline(rm_ee_const, color=rm_color, linestyle='--', linewidth=2.0,
                          label=r'RM (fixed 75 W):  $R(75)/P_{\mathrm{tot}}(75)$', zorder=2)
 
+    # rate labels make "stays in the high-rate regime" explicit: the proposed
+    # point keeps most of RM's rate while operating at far lower power.
+    rate_retained_pct = 100.0 * rate_prop / rate_full
+
     # deployed operating point on the proposed curve
     ax.axvline(P_prop, color='0.7', linestyle=':', linewidth=1.0, zorder=1)
     ax.scatter([P_prop], [ee_prop_curve], marker='*', s=200, color=plot_cfg.cp2['magenta'],
                edgecolor='black', linewidth=0.6, zorder=5)
-    ax.annotate(f'operating point\n{P_prop:.0f} W', xy=(P_prop, ee_prop_curve),
-                xytext=(P_prop + 3.5, ee_prop_curve * 0.62),
-                fontsize=10, ha='left', va='top',
+    ax.annotate(f'proposed: {P_prop:.0f} W\n{rate_prop:.1f} bits/s/Hz'
+                f' ({rate_retained_pct:.0f}% of RM)',
+                xy=(P_prop, ee_prop_curve), xytext=(P_prop + 3.5, ee_prop_curve * 0.60),
+                fontsize=9.5, ha='left', va='top',
                 arrowprops=dict(arrowstyle='-', color='0.4', lw=0.8))
 
-    # the two curves converge at full power
+    # RM operating point (full power), where the proposed curve meets the line
     ax.scatter([P_full], [ee_full], marker='o', s=55, facecolor='white',
                edgecolor='black', linewidth=1.0, zorder=5)
-    ax.annotate('converge\nat 75 W', xy=(P_full, ee_full),
-                xytext=(P_full - 3, ee_full + 0.010),
+    ax.annotate(f'RM: {P_full:.0f} W\n{rate_full:.1f} bits/s/Hz',
+                xy=(P_full, ee_full), xytext=(P_full - 3, ee_full + 0.012),
                 fontsize=9.5, ha='right', va='bottom',
                 arrowprops=dict(arrowstyle='-', color='0.4', lw=0.8))
 
