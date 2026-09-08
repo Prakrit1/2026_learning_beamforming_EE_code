@@ -205,8 +205,17 @@ if __name__ == '__main__':
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
 
+    # same proposed policy, but with an ideal power amplifier (eta_PA = 1):
+    # total power drops the PA-efficiency tax, P_tot -> P_tx + N*P_circuit.
+    # Shifts the EE curve up and pushes its peak toward higher transmit power.
+    circuit_power_watt = cfg.sat_nr * cfg.sat_ant_nr * cfg.circuit_power_watt
+    ee_ideal_pa = mean_rate / (power_sweep_watt + circuit_power_watt)
+
     line_prop, = ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0,
                          label=r'Proposed:  $R(P)/P_{\mathrm{tot}}(P)$', zorder=3)
+    line_ideal, = ax.plot(power_sweep_watt, ee_ideal_pa, color=plot_cfg.cp2['blue'],
+                          linestyle='-.', linewidth=2.0,
+                          label=r'Proposed, ideal PA ($\eta_{\mathrm{PA}}=1$)', zorder=3)
     line_rm = ax.axhline(rm_ee_const, color=rm_color, linestyle='--', linewidth=2.0,
                          label=r'RM (fixed 75 W):  $R(75)/P_{\mathrm{tot}}(75)$', zorder=2)
 
@@ -235,7 +244,7 @@ if __name__ == '__main__':
     ax.set_xlabel(r'Transmit power $P_{\mathrm{tx}}$ [W]', fontsize=13)
     ax.set_ylabel('Energy efficiency [bits/s/Hz/W]', fontsize=13)
     ax.set_xlim(0, 78)
-    ax.set_ylim(0, float(np.max(ee)) * 1.18)
+    ax.set_ylim(0, float(max(np.max(ee), np.max(ee_ideal_pa))) * 1.18)
     ax.grid(True, axis='y', alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
 
