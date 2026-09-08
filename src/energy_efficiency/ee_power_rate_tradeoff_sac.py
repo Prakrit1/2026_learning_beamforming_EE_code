@@ -93,9 +93,9 @@ if __name__ == '__main__':
     # EE is solid and RM is hatched, so the same scheme reads across groups.
     from matplotlib.patches import Patch
 
-    bar_w = 0.7
-    x_power = np.array([0.0, 1.0])        # EE, RM  -- power group (left axis, blue)
-    x_rate = np.array([2.6, 3.6])         # EE, RM  -- rate group (right axis, green)
+    bar_w = 0.55
+    x_power = np.array([0.0, 1.4])        # EE, RM  -- power group (left axis, blue)
+    x_rate = np.array([2.8, 4.2])         # EE, RM  -- rate group (right axis, green)
     powers = [p_learned, p_rm]
     rates = [r_learned, r_rm]
 
@@ -109,16 +109,16 @@ if __name__ == '__main__':
     # Decrement arrows (no on-bar values): a dashed guide at the EE level and a
     # double-headed arrow just right of each RM bar, labelled with the percent
     # drop -- so "power down X%, rate down only Y%" reads off the notation.
-    def decrement_arrow(ax, x_ee, x_rm, y_ee, y_rm, pct):
-        arrow_x = x_rm + bar_w / 2 + 0.10
+    def decrement_arrow(ax, x_ee, x_rm, y_ee, y_rm, pct, word):
+        arrow_x = x_rm - bar_w / 2 - 0.12          # just left of the RM bar
         ax.hlines(y_ee, x_ee, arrow_x, colors='0.45', linestyles='--', linewidth=1.0, zorder=4)
         ax.annotate('', xy=(arrow_x, y_ee), xytext=(arrow_x, y_rm),
                     arrowprops=dict(arrowstyle='<->', color='black', lw=1.5), zorder=6)
-        ax.text(arrow_x + 0.10, 0.5 * (y_ee + y_rm), rf'$-{pct:.0f}\%$',
-                ha='left', va='center', fontsize=12, zorder=6)
+        ax.text(arrow_x - 0.10, 0.5 * (y_ee + y_rm), rf'$\approx {pct:.0f}\%$' + f'\n{word}',
+                ha='right', va='center', fontsize=11, zorder=6)
 
-    decrement_arrow(ax_p, x_power[0], x_power[1], p_learned, p_rm, power_saved_pct)
-    decrement_arrow(ax_r, x_rate[0], x_rate[1], r_learned, r_rm, rate_lost_pct)
+    decrement_arrow(ax_p, x_power[0], x_power[1], p_learned, p_rm, power_saved_pct, 'power saved')
+    decrement_arrow(ax_r, x_rate[0], x_rate[1], r_learned, r_rm, rate_lost_pct, 'rate loss')
 
     # per-bar EE/RM labels only (group identity is given by the left/right axes)
     ax_p.set_xticks([x_power[0], x_power[1], x_rate[0], x_rate[1]])
@@ -131,7 +131,7 @@ if __name__ == '__main__':
 
     ax_p.set_ylim(0, max(powers) * 1.30)
     ax_r.set_ylim(0, max(rates) * 1.30)
-    ax_p.set_xlim(-0.8, 4.9)
+    ax_p.set_xlim(-0.8, 5.0)
     ax_p.set_axisbelow(True)
     ax_p.grid(True, axis='y', alpha=0.2, linewidth=0.5)
 
