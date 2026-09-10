@@ -34,8 +34,9 @@ from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_
 """
 Energy-efficiency-vs-transmit-power figure comparing the deployed EE policy
 ('aod0.0' Dinkelbach checkpoint) against the genuinely-separate rate-only (RM)
-baseline (SAC_rateonly, EE_REWARD_MODE=sum_rate_only): single EE axis, two
-SWEPT curves.
+baseline (SAC_rateonly, EE_REWARD_MODE=sum_rate_only): left axis = energy
+efficiency (two swept EE curves), right (twin) axis = the EE policy's achieved
+sum rate vs transmit power.
 
 For each policy the constant-power sweep rescales its raw (un-normalized)
 precoder to each fixed transmit power P across the budget range, giving
@@ -298,6 +299,21 @@ if __name__ == '__main__':
             linewidth=1.0, zorder=1)
     ax.scatter([P_prop], [ee_prop_curve], marker='o', s=45, facecolor='white',
                edgecolor=prop_color, linewidth=1.4, zorder=5)
+
+    # ---- secondary right axis: achieved sum rate vs transmit power ---------
+    # The EE policy's rate(P) rises and saturates while EE(P) peaks (~12 W) then
+    # falls; the twin axis makes the rate/efficiency trade-off explicit and
+    # shows the ~35 W operating point keeps most of the rate at high efficiency.
+    ax_rate = ax.twinx()
+    rate_color = plot_cfg.cp2['blue']
+    line_rate, = ax_rate.plot(power_sweep_watt, mean_rate, color=rate_color,
+                              linewidth=2.0, linestyle=(0, (5, 2)),
+                              label='Sum rate', zorder=2)
+    ax_rate.scatter([P_prop], [rate_prop], marker='D', s=38, facecolor='white',
+                    edgecolor=rate_color, linewidth=1.4, zorder=5)
+    ax_rate.set_ylabel('Sum rate [bits/s/Hz]', fontsize=13)
+    ax_rate.set_ylim(0, float(np.max(mean_rate)) * 1.12)
+    handles.append(line_rate)
 
     ax.set_xlabel(r'Transmit power $P_{\mathrm{tx}}$ [W]', fontsize=13)
     ax.set_ylabel('Energy efficiency [bits/s/Hz/W]', fontsize=13)
