@@ -5,35 +5,40 @@
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 2
-#SBATCH -t 0-00:15:00
+#SBATCH -t 0-00:40:00
 #SBATCH -p wiss
-#SBATCH --mem=2G
+#SBATCH --gres=gpu:1
+#SBATCH --mem=4G
 #SBATCH --mail-user=parajuli@ant.uni-bremen.de
 #SBATCH --mail-type=ALL
 
-# Dual-axis energy-efficiency-vs-transmit-power figure for the deployed SAC
-# policy: EE(P) (left, concave) and sum rate(P) (right, saturating) over the
-# constant-power sweep, with the proposed (~35 W) and full-power (75 W)
-# operating points marked so the EE gain reads as an honest move along the
-# rate/power curve. See ee_vs_transmit_power_sweep_sac.py's module docstring.
+# Energy-efficiency-vs-transmit-power figure: EE(P) for the deployed EE policy
+# AND for the genuine rate-only (RM) baseline, both swept over the constant-
+# power grid, with the ~35 W operating point marked on each so they read off
+# at equal power. See ee_vs_transmit_power_sweep_sac.py's module docstring.
 #
-# This launcher is PLOT-ONLY (fast, no GPU): it replots from the cached
-# outputs/metrics/EE_vs_transmit_power/ee_vs_power_sweep_sac_error0.gzip and
-# reads the deployed operating point from
+# This launcher RECOMPUTES both sweeps (EE + RM, ~800k network forward passes),
+# which is why it now requests a GPU and a longer -t -- the cached gzip has no
+# RM curve until this runs once. It reads the deployed operating point from
 # outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip.
-# To RECOMPUTE the sweep from scratch (400k network forward passes, needs the
-# GPU partition and a longer -t), drop the --plot-only flag below.
+# The RM sweep needs the SAC_rateonly_N16K3_satg30_p75_eta0.6_rawpow checkpoint
+# under models/; if it is absent the script warns and falls back to the flat
+# EE-at-75W placeholder line for RM.
+# Once the cache exists, add --plot-only to the python line below (and drop the
+# --gres/mem back down) for a fast, no-GPU replot.
 # Pass --error X to match a different CSIT error bound.
 
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
 conda activate gpu_beamforming
+
+export CUDA_VISIBLE_DEVICES=$SLURM_JOB_GPUS
 
 cd /home/parajuli/repos/2026_learning_beamforming_EE_code
 export PYTHONPATH=/home/parajuli/repos/2026_learning_beamforming_EE_code
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/ee_vs_transmit_power_sweep_sac.py --plot-only
+srun python3 src/energy_efficiency/ee_vs_transmit_power_sweep_sac.py
 srun echo $HOSTNAME
 wait
 
