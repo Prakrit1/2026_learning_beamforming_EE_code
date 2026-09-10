@@ -208,7 +208,7 @@ if __name__ == '__main__':
 
     # EE(P): swept green curve, marked at the deployed ~35 W operating point
     line_prop, = ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0,
-                         label='Energy efficiency', zorder=3)
+                         label='EE', zorder=3)
     handles.append(line_prop)
 
     y_top = float(np.max(ee))
@@ -229,7 +229,7 @@ if __name__ == '__main__':
     rate_color = plot_cfg.cp2['blue']
     line_rate, = ax_rate.plot(power_sweep_watt, mean_rate, color=rate_color,
                               linewidth=2.0, linestyle=(0, (5, 2)),
-                              label='Sum rate', zorder=2)
+                              label=r'$R$', zorder=2)
     ax_rate.scatter([P_prop], [rate_prop], marker='D', s=38, facecolor='white',
                     edgecolor=rate_color, linewidth=1.4, zorder=5)
     ax_rate.set_ylabel('Sum rate [bits/s/Hz]', fontsize=13)
