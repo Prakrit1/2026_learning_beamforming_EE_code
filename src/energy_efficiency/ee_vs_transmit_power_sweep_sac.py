@@ -32,43 +32,27 @@ from src.utils.update_sim import update_sim
 from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
 
 """
-Energy-efficiency-vs-transmit-power figure comparing the deployed EE policy
-('aod0.0' Dinkelbach checkpoint) against the genuinely-separate rate-only (RM)
-baseline (SAC_rateonly, EE_REWARD_MODE=sum_rate_only): left axis = energy
-efficiency (two swept EE curves), right (twin) axis = the EE policy's achieved
-sum rate vs transmit power.
+Energy-efficiency-vs-transmit-power figure for the deployed EE policy
+('aod0.0' Dinkelbach checkpoint): left axis = energy efficiency EE(P), right
+(twin) axis = the SAME policy's achieved sum rate, both against transmit power.
 
-For each policy the constant-power sweep rescales its raw (un-normalized)
-precoder to each fixed transmit power P across the budget range, giving
-rate(P), and
+The constant-power sweep rescales the policy's raw (un-normalized) precoder to
+each fixed transmit power P across the budget range, giving rate(P), and
 
     EE(P) = rate(P) / P_total(P)   -- pays only the power it uses; rises,
                                        peaks, then falls,
 
-with P_total(P) = P / eta_PA + N_ant * P_circuit. Sweeping BOTH policies over
-the same power grid isolates beamforming quality from the power operating
-point: at a common transmit power the two curves differ only in how well each
-policy's learned precoding direction serves the users. The EE policy's real
-deployed operating point (~35 W, read from the cached triplet) is marked on
-its curve, and the RM policy is marked at that same ~35 W so the two can be
-read off at equal power (RM's own native operating point is the 75 W budget,
-i.e. its curve's right endpoint).
+with P_total(P) = P / eta_PA + N_ant * P_circuit. Plotting EE(P) (which peaks
+around 12 W then declines) alongside rate(P) (which rises and saturates) makes
+the rate/efficiency trade-off explicit. The policy's real deployed operating
+point (~35 W, read from the cached triplet) is marked on both curves.
 
-If the RM checkpoint has not been synced into models/ yet, the script falls
-back to the previous behaviour: RM as a single flat reference line at
-rate_EE(75 W)/P_tot(75 W) (a placeholder reusing the EE checkpoint's
-full-power inference), and prints a warning.
-
-Run fresh (sbatch, GPU) to (re)compute the sweeps, or with --plot-only to
+Run fresh (sbatch, GPU) to (re)compute the sweep, or with --plot-only to
 replot from the cached gzip. Saves reports/figures/{pdf,jpg,png}/
 ee_vs_transmit_power_sac_error{X}.*
 """
 
 EE_TRAINING_NAME = CHECKPOINTS['aod0.0']
-# Genuine rate-only (RM) baseline -- EE_REWARD_MODE=sum_rate_only, same 3GPP
-# Set-1 system params (see SAC_rateonly_satg30_p75_nadir.slurm). Add to
-# models/ (or CHECKPOINTS) once the checkpoint is synced off the cluster.
-RM_TRAINING_NAME = 'SAC_rateonly_N16K3_satg30_p75_eta0.6_rawpow'
 
 CSIT_ERROR_BOUND = float(sys.argv[sys.argv.index('--error') + 1]) if '--error' in sys.argv else 0.0
 PLOT_ONLY = '--plot-only' in sys.argv
@@ -125,8 +109,6 @@ def load_and_run_sweep(cfg, training_name):
     print(f'[ee_vs_transmit_power_sweep_sac] checkpoint: {model_path}, csit_error_bound={CSIT_ERROR_BOUND}')
 
     precoder_network, norm_factors = load_model(model_path)
-    # per-checkpoint norm state -- an RM checkpoint trained without state
-    # normalization must not inherit the EE checkpoint's norm setting
     cfg.config_learner.get_state_args['norm_state'] = (norm_factors != {})
 
     mean_rate, std_rate = run_ee_vs_power_sweep_sac(cfg, norm_factors, precoder_network)
@@ -167,31 +149,12 @@ if __name__ == '__main__':
         mean_rate = cached['mean_rate']
         total_power = cached['total_power_watt']
         ee = cached['ee']
-        rm_available = cached.get('rm_available', False)
-        rm_mean_rate = cached.get('rm_mean_rate')
-        rm_ee = cached.get('rm_ee')
-        print(f'[plot-only] loaded cached sweep: {gzip_path} (rm_available={rm_available})')
+        print(f'[plot-only] loaded cached sweep: {gzip_path}')
     else:
         # ---- EE policy sweep ---------------------------------------------
         mean_rate, std_rate, ee_model_path = load_and_run_sweep(cfg, EE_TRAINING_NAME)
         total_power = np.array([total_power_watt(cfg, p) for p in power_sweep_watt])
         ee = mean_rate / total_power
-
-        # ---- RM (rate-only) policy sweep, if the checkpoint is present ----
-        try:
-            rm_mean_rate, rm_std_rate, rm_model_path = load_and_run_sweep(cfg, RM_TRAINING_NAME)
-            rm_ee = rm_mean_rate / total_power
-            rm_available = True
-        except FileNotFoundError:
-            print(f'[warn] RM checkpoint {RM_TRAINING_NAME!r} not found under '
-                  f'{cfg.trained_models_path} -- falling back to the flat '
-                  f'EE-at-75W placeholder line for RM. Sync the SAC_rateonly '
-                  f'checkpoint into models/ and rerun to get the genuine RM curve.')
-            rm_mean_rate = None
-            rm_std_rate = None
-            rm_ee = None
-            rm_model_path = None
-            rm_available = False
 
         with gzip.open(gzip_path, 'wb') as file:
             pickle.dump({
@@ -200,15 +163,9 @@ if __name__ == '__main__':
                 'std_rate': std_rate,
                 'total_power_watt': total_power,
                 'ee': ee,
-                'rm_available': rm_available,
-                'rm_mean_rate': rm_mean_rate,
-                'rm_std_rate': rm_std_rate,
-                'rm_ee': rm_ee,
                 'power_budget': cfg.power_constraint_watt,
                 'ee_training_name': EE_TRAINING_NAME,
-                'rm_training_name': RM_TRAINING_NAME if rm_available else None,
                 'checkpoint': str(ee_model_path),
-                'rm_checkpoint': str(rm_model_path) if rm_available else None,
                 'csit_error_bound': CSIT_ERROR_BOUND,
             }, file=file)
         print(f'Saved: {gzip_path}')
@@ -241,56 +198,20 @@ if __name__ == '__main__':
 
     # ---- figure -----------------------------------------------------------
     prop_color = plot_cfg.cp2['green']
-    rm_color = plot_cfg.cp2['gold']
 
     plot_width = 0.99 * plot_cfg.textwidth
     plot_height = plot_width * 0.6  # match the other draft figures' aspect
 
     fig, ax = plt.subplots(figsize=(plot_width, plot_height))
 
-    # legend in the trained^ / evaluated-P notation of the other figures
-    trained_watt = int(round(cfg.power_constraint_watt))
-    ee_eval_watt = int(round(P_prop))
-    rm_full_watt = int(round(P_full))
-
     handles = []
 
     # EE(P): swept green curve, marked at the deployed ~35 W operating point
     line_prop, = ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0,
-                         label=rf'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W', zorder=3)
+                         label='Energy efficiency', zorder=3)
     handles.append(line_prop)
 
-    ee_curve_max = float(np.max(ee))
-
-    if rm_available:
-        # RM(P): genuine rate-only policy, swept the same way. RM's native
-        # operating point is the 75 W budget (curve's right endpoint); we also
-        # mark it at the EE policy's ~35 W so the two read off at equal power.
-        rm_ee_at_prop = float(np.interp(P_prop, power_sweep_watt, rm_ee))
-        line_rm, = ax.plot(power_sweep_watt, rm_ee, color=rm_color, linewidth=2.0,
-                           linestyle='-',
-                           label=rf'RM$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W', zorder=2)
-        handles.append(line_rm)
-
-        # RM operating-point marker at the common ~35 W (open square)
-        ax.scatter([P_prop], [rm_ee_at_prop], marker='s', s=42, facecolor='white',
-                   edgecolor=rm_color, linewidth=1.4, zorder=5)
-        # horizontal projection of RM's 35 W value onto the y-axis
-        ax.plot([0, P_prop], [rm_ee_at_prop, rm_ee_at_prop], color='0.5', linestyle='--',
-                linewidth=1.0, zorder=1)
-
-        y_top = max(ee_curve_max, float(np.max(rm_ee)))
-        print(f'at P={P_prop:.0f} W: EE={ee_prop_curve:.5f} vs RM={rm_ee_at_prop:.5f} bps/Hz/W '
-              f'(EE +{100 * (ee_prop_curve / rm_ee_at_prop - 1):.0f}% over RM at equal power)')
-    else:
-        # placeholder: RM as a single flat reference line at its 75 W EE
-        rm_ee_const = ee_full  # = rate_EE(75 W) / P_tot(75 W)
-        line_rm = ax.axhline(rm_ee_const, color=rm_color, linestyle='--', linewidth=2.0,
-                             label=rf'RM$^{{{trained_watt}}}$, $P={rm_full_watt}$ W', zorder=2)
-        handles.append(line_rm)
-        y_top = ee_curve_max
-        print(f'[placeholder RM] at P={P_prop:.0f} W: EE={ee_prop_curve:.5f} vs '
-              f'RM(flat)={rm_ee_const:.5f} bps/Hz/W')
+    y_top = float(np.max(ee))
 
     # EE energy-efficient operating point: open circle with dashed projections
     ax.plot([P_prop, P_prop], [0, ee_prop_curve], color='0.5', linestyle='--',

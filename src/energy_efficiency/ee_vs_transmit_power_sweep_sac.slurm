@@ -12,18 +12,14 @@
 #SBATCH --mail-user=parajuli@ant.uni-bremen.de
 #SBATCH --mail-type=ALL
 
-# Energy-efficiency-vs-transmit-power figure: EE(P) for the deployed EE policy
-# AND for the genuine rate-only (RM) baseline, both swept over the constant-
-# power grid, with the ~35 W operating point marked on each so they read off
-# at equal power. See ee_vs_transmit_power_sweep_sac.py's module docstring.
+# Energy-efficiency-vs-transmit-power figure for the deployed EE policy
+# ('aod0.0' Dinkelbach checkpoint): left axis EE(P), right (twin) axis the same
+# policy's sum rate(P), both over the constant-power sweep, with the ~35 W
+# operating point marked on both curves. See the module docstring.
 #
-# This launcher RECOMPUTES both sweeps (EE + RM, ~800k network forward passes),
-# which is why it now requests a GPU and a longer -t -- the cached gzip has no
-# RM curve until this runs once. It reads the deployed operating point from
+# This launcher RECOMPUTES the sweep (~400k network forward passes), hence the
+# GPU request. It reads the deployed operating point from
 # outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip.
-# The RM sweep needs the SAC_rateonly_N16K3_satg30_p75_eta0.6_rawpow checkpoint
-# under models/; if it is absent the script warns and falls back to the flat
-# EE-at-75W placeholder line for RM.
 # Once the cache exists, add --plot-only to the python line below (and drop the
 # --gres/mem back down) for a fast, no-GPU replot.
 # Pass --error X to match a different CSIT error bound.
