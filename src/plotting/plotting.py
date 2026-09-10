@@ -33,6 +33,9 @@ def plot_rate_error_sweep(
         legend_loc: str = 'upper right',
         legend_bbox_to_anchor=None,
         legend_fontsize: int = 11,
+        power_curves: list = None,
+        power_ylabel: str = 'Transmit power [W]',
+        power_ylim=None,
 ) -> None:
     """
     curves: list of dicts, each describing one line on the figure:
@@ -60,6 +63,16 @@ def plot_rate_error_sweep(
     -- savefig's bbox_inches='tight' below already expands to include it.
 
     legend_fontsize: shrink for figures with many/long curve labels.
+
+    power_curves: optional list of curve dicts drawn on a SECONDARY (right)
+    y-axis in transmit power [W], for showing e.g. how the EE policy chooses
+    to save power alongside the rate curves. Same dict shape as `curves`
+    (plots that result_key's 'mean_power'), plus a special {'flat_value': W,
+    ...} form for a constant horizontal reference line (e.g. the 75 W budget)
+    that reads no result_key. Legend entries from both axes are merged into
+    the single legend. Defaults to None -> no right axis, existing behaviour.
+
+    power_ylabel/power_ylim: label and (optional) y-limits for that right axis.
 
     curve['markevery']: optional matplotlib markevery spec (e.g. (0, 2) or
     (1, 2)), for when two curves' lines coincide almost exactly (e.g.
@@ -92,6 +105,34 @@ def plot_rate_error_sweep(
                 fontsize=7, color=curve['color'], fontweight='bold',
             )
 
+    # capture the rate curves' legend handles before adding the twin axis
+    rate_handles, rate_labels = ax.get_legend_handles_labels()
+
+    # optional secondary (right) y-axis: transmit power [W]
+    power_handles = []
+    if power_curves:
+        ax2 = ax.twinx()
+        for pc in power_curves:
+            if 'flat_value' in pc:
+                handle = ax2.axhline(
+                    pc['flat_value'], color=pc['color'],
+                    linestyle=pc.get('linestyle', '--'), linewidth=1.5,
+                    label=pc['label'],
+                )
+            else:
+                series = results[pc['result_key']]
+                handle, = ax2.plot(
+                    error_sweep_range, series['mean_power'],
+                    color=pc['color'], marker=pc.get('marker', 'o'),
+                    markevery=pc.get('markevery', None),
+                    linestyle=pc.get('linestyle', '-'),
+                    linewidth=1.5, markersize=5, label=pc['label'],
+                )
+            power_handles.append(handle)
+        ax2.set_ylabel(power_ylabel, fontsize=13)
+        if power_ylim is not None:
+            ax2.set_ylim(power_ylim)
+
     # PlotConfig's rc default (axes.labelsize=2*9.13≈18.3) makes the axis
     # titles look oversized next to the legend's hardcoded fontsize=9 --
     # pulled both toward a matching size explicitly rather than relying on
@@ -101,6 +142,8 @@ def plot_rate_error_sweep(
     ax.grid(True, alpha=0.5, linewidth=0.7)
     ax.set_axisbelow(True)
     ax.legend(
+        rate_handles + power_handles,
+        rate_labels + [h.get_label() for h in power_handles],
         loc=legend_loc,
         bbox_to_anchor=legend_bbox_to_anchor,
         ncols=legend_ncols,

@@ -380,6 +380,18 @@ if __name__ == '__main__':
          'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
     ]
 
+    # ---- secondary right axis: the EE policy's CHOSEN transmit power --------
+    # Shows EE continuously backing off well below the 75 W budget (~35 W at
+    # Δε=0) and saving MORE as CSIT error grows (down to ~28 W at Δε=0.10),
+    # while RM/MMSE always spend the full budget (flat reference line). This is
+    # the "EE chooses to save power" story on the same axes as the rate curves.
+    power_curves = [
+        {'flat_value': trained_watt, 'label': f'Budget ({trained_watt} W)',
+         'color': plot_cfg.cp2['black'], 'linestyle': ':'},
+        {'result_key': 'sac_aod0.0', 'label': 'EE power',
+         'color': plot_cfg.cp2['green'], 'marker': 'v', 'linestyle': '--'},
+    ]
+
     plot_rate_error_sweep(
         error_sweep_range=data['error_sweep_range'],
         results=data['results'],
@@ -392,4 +404,7 @@ if __name__ == '__main__':
         legend_loc='lower center',
         legend_bbox_to_anchor=(0.5, 1.02),
         legend_fontsize=9,
+        power_curves=power_curves,
+        power_ylabel='Transmit power [W]',
+        power_ylim=(0, 80),
     )
