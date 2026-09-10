@@ -41,10 +41,9 @@ CHECKPOINTS = {
 
 # Genuine rate-only (RM) baseline -- EE_REWARD_MODE=sum_rate_only, same 3GPP
 # Set-1 system params (see SAC_rateonly_satg30_p75_nadir.slurm). Evaluated both
-# at its native full 75 W budget and backed off to RM_BACKOFF_WATT (the EE
-# policy's ~35 W operating point) for an equal-power RM-vs-EE comparison.
+# at its native full 75 W budget and matched to the EE policy's own measured
+# per-error power (equal-power RM-vs-EE comparison, ~35 W at Delta-eps=0).
 RM_TRAINING_NAME = 'SAC_rateonly_N16K3_satg30_p75_eta0.6_rawpow'
-RM_BACKOFF_WATT = 35.0
 
 
 def get_best_model_path(trained_models_path, training_name):
@@ -171,6 +170,60 @@ def run_matched_power_mmse_sweep(cfg, label, target_mean_power):
     }
 
 
+def run_matched_power_learned_sweep(cfg, label, get_raw_precoder_func, target_mean_power):
+    """A learned policy's raw precoder, rescaled per error level to
+    target_mean_power[error_idx] -- the fair equal-power comparison against a
+    reference (EE) curve whose measured power is target_mean_power. Mirrors
+    run_matched_power_mmse_sweep exactly, but for a learned raw precoder
+    instead of MMSE, so RM is compared to EE at EE's OWN power at every error
+    point (not a fixed watt, which would let RM outspend EE as EE's clip-only
+    power drifts down with error)."""
+    satellite_manager = SatelliteManager(config=cfg)
+    user_manager = UserManager(config=cfg)
+
+    error_param = 'additive_error_on_cosine_of_aod'
+    initial_error_config = cfg.config_error_model.error_rng_parametrizations[error_param]['args'].copy()
+
+    mean_rate = np.zeros(len(error_sweep_range))
+    mean_power = np.zeros(len(error_sweep_range))
+    std_rate = np.zeros(len(error_sweep_range))
+    std_power = np.zeros(len(error_sweep_range))
+
+    for error_idx, error_value in enumerate(error_sweep_range):
+        cfg.config_error_model.error_rng_parametrizations[error_param]['args']['low'] = -error_value
+        cfg.config_error_model.error_rng_parametrizations[error_param]['args']['high'] = error_value
+
+        rate_samples = np.zeros(monte_carlo_iterations)
+        power_samples = np.zeros(monte_carlo_iterations)
+
+        for iter_idx in range(monte_carlo_iterations):
+            update_sim(cfg, satellite_manager, user_manager)
+            w_raw = get_raw_precoder_func(cfg, user_manager, satellite_manager)
+            current_power = np.real(np.trace(np.matmul(w_raw.conj().T, w_raw)))
+            w_precoder = w_raw * np.sqrt(target_mean_power[error_idx] / current_power)
+            rate_samples[iter_idx] = calc_sum_rate(
+                channel_state=satellite_manager.channel_state_information,
+                w_precoder=w_precoder,
+                noise_power_watt=cfg.noise_power_watt,
+            )
+            power_samples[iter_idx] = calc_tx_power_distribution(w_precoder=w_precoder).sum()
+
+        mean_rate[error_idx] = rate_samples.mean()
+        std_rate[error_idx] = rate_samples.std()
+        mean_power[error_idx] = power_samples.mean()
+        std_power[error_idx] = power_samples.std()
+        print(f'[{label}] error={error_value:.2f}: rate={mean_rate[error_idx]:.4f} bps/Hz, '
+              f'power={mean_power[error_idx]:.2f} W (target {target_mean_power[error_idx]:.2f} W)')
+
+    cfg.config_error_model.error_rng_parametrizations[error_param]['args'] = initial_error_config
+
+    return {
+        'power_budget': cfg.power_constraint_watt,
+        'mean_rate': mean_rate, 'std_rate': std_rate,
+        'mean_power': mean_power, 'std_power': std_power,
+    }
+
+
 if __name__ == '__main__':
     cfg = Config()
     cfg.show_plots = False
@@ -229,8 +282,11 @@ if __name__ == '__main__':
 
         # ---- genuine rate-only (RM) baseline: real SAC_rateonly checkpoint ----
         # evaluated at its native full 75 W budget (get_precoding_learned, the
-        # same full-power inference the placeholder used) AND rescaled to the EE
-        # policy's ~35 W operating point, so RM and EE read off at equal power.
+        # same full-power inference the placeholder used) AND matched to the EE
+        # policy's OWN measured per-error power, so RM and EE are compared at
+        # equal transmit power at every error point. A fixed 35 W would let RM
+        # outspend EE at high error (EE's clip-only power drifts down to ~28 W),
+        # producing a spurious RM-beats-EE crossover that is purely a power gap.
         try:
             cfg.config_learner.training_name = RM_TRAINING_NAME
             rm_model_path = get_best_model_path(cfg.trained_models_path, RM_TRAINING_NAME)
@@ -247,19 +303,15 @@ if __name__ == '__main__':
             rm_full['checkpoint'] = str(rm_model_path)
             results['rm_fullpower'] = rm_full
 
-            def rm_precoder_at_power(c, um, sm, target_watt):
-                w_raw = get_precoding_learned_no_norm(c, um, sm, rm_norm_factors, rm_network)
-                current_power = np.real(np.trace(np.matmul(w_raw.conj().T, w_raw)))
-                return w_raw * np.sqrt(target_watt / current_power)
-
-            rm_backoff = run_rate_power_sweep(
-                cfg, f'RM (rate-only, {RM_BACKOFF_WATT:g} W)',
-                lambda c, um, sm: rm_precoder_at_power(c, um, sm, RM_BACKOFF_WATT),
+            rm_matched = run_matched_power_learned_sweep(
+                cfg, 'RM (rate-only, matched to EE power)',
+                lambda c, um, sm: get_precoding_learned_no_norm(c, um, sm, rm_norm_factors, rm_network),
+                results['sac_aod0.0']['mean_power'],
             )
-            rm_backoff['label'] = f'RM ({RM_BACKOFF_WATT:g} W)'
-            rm_backoff['training_name'] = RM_TRAINING_NAME
-            rm_backoff['checkpoint'] = str(rm_model_path)
-            results['rm_35w'] = rm_backoff
+            rm_matched['label'] = 'RM (equal power to EE)'
+            rm_matched['training_name'] = RM_TRAINING_NAME
+            rm_matched['checkpoint'] = str(rm_model_path)
+            results['rm_35w'] = rm_matched
         except FileNotFoundError:
             print(f'[warn] RM checkpoint {RM_TRAINING_NAME!r} not found under '
                   f'{cfg.trained_models_path} -- error_sweep_sumrate will fall back '
@@ -299,9 +351,10 @@ if __name__ == '__main__':
 
     if real_rm:
         # RM (gold) as two curves of the same policy: its native 75 W budget
-        # (solid) and backed off to the EE policy's ~35 W (dashed), so RM-vs-EE
-        # is read off at equal transmit power. Distinct from the blue EE-at-full-
-        # power curve below (that is the EE-trained policy at 75 W, not RM).
+        # (solid) and matched to the EE policy's own per-error power (dashed,
+        # ~35 W at Δε=0), so RM-vs-EE is read off at EQUAL transmit power at
+        # every error point. Distinct from the blue EE-at-full-power curve below
+        # (that is the EE-trained policy at 75 W, not RM).
         rm75_eval_watt = round(data['results']['rm_fullpower']['mean_power'][0])
         rm35_eval_watt = round(data['results']['rm_35w']['mean_power'][0])
         curves += [
