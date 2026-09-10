@@ -15,14 +15,20 @@
 # Rate+power error sweep (0-0.10, 11 points, 10k MC) for the lwin5000/3GPP
 # nadir triplet (aod=0.0 job 156358, aod=0.025, aod=0.05 job 153655): full-
 # budget MMSE, SAC(err 0.0) at full power, SAC(err 0.0/0.025/0.05) energy-
-# efficient (clip-only) with a matched-power MMSE curve for err 0.0 -- six
-# curves total, see plotting_scenario.py's docstring for the full layout.
+# efficient (clip-only) with a matched-power MMSE curve for err 0.0, plus the
+# genuine rate-only (RM) baseline evaluated at its native 75 W budget AND
+# backed off to ~35 W -- see plotting_scenario.py's docstring for the layout.
+# This launcher RECOMPUTES the sweep (no --plot-only): the cached gzip has no
+# RM curves until this runs once.
 # REQUIRES the aod=0.025 checkpoint
 # (EE_dinkelbach_adaptive_aod0.025_lwin5000_N16K3_satg30_p75_eta0.6_rawpow)
-# to be present under models/ -- copy it in from wherever it was trained if
-# it is missing, or the run will fail with FileNotFoundError partway through.
-# Pass --plot-only (edit the srun line below) to skip the simulation and
-# just re-plot an already-saved gzip.
+# AND the rate-only checkpoint
+# (SAC_rateonly_N16K3_satg30_p75_eta0.6_rawpow) to be present under models/
+# -- copy them in from wherever they were trained if missing. If the RM
+# checkpoint is absent the run still completes, falling back to the
+# sac_aod0.0_fullpower placeholder for RM (a warning is printed).
+# Once the gzip is regenerated, add --plot-only to the srun line below for a
+# fast, no-simulation re-plot.
 
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
 conda activate gpu_beamforming
@@ -32,7 +38,7 @@ export PYTHONPATH=/home/parajuli/repos/2026_learning_beamforming_EE_code
 
 HOSTNAME=$(hostname)
 srun echo $HOSTNAME
-srun python3 src/energy_efficiency/plotting_scenario.py --plot-only
+srun python3 src/energy_efficiency/plotting_scenario.py
 srun echo $HOSTNAME
 wait
 
