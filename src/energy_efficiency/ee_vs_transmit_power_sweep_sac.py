@@ -247,7 +247,9 @@ if __name__ == '__main__':
     ax.grid(True, axis='y', alpha=0.25, linewidth=0.5)
     ax.set_axisbelow(True)
 
-    ax.legend(handles=handles, loc='upper right', fontsize=11, frameon=False)
+    # horizontal legend above the axes so it never overlaps the curves
+    ax.legend(handles=handles, loc='lower center', bbox_to_anchor=(0.5, 1.02),
+              ncol=len(handles), fontsize=11, frameon=False)
     fig.tight_layout()
 
     for subdir, dpi, transparent in [('pdf', 300, True), ('jpg', 200, False), ('png', 200, True)]:
