@@ -397,8 +397,34 @@ def train_sac_energy_effiency(
                     )
                     reward += config.config_learner.reward['sum_rate_only'] * sum_rate_reward_only
 
+                # Raw energy-efficiency ratio reward: the EE objective (rate / total
+                # power) optimized DIRECTLY, with no adaptive price term. Uses the same
+                # clip-only projection as every other mode, so the policy is free to
+                # transmit below budget and can drive toward the EE-ratio maximum on
+                # its own. This is the "naive EE maximization" baseline for the adaptive
+                # subtractive reward above -- expected to be less stable (the raw ratio
+                # can ill-condition the gradient) and to converge to a rate-starved,
+                # low-power operating point. Rate is taken on the clipped precoder,
+                # power on the raw (pre-clip) draw -- same split as the Dinkelbach
+                # branch -- and the denominator is budget-normalized identically, so
+                # the reward equals the EE ratio up to the constant budget factor
+                # (which does not move the maximizer) while keeping a training-friendly
+                # magnitude comparable to the rate reward.
+                if 'energy_efficiency_ratio' in config.config_learner.reward:
+                    sum_rate_reward_ratio = calc_sum_rate(
+                        channel_state=satellite_manager.channel_state_information,
+                        w_precoder=w_precoder,
+                        noise_power_watt=config.noise_power_watt,
+                    )
+                    transmit_power_ratio = raw_power_precoder / config.pa_efficiency
+                    circuit_power_ratio = config.sat_nr * config.sat_ant_nr * config.circuit_power_watt
+                    total_power_ratio = (transmit_power_ratio + circuit_power_ratio) / config.power_constraint_watt
+                    energy_efficiency_ratio = sum_rate_reward_ratio / total_power_ratio
+                    reward += config.config_learner.reward['energy_efficiency_ratio'] * energy_efficiency_ratio
+
                 valid_reward_keys = [
                     'energy_efficiency_dinkelbach_adaptive',
+                    'energy_efficiency_ratio',
                     'fairness',
                     'sum_rate_only',
                 ]
@@ -757,6 +783,13 @@ if __name__ == '__main__':
         if fairness_weight != 0.0:
             cfg.config_learner.reward['fairness'] = fairness_weight
         cfg.config_learner.training_name = f'SAC_rateonly{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}{csi_format_suffix}{action_format_suffix}'
+    elif reward_mode == 'energy_efficiency_ratio':
+        # raw EE-ratio baseline: reward = rate / total power, optimized directly
+        # (no Dinkelbach price term), so like sum_rate_only this run never touches
+        # lambda_ee / dinkelbach_* state. The clip-only projection lets it fall
+        # below budget and pursue the EE-ratio maximum.
+        cfg.config_learner.reward = {'energy_efficiency_ratio': 1.0}
+        cfg.config_learner.training_name = f'EE_ratio{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}{csi_format_suffix}{action_format_suffix}'
     elif reward_mode is not None:
         raise ValueError(f'Unknown EE_REWARD_MODE: {reward_mode!r}')
 
