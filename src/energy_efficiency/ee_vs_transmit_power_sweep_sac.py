@@ -210,25 +210,18 @@ if __name__ == '__main__':
     prop_watt = int(round(P_prop))
     full_watt = int(round(P_full))
 
-    # EE(P) sweep; both operating points are labelled on the curve, so the
-    # green curve carries no legend entry
     ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0, zorder=3)
 
     y_top = float(np.max(ee))
 
-    # EE operating point (~35 W): trained,evaluated superscript
-    ax.scatter([P_prop], [ee_prop_curve], marker='o', s=45, facecolor='white',
-               edgecolor=prop_color, linewidth=1.4, zorder=5)
-    ax.annotate(rf'EE$^{{{trained_watt},{prop_watt}}}$',
-                xy=(P_prop, ee_prop_curve), xytext=(6, 9),
-                textcoords='offset points', color=prop_color, fontsize=11)
-
-    # RM full-power operating point (75 W)
-    ax.scatter([P_full], [ee_full], marker='s', s=42, facecolor='white',
-               edgecolor='0.25', linewidth=1.4, zorder=5)
-    ax.annotate(rf'RM$^{{{trained_watt},{full_watt}}}$',
-                xy=(P_full, ee_full), xytext=(-8, 10),
-                textcoords='offset points', ha='right', color='0.25', fontsize=11)
+    # operating-point markers; their trained,evaluated labels go in the legend
+    ee_point = ax.scatter([P_prop], [ee_prop_curve], marker='o', s=45,
+                          facecolor='white', edgecolor=prop_color, linewidth=1.4,
+                          zorder=5, label=rf'EE$^{{{trained_watt},{prop_watt}}}$')
+    rm_point = ax.scatter([P_full], [ee_full], marker='s', s=42,
+                          facecolor='white', edgecolor='0.25', linewidth=1.4,
+                          zorder=5, label=rf'RM$^{{{trained_watt},{full_watt}}}$')
+    handles.extend([ee_point, rm_point])
 
     # ---- secondary right axis: achieved sum rate vs transmit power ---------
     # The EE policy's rate(P) rises and saturates while EE(P) peaks (~12 W) then
