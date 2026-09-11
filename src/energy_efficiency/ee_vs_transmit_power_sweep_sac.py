@@ -206,24 +206,29 @@ if __name__ == '__main__':
 
     handles = []
 
-    # both curves are the SAME policy (trained at the 75 W budget); the shared
-    # ^{75} superscript marks them as one policy's two quantities, not two policies
     trained_watt = int(round(cfg.power_constraint_watt))
+    prop_watt = int(round(P_prop))
+    full_watt = int(round(P_full))
 
-    # EE(P): swept green curve, marked at the deployed ~35 W operating point
-    line_prop, = ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0,
-                         label=rf'EE$^{{{trained_watt}}}$', zorder=3)
-    handles.append(line_prop)
+    # EE(P) sweep; both operating points are labelled on the curve, so the
+    # green curve carries no legend entry
+    ax.plot(power_sweep_watt, ee, color=prop_color, linewidth=2.0, zorder=3)
 
     y_top = float(np.max(ee))
 
-    # EE energy-efficient operating point: open circle with dashed projections
-    ax.plot([P_prop, P_prop], [0, ee_prop_curve], color='0.5', linestyle='--',
-            linewidth=1.0, zorder=1)
-    ax.plot([0, P_prop], [ee_prop_curve, ee_prop_curve], color='0.5', linestyle='--',
-            linewidth=1.0, zorder=1)
+    # EE operating point (~35 W): trained,evaluated superscript
     ax.scatter([P_prop], [ee_prop_curve], marker='o', s=45, facecolor='white',
                edgecolor=prop_color, linewidth=1.4, zorder=5)
+    ax.annotate(rf'EE$^{{{trained_watt},{prop_watt}}}$',
+                xy=(P_prop, ee_prop_curve), xytext=(6, 9),
+                textcoords='offset points', color=prop_color, fontsize=11)
+
+    # RM full-power operating point (75 W)
+    ax.scatter([P_full], [ee_full], marker='s', s=42, facecolor='white',
+               edgecolor='0.25', linewidth=1.4, zorder=5)
+    ax.annotate(rf'RM$^{{{trained_watt},{full_watt}}}$',
+                xy=(P_full, ee_full), xytext=(-8, 10),
+                textcoords='offset points', ha='right', color='0.25', fontsize=11)
 
     # ---- secondary right axis: achieved sum rate vs transmit power ---------
     # The EE policy's rate(P) rises and saturates while EE(P) peaks (~12 W) then
