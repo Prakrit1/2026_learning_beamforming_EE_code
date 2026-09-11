@@ -1,11 +1,6 @@
 import os
 import sys
 
-# Guard against leftover shell env vars from other ablation runs (elevation/
-# gain/budget sweeps) silently changing this system's configuration -- the
-# sweep must be on the same system as the deployed-policy operating point it
-# is plotted against (plotting_scenario.py / power_savings_bars_triplet.py
-# apply the same guard).
 os.environ.pop('EE_SAT_GAIN_DBI', None)
 os.environ.pop('EE_POWER_BUDGET_WATT', None)
 os.environ.pop('EE_TARGET_ELEVATION_DEG', None)
@@ -30,27 +25,6 @@ from src.utils.get_precoding import get_precoding_learned_no_norm
 from src.utils.load_model import load_model
 from src.utils.update_sim import update_sim
 from src.energy_efficiency.plotting_scenario import CHECKPOINTS, get_best_model_path
-
-"""
-Energy-efficiency-vs-transmit-power figure for the deployed EE policy
-('aod0.0' Dinkelbach checkpoint): left axis = energy efficiency EE(P), right
-(twin) axis = the SAME policy's achieved sum rate, both against transmit power.
-
-The constant-power sweep rescales the policy's raw (un-normalized) precoder to
-each fixed transmit power P across the budget range, giving rate(P), and
-
-    EE(P) = rate(P) / P_total(P)   -- pays only the power it uses; rises,
-                                       peaks, then falls,
-
-with P_total(P) = P / eta_PA + N_ant * P_circuit. Plotting EE(P) (which peaks
-around 12 W then declines) alongside rate(P) (which rises and saturates) makes
-the rate/efficiency trade-off explicit. The policy's real deployed operating
-point (~35 W, read from the cached triplet) is marked on both curves.
-
-Run fresh (sbatch, GPU) to (re)compute the sweep, or with --plot-only to
-replot from the cached gzip. Saves reports/figures/{pdf,jpg,png}/
-ee_vs_transmit_power_sac_error{X}.*
-"""
 
 EE_TRAINING_NAME = CHECKPOINTS['aod0.0']
 
@@ -116,9 +90,7 @@ def load_and_run_sweep(cfg, training_name):
 
 
 def deployed_operating_point(cfg):
-    """The clip-only policy's actual (mean transmit power, rate, EE) at
-    Delta-eps = CSIT_ERROR_BOUND, straight from the cached triplet -- no new
-    simulation. Returns None if the triplet has not been generated yet."""
+
     triplet_gzip = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet', 'rate_power_triplet.gzip')
     if not triplet_gzip.exists():
         return None
@@ -135,8 +107,7 @@ if __name__ == '__main__':
     cfg = Config()
     cfg.show_plots = False
     plot_cfg = PlotConfig()
-    # PlotConfig() flips text.usetex back on; the compute nodes have no latex
-    # binary, so re-assert it off or savefig crashes silently under sbatch.
+
     matplotlib.rcParams['text.usetex'] = False
 
     out_path = Path(cfg.output_metrics_path, 'EE_vs_transmit_power')
@@ -151,7 +122,7 @@ if __name__ == '__main__':
         ee = cached['ee']
         print(f'[plot-only] loaded cached sweep: {gzip_path}')
     else:
-        # ---- EE policy sweep ---------------------------------------------
+
         mean_rate, std_rate, ee_model_path = load_and_run_sweep(cfg, EE_TRAINING_NAME)
         total_power = np.array([total_power_watt(cfg, p) for p in power_sweep_watt])
         ee = mean_rate / total_power
@@ -170,7 +141,7 @@ if __name__ == '__main__':
             }, file=file)
         print(f'Saved: {gzip_path}')
 
-    # ---- operating points -------------------------------------------------
+
     P_full = float(power_sweep_watt[-1])            # 75 W, no back-off baseline
     ee_full = float(ee[-1])
     rate_full = float(mean_rate[-1])
@@ -178,12 +149,11 @@ if __name__ == '__main__':
     op = deployed_operating_point(cfg)
     if op is not None:
         P_prop, rate_prop_adaptive, ee_prop = op
-        # read the sweep curves at the deployed power so the markers sit on
-        # the plotted lines (adaptive vs constant-power differ only slightly)
+
         rate_prop = float(np.interp(P_prop, power_sweep_watt, mean_rate))
         ee_prop_curve = float(np.interp(P_prop, power_sweep_watt, ee))
     else:
-        # fall back to the sweep's EE-maximiser if the triplet is unavailable
+
         P_prop = float(power_sweep_watt[int(np.argmax(ee))])
         rate_prop = float(np.interp(P_prop, power_sweep_watt, mean_rate))
         ee_prop_curve = float(np.max(ee))
@@ -196,7 +166,7 @@ if __name__ == '__main__':
     print(f'full power P={P_full:.1f} W: EE={ee_full:.5f} bps/Hz/W, rate={rate_full:.4f} bps/Hz')
     print(f'-> +{ee_gain_pct:.1f}% EE for -{rate_loss_pct:.1f}% rate by backing off to {P_prop:.0f} W')
 
-    # ---- figure -----------------------------------------------------------
+
     prop_color = plot_cfg.cp2['green']
 
     plot_width = 0.99 * plot_cfg.textwidth
@@ -223,10 +193,7 @@ if __name__ == '__main__':
                           zorder=5, label=rf'RM$^{{{trained_watt}}}$, $P={full_watt}$ W')
     handles.extend([ee_point, rm_point])
 
-    # ---- secondary right axis: achieved sum rate vs transmit power ---------
-    # The EE policy's rate(P) rises and saturates while EE(P) peaks (~12 W) then
-    # falls; the twin axis makes the rate/efficiency trade-off explicit and
-    # shows the ~35 W operating point keeps most of the rate at high efficiency.
+
     ax_rate = ax.twinx()
     rate_color = plot_cfg.cp2['blue']
     line_rate, = ax_rate.plot(power_sweep_watt, mean_rate, color=rate_color,
