@@ -217,10 +217,10 @@ if __name__ == '__main__':
     # operating-point markers; their trained,evaluated labels go in the legend
     ee_point = ax.scatter([P_prop], [ee_prop_curve], marker='o', s=45,
                           facecolor='white', edgecolor=prop_color, linewidth=1.4,
-                          zorder=5, label=rf'EE$^{{{trained_watt},{prop_watt}}}$')
+                          zorder=5, label=rf'EE$^{{{trained_watt}}}$, $P={prop_watt}$ W')
     rm_point = ax.scatter([P_full], [ee_full], marker='s', s=42,
                           facecolor='white', edgecolor='0.25', linewidth=1.4,
-                          zorder=5, label=rf'RM$^{{{trained_watt},{full_watt}}}$')
+                          zorder=5, label=rf'RM$^{{{trained_watt}}}$, $P={full_watt}$ W')
     handles.extend([ee_point, rm_point])
 
     # ---- secondary right axis: achieved sum rate vs transmit power ---------
