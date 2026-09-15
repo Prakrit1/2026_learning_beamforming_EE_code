@@ -142,9 +142,9 @@ if __name__ == '__main__':
     rm_eval_watt = int(round(p_rm))
     legend_handles = [
         Patch(facecolor='0.75', edgecolor='black',
-              label=rf'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W'),
+              label=rf'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$'),
         Patch(facecolor='0.75', edgecolor='black', hatch='//',
-              label=rf'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W'),
+              label=rf'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$'),
     ]
     ax_p.legend(handles=legend_handles, loc='upper center', ncol=2, fontsize=10,
                 frameon=False, columnspacing=1.6, handletextpad=0.5)
