@@ -1,25 +1,3 @@
-"""
-Rate-vs-error figure for three training-error SAC checkpoints (Δε =
-0.00/0.025/0.05), each paired with the genuine rate-only (RM) policy at
-EQUAL transmit power: the EE checkpoint at its own energy-efficient
-operating power (solid), and the RM checkpoint re-evaluated at that SAME
-per-error power (dashed). The two overlap -- showing that once RM is handed
-the EE policy's (reduced) power budget it matches EE's rate -- so markers
-are staggered to keep both visible. A separate figure from
-plotting_scenario.py's 5-curve MMSE/SAC comparison, answering a different
-question: how does training at a larger CSIT error bound trade off rate for
-robustness, and does the rate-only policy do any better at the same power.
-
-Plotting-only: reuses the gzip plotting_scenario.py already produces
-(outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip), no new
-Monte Carlo simulation. Run plotting_scenario.py first -- it must have been
-run with the aod0.0/aod0.025/aod0.05 EE checkpoints AND the genuine RM
-(SAC_rateonly) checkpoint present under models/, so the gzip carries both
-the 'sac_{aod_key}' curves and the 'rm_matched_{aod_key}' curves this
-figure reads.
-
-Saves reports/figures/{pdf,jpg,png}/error_sweep_training_triplet.*
-"""
 import gzip
 import pickle
 from pathlib import Path
@@ -48,18 +26,10 @@ if __name__ == '__main__':
     aod0025_watt = round(data['results']['sac_aod0.025']['mean_power'][0])
     aod05_watt = round(data['results']['sac_aod0.05']['mean_power'][0])
 
-    # genuine RM's own measured power once matched to each EE checkpoint's power
-    # (~equal to the EE watts above -- that's the point of the equal-power match).
     rm0_watt = round(data['results']['rm_matched_aod0.0']['mean_power'][0])
     rm0025_watt = round(data['results']['rm_matched_aod0.025']['mean_power'][0])
     rm05_watt = round(data['results']['rm_matched_aod0.05']['mean_power'][0])
 
-    # Each Δε checkpoint shown as a pair at EQUAL transmit power: the EE policy
-    # at its own energy-efficient operating power (solid), and the genuine RM
-    # (rate-only) policy re-evaluated at that SAME power (dashed). The pair
-    # overlaps -- so markers are staggered (EE on even x-points, RM on odd) to
-    # keep both visible. Interleaved EE/RM per Δε so the 3-column legend fills
-    # column-major into matching color pairs.
     curves = [
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={aod0_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},

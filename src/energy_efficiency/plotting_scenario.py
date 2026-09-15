@@ -303,10 +303,6 @@ if __name__ == '__main__':
             rm_full['checkpoint'] = str(rm_model_path)
             results['rm_fullpower'] = rm_full
 
-            # genuine RM re-evaluated at each EE checkpoint's OWN measured
-            # per-error power, so RM-at-EE-power overlaps the corresponding EE
-            # curve in error_sweep_training_triplet (the "RM matches EE once you
-            # hand it EE's power budget" story, one RM curve per Δε checkpoint).
             for aod_key in CHECKPOINTS:
                 rm_m = run_matched_power_learned_sweep(
                     cfg, f'RM (rate-only, matched to EE power, {aod_key})',
@@ -318,8 +314,6 @@ if __name__ == '__main__':
                 rm_m['checkpoint'] = str(rm_model_path)
                 results[f'rm_matched_{aod_key}'] = rm_m
 
-            # 'rm_35w' is the Δε=0.0-matched curve under the name the 5-curve
-            # error_sweep_sumrate figure expects (alias, not a recompute).
             results['rm_35w'] = results['rm_matched_aod0.0']
         except FileNotFoundError:
             print(f'[warn] RM checkpoint {RM_TRAINING_NAME!r} not found under '
@@ -378,10 +372,6 @@ if __name__ == '__main__':
             {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W',
              'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3)})
 
-    # NB: the EE-trained-and-evaluated-at-full-budget curve (sac_aod0.0_fullpower,
-    # EE^75/P=75, which overlapped RM at 75 W) is intentionally NOT plotted here --
-    # the draft Fig. 3 shows RM^75 at both 75 W and 35 W against EE^75 at 35 W only.
-    # sac_aod0.0_fullpower is still computed above (RM fallback path uses it).
     curves += [
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
