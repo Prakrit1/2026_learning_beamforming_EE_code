@@ -138,7 +138,7 @@ def plot_rate_error_sweep(
     # titles look oversized next to the legend's hardcoded fontsize=9 --
     # pulled both toward a matching size explicitly rather than relying on
     # the rc default here.
-    ax.set_xlabel('Error Bound (Δε)', fontsize=13)
+    ax.set_xlabel(r'Error Bound ($\Delta\epsilon$)', fontsize=13)
     ax.set_ylabel('Rate R [bps/Hz]', fontsize=13)
     ax.grid(True, alpha=0.5, linewidth=0.7)
     ax.set_axisbelow(True)
