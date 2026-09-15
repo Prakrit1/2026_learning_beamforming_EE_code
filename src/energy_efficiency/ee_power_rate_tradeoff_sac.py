@@ -10,6 +10,7 @@ os.environ.pop('EE_TARGET_ELEVATION_DEG', None)
 
 import gzip
 import pickle
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -155,5 +156,19 @@ if __name__ == '__main__':
         out = Path(target, f'ee_power_rate_tradeoff_sac_error{CSIT_ERROR_BOUND:g}.{subdir}')
         fig.savefig(out, bbox_inches='tight', dpi=dpi, transparent=transparent)
         print(f'Saved: {out}')
+
+    _texsystem = next((t for t in ('xelatex', 'lualatex', 'pdflatex') if shutil.which(t)), None)
+    if _texsystem is not None:
+        try:
+            target = Path(plot_cfg.plots_parent_path, 'pgf')
+            target.mkdir(parents=True, exist_ok=True)
+            out = Path(target, f'ee_power_rate_tradeoff_sac_error{CSIT_ERROR_BOUND:g}.pgf')
+            with matplotlib.rc_context({'pgf.texsystem': _texsystem, 'pgf.rcfonts': False}):
+                fig.savefig(out, bbox_inches='tight', backend='pgf')
+            print(f'Saved: {out}')
+        except Exception as exc:
+            print(f'PGF export skipped: {exc}')
+    else:
+        print('PGF export skipped: no LaTeX (xelatex/lualatex/pdflatex) on PATH')
 
     plt.close(fig)
