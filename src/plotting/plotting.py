@@ -92,8 +92,10 @@ def plot_rate_error_sweep(
         common = dict(color=curve['color'], linestyle=curve.get('linestyle', '-'), linewidth=1.5)
         if marker_dx:
             ax.plot(error_sweep_range, series['mean_rate'], marker='', label='_nolegend_', **common)
+            x_shift = np.asarray(error_sweep_range, dtype=float) + marker_dx
+            y_on_line = np.interp(x_shift, error_sweep_range, series['mean_rate'])
             ax.plot(
-                np.asarray(error_sweep_range, dtype=float) + marker_dx, series['mean_rate'],
+                x_shift, y_on_line,
                 marker=curve.get('marker', 'o'), markevery=curve.get('markevery', None),
                 linestyle='none', color=curve['color'], markersize=5, label='_nolegend_',
             )
