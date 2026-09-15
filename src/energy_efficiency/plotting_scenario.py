@@ -350,7 +350,7 @@ if __name__ == '__main__':
 
     curves = [
         {'result_key': 'mmse_nadir', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_eval_watt}$ W',
-         'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':', 'markevery': (0, 3), 'marker_dx': -0.0025},
+         'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':', 'markevery': (0, 3)},
     ]
 
     if real_rm:
@@ -362,7 +362,7 @@ if __name__ == '__main__':
         rm35_eval_watt = round(data['results']['rm_35w']['mean_power'][0])
         curves += [
             {'result_key': 'rm_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm75_eval_watt}$ W',
-             'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3), 'marker_dx': 0.0025},
+             'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3)},
             {'result_key': 'rm_35w', 'label': f'RM$^{{{trained_watt}}}$, $P={rm35_eval_watt}$ W',
              'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '--', 'markevery': (0, 3), 'marker_dx': 0.0025},
         ]
@@ -376,7 +376,7 @@ if __name__ == '__main__':
 
     curves += [
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',
-         'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-', 'marker_dx': 0.0025},
+         'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
         {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_matched_watt}$ W',
          'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
     ]
