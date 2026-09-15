@@ -33,9 +33,6 @@ from src.models.helpers.get_state_norm_factors import (
 from src.data.calc_sum_rate import (
     calc_sum_rate,
 )
-from src.data.calc_fairness import (
-    calc_jain_fairness,
-)
 from src.data.precoder.mmse_precoder import (
     mmse_precoder_normalized,
 )
@@ -233,13 +230,12 @@ def train_sac_energy_effiency(
     if dinkelbach_lambda_init_rate is not None and dinkelbach_lambda_init_power is not None:
         dinkelbach_rate_ema = dinkelbach_lambda_init_rate
         dinkelbach_power_ema = dinkelbach_lambda_init_power
-        lambda_ee = dinkelbach_lambda_fixed if dinkelbach_lambda_fixed is not None else (
-            dinkelbach_rate_ema / dinkelbach_power_ema
-        )
+        default_lambda = dinkelbach_rate_ema / dinkelbach_power_ema
     else:
         dinkelbach_rate_ema = None
         dinkelbach_power_ema = None
-        lambda_ee = dinkelbach_lambda_fixed if dinkelbach_lambda_fixed is not None else 0.0
+        default_lambda = 0.0
+    lambda_ee = dinkelbach_lambda_fixed if dinkelbach_lambda_fixed is not None else default_lambda
     dinkelbach_lambda_window_steps = getattr(config, 'dinkelbach_lambda_window_steps', transitions_per_episode)
     dinkelbach_lambda_ema_alpha = 2.0 / (dinkelbach_lambda_window_steps + 1)
     dinkelbach_block_episodes = getattr(config, 'dinkelbach_block_episodes', 0)
@@ -268,8 +264,6 @@ def train_sac_energy_effiency(
             # only used for reward 'energy_efficiency_dinkelbach_adaptive'
             'dinkelbach_rate_per_step': np.nan * np.ones(transitions_per_episode),
             'dinkelbach_power_per_step': np.nan * np.ones(transitions_per_episode),
-            # only used when 'fairness' is also in config.config_learner.reward
-            'fairness_per_step': np.nan * np.ones(transitions_per_episode),
         }
 
         for env_idx in range(num_parallel_envs):
@@ -354,19 +348,8 @@ def train_sac_energy_effiency(
                     episode_metrics['dinkelbach_rate_per_step'][training_step_id] = sum_rate_reward_dinkelbach
                     episode_metrics['dinkelbach_power_per_step'][training_step_id] = total_power_dinkelbach
 
-                    # optional Jain's fairness bonus, computed on the same clipped precoder as the rate
-                    if 'fairness' in config.config_learner.reward:
-                        fairness_reward_dinkelbach = calc_jain_fairness(
-                            channel_state=satellite_manager.channel_state_information,
-                            w_precoder=w_precoder_dinkelbach,
-                            noise_power_watt=config.noise_power_watt,
-                        )
-                        reward += config.config_learner.reward['fairness'] * fairness_reward_dinkelbach
-                        episode_metrics['fairness_per_step'][training_step_id] = fairness_reward_dinkelbach
-
                     # this step's reward used lambda_ee from before this update
                     if dinkelbach_lambda_fixed is not None:
-                        # fixed mode: lambda_ee never changes, nothing to accumulate
                         pass
                     elif dinkelbach_block_episodes > 0:
                         # block mode: accumulate only -- lambda_ee itself is not
@@ -397,35 +380,8 @@ def train_sac_energy_effiency(
                     )
                     reward += config.config_learner.reward['sum_rate_only'] * sum_rate_reward_only
 
-                # Raw energy-efficiency ratio reward: the EE objective (rate / total
-                # power) optimized DIRECTLY, with no adaptive price term. Uses the same
-                # clip-only projection as every other mode, so the policy is free to
-                # transmit below budget and can drive toward the EE-ratio maximum on
-                # its own. This is the "naive EE maximization" baseline for the adaptive
-                # subtractive reward above -- expected to be less stable (the raw ratio
-                # can ill-condition the gradient) and to converge to a rate-starved,
-                # low-power operating point. Rate is taken on the clipped precoder,
-                # power on the raw (pre-clip) draw -- same split as the Dinkelbach
-                # branch -- and the denominator is budget-normalized identically, so
-                # the reward equals the EE ratio up to the constant budget factor
-                # (which does not move the maximizer) while keeping a training-friendly
-                # magnitude comparable to the rate reward.
-                if 'energy_efficiency_ratio' in config.config_learner.reward:
-                    sum_rate_reward_ratio = calc_sum_rate(
-                        channel_state=satellite_manager.channel_state_information,
-                        w_precoder=w_precoder,
-                        noise_power_watt=config.noise_power_watt,
-                    )
-                    transmit_power_ratio = raw_power_precoder / config.pa_efficiency
-                    circuit_power_ratio = config.sat_nr * config.sat_ant_nr * config.circuit_power_watt
-                    total_power_ratio = (transmit_power_ratio + circuit_power_ratio) / config.power_constraint_watt
-                    energy_efficiency_ratio = sum_rate_reward_ratio / total_power_ratio
-                    reward += config.config_learner.reward['energy_efficiency_ratio'] * energy_efficiency_ratio
-
                 valid_reward_keys = [
                     'energy_efficiency_dinkelbach_adaptive',
-                    'energy_efficiency_ratio',
-                    'fairness',
                     'sum_rate_only',
                 ]
                 if any(key not in valid_reward_keys for key in config.config_learner.reward.keys()):
@@ -744,10 +700,6 @@ if __name__ == '__main__':
     else:
         lr_suffix = ''
 
-    # optional Jain's-fairness reward weight; 0.0 (default) leaves the reward untouched
-    fairness_weight = float(os.environ.get('EE_FAIRNESS_WEIGHT', 0.0))
-    fairness_suffix = f'_fair{fairness_weight}' if fairness_weight != 0.0 else ''
-
     # action_bound_mode override; 'tanh' bounds raw actor outputs to (-1, 1)
     # so the raw precoder magnitude has a finite ceiling
     action_bound_mode_override = os.environ.get('EE_ACTION_BOUND_MODE')
@@ -764,8 +716,6 @@ if __name__ == '__main__':
 
     if reward_mode == 'energy_efficiency_dinkelbach_adaptive':
         cfg.config_learner.reward = {'energy_efficiency_dinkelbach_adaptive': 1.0}
-        if fairness_weight != 0.0:
-            cfg.config_learner.reward['fairness'] = fairness_weight
         # keep EMA/block/fixed-lambda runs in separate checkpoint folders
         if dinkelbach_lambda_fixed is not None:
             lambda_mode_suffix = f'_lambdafixed{dinkelbach_lambda_fixed}'
@@ -775,21 +725,12 @@ if __name__ == '__main__':
             lambda_mode_suffix = f'_lwin{dinkelbach_lambda_window_steps}'
         if dinkelbach_lambda_init_rate is not None:
             lambda_mode_suffix += f'_lambdainit{dinkelbach_lambda_init_rate:g}-{dinkelbach_lambda_init_power:g}'
-        cfg.config_learner.training_name = f'EE_dinkelbach_adaptive{error_suffix}{lambda_mode_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}{csi_format_suffix}{action_format_suffix}'
+        cfg.config_learner.training_name = f'EE_dinkelbach_adaptive{error_suffix}{lambda_mode_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{csi_format_suffix}{action_format_suffix}'
     elif reward_mode == 'sum_rate_only':
         # rate-only baseline (schroder2025modelfree): no Dinkelbach price term,
         # so this run never touches lambda_ee/dinkelbach_* state at all
         cfg.config_learner.reward = {'sum_rate_only': 1.0}
-        if fairness_weight != 0.0:
-            cfg.config_learner.reward['fairness'] = fairness_weight
-        cfg.config_learner.training_name = f'SAC_rateonly{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}{csi_format_suffix}{action_format_suffix}'
-    elif reward_mode == 'energy_efficiency_ratio':
-        # raw EE-ratio baseline: reward = rate / total power, optimized directly
-        # (no Dinkelbach price term), so like sum_rate_only this run never touches
-        # lambda_ee / dinkelbach_* state. The clip-only projection lets it fall
-        # below budget and pursue the EE-ratio maximum.
-        cfg.config_learner.reward = {'energy_efficiency_ratio': 1.0}
-        cfg.config_learner.training_name = f'EE_ratio{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{fairness_suffix}{csi_format_suffix}{action_format_suffix}'
+        cfg.config_learner.training_name = f'SAC_rateonly{error_suffix}{system_suffix}{eta_suffix}{mmse_suffix}{entropy_suffix}{entropy_scale_lr_suffix}{capacity_suffix}{bound_suffix}{rawpow_suffix}{lr_suffix}{csi_format_suffix}{action_format_suffix}'
     elif reward_mode is not None:
         raise ValueError(f'Unknown EE_REWARD_MODE: {reward_mode!r}')
 
