@@ -13,6 +13,7 @@ a given figure.
 import shutil
 from pathlib import Path
 
+import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 matplotlib.rcParams['text.usetex'] = False
@@ -87,15 +88,22 @@ def plot_rate_error_sweep(
 
     for curve in curves:
         series = results[curve['result_key']]
-        ax.plot(
-            error_sweep_range, series['mean_rate'],
-            color=curve['color'],
-            marker=curve.get('marker', 'o'),
-            markevery=curve.get('markevery', None),
-            linestyle=curve.get('linestyle', '-'),
-            linewidth=1.5, markersize=5,
-            label=curve['label'],
-        )
+        marker_dx = curve.get('marker_dx', 0.0)
+        common = dict(color=curve['color'], linestyle=curve.get('linestyle', '-'), linewidth=1.5)
+        if marker_dx:
+            ax.plot(error_sweep_range, series['mean_rate'], marker='', label='_nolegend_', **common)
+            ax.plot(
+                np.asarray(error_sweep_range, dtype=float) + marker_dx, series['mean_rate'],
+                marker=curve.get('marker', 'o'), markevery=curve.get('markevery', None),
+                linestyle='none', color=curve['color'], markersize=5, label='_nolegend_',
+            )
+            ax.plot([], [], marker=curve.get('marker', 'o'), markersize=5, label=curve['label'], **common)
+        else:
+            ax.plot(
+                error_sweep_range, series['mean_rate'],
+                marker=curve.get('marker', 'o'), markevery=curve.get('markevery', None),
+                markersize=5, label=curve['label'], **common,
+            )
         if annotate_power and 'mean_power' in series and 'power_budget' in series:
             power_watt = series['mean_power'][0]
             power_pct = 100 * power_watt / series['power_budget']
