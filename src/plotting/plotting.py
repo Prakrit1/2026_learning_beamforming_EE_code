@@ -10,6 +10,7 @@ in what order, with what label/color/marker/linestyle -- this file has no
 hardcoded assumption about which combination of MMSE/SAC curves belongs on
 a given figure.
 """
+import shutil
 from pathlib import Path
 
 import matplotlib
@@ -181,5 +182,19 @@ def plot_rate_error_sweep(
     out_png = Path(png_path, f'{name}.png')
     plt.savefig(out_png, bbox_inches='tight', dpi=200, transparent=True)
     print(f'Saved: {out_png}')
+
+    _texsystem = next((t for t in ('xelatex', 'lualatex', 'pdflatex') if shutil.which(t)), None)
+    if _texsystem is not None:
+        try:
+            pgf_path = Path(plots_parent_path, 'pgf')
+            pgf_path.mkdir(parents=True, exist_ok=True)
+            out_pgf = Path(pgf_path, f'{name}.pgf')
+            with matplotlib.rc_context({'pgf.texsystem': _texsystem, 'pgf.rcfonts': False}):
+                plt.savefig(out_pgf, bbox_inches='tight', backend='pgf')
+            print(f'Saved: {out_pgf}')
+        except Exception as exc:
+            print(f'PGF export skipped: {exc}')
+    else:
+        print('PGF export skipped: no LaTeX (xelatex/lualatex/pdflatex) on PATH')
 
     plt.close(fig)

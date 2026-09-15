@@ -12,20 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.config.config import Config
 from src.config.config_plotting import PlotConfig
-from src.data.calc_sum_rate import calc_sum_rate
-from src.data.calc_tx_power_distribution import calc_tx_power_distribution
-from src.data.satellite_manager import SatelliteManager
-from src.data.user_manager import UserManager
-from src.utils.get_precoding import (
-    get_precoding_learned,
-    get_precoding_learned_clip_only,
-    get_precoding_learned_no_norm,
-    get_precoding_mmse,
-)
-from src.utils.load_model import load_model
-from src.utils.update_sim import update_sim
 from src.plotting.plotting import plot_rate_error_sweep
 
 PLOT_ONLY = '--plot-only' in sys.argv
@@ -225,16 +212,31 @@ def run_matched_power_learned_sweep(cfg, label, get_raw_precoder_func, target_me
 
 
 if __name__ == '__main__':
-    cfg = Config()
-    cfg.show_plots = False
-    print(f'[system] sat_gain_dBi={cfg.sat_gain_dBi}, budget={cfg.power_constraint_watt} W, '
-          f'user_center_aod_earth_deg={cfg.user_center_aod_earth_deg:.2f}')
-
-    out_path = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet')
+    _repo_root = Path(__file__).resolve().parents[2]
+    out_path = Path(_repo_root, 'outputs', 'metrics', 'EE_lwin5000_3gpp_triplet')
     out_path.mkdir(parents=True, exist_ok=True)
     gzip_path = Path(out_path, 'rate_power_triplet.gzip')
 
     if not PLOT_ONLY:
+        from src.config.config import Config
+        from src.data.calc_sum_rate import calc_sum_rate
+        from src.data.calc_tx_power_distribution import calc_tx_power_distribution
+        from src.data.satellite_manager import SatelliteManager
+        from src.data.user_manager import UserManager
+        from src.utils.get_precoding import (
+            get_precoding_learned,
+            get_precoding_learned_clip_only,
+            get_precoding_learned_no_norm,
+            get_precoding_mmse,
+        )
+        from src.utils.load_model import load_model
+        from src.utils.update_sim import update_sim
+
+        cfg = Config()
+        cfg.show_plots = False
+        print(f'[system] sat_gain_dBi={cfg.sat_gain_dBi}, budget={cfg.power_constraint_watt} W, '
+              f'user_center_aod_earth_deg={cfg.user_center_aod_earth_deg:.2f}')
+
         results = {}
 
         # ---- shared full-budget MMSE curve (system-only, same for all 3) ------
