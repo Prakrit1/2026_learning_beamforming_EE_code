@@ -336,7 +336,6 @@ if __name__ == '__main__':
     # what power the policy converges to *using*, not the budget it was trained under.
     trained_watt = round(data['results']['mmse_nadir']['power_budget'])
     mmse_eval_watt = round(data['results']['mmse_nadir']['mean_power'][0])
-    ee_full_eval_watt = round(data['results']['sac_aod0.0_fullpower']['mean_power'][0])
     ee_eval_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
     mmse_matched_watt = round(data['results']['mmse_matched_aod0.0']['mean_power'][0])
 
@@ -353,8 +352,7 @@ if __name__ == '__main__':
         # RM (gold) as two curves of the same policy: its native 75 W budget
         # (solid) and matched to the EE policy's own per-error power (dashed,
         # ~35 W at Δε=0), so RM-vs-EE is read off at EQUAL transmit power at
-        # every error point. Distinct from the blue EE-at-full-power curve below
-        # (that is the EE-trained policy at 75 W, not RM).
+        # every error point.
         rm75_eval_watt = round(data['results']['rm_fullpower']['mean_power'][0])
         rm35_eval_watt = round(data['results']['rm_35w']['mean_power'][0])
         curves += [
@@ -371,9 +369,11 @@ if __name__ == '__main__':
             {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W',
              'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3)})
 
+    # NB: the EE-trained-and-evaluated-at-full-budget curve (sac_aod0.0_fullpower,
+    # EE^75/P=75, which overlapped RM at 75 W) is intentionally NOT plotted here --
+    # the draft Fig. 3 shows RM^75 at both 75 W and 35 W against EE^75 at 35 W only.
+    # sac_aod0.0_fullpower is still computed above (RM fallback path uses it).
     curves += [
-        {'result_key': 'sac_aod0.0_fullpower', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_full_eval_watt}$ W',
-         'color': plot_cfg.cp2['blue'], 'marker': 'D', 'linestyle': '-.', 'markevery': (2, 3)},
         {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
         {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_matched_watt}$ W',
