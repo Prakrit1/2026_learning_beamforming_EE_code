@@ -364,7 +364,7 @@ if __name__ == '__main__':
             {'result_key': 'rm_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm75_eval_watt}$ W',
              'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3), 'marker_dx': 0.0025},
             {'result_key': 'rm_35w', 'label': f'RM$^{{{trained_watt}}}$, $P={rm35_eval_watt}$ W',
-             'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '--', 'markevery': (0, 3), 'marker_dx': -0.0025},
+             'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '--', 'markevery': (0, 3), 'marker_dx': 0.0025},
         ]
     else:
         # placeholder RM: reuse the EE (Δε=0.0) checkpoint's full-power inference
