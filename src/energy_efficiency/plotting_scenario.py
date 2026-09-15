@@ -303,15 +303,24 @@ if __name__ == '__main__':
             rm_full['checkpoint'] = str(rm_model_path)
             results['rm_fullpower'] = rm_full
 
-            rm_matched = run_matched_power_learned_sweep(
-                cfg, 'RM (rate-only, matched to EE power)',
-                lambda c, um, sm: get_precoding_learned_no_norm(c, um, sm, rm_norm_factors, rm_network),
-                results['sac_aod0.0']['mean_power'],
-            )
-            rm_matched['label'] = 'RM (equal power to EE)'
-            rm_matched['training_name'] = RM_TRAINING_NAME
-            rm_matched['checkpoint'] = str(rm_model_path)
-            results['rm_35w'] = rm_matched
+            # genuine RM re-evaluated at each EE checkpoint's OWN measured
+            # per-error power, so RM-at-EE-power overlaps the corresponding EE
+            # curve in error_sweep_training_triplet (the "RM matches EE once you
+            # hand it EE's power budget" story, one RM curve per Δε checkpoint).
+            for aod_key in CHECKPOINTS:
+                rm_m = run_matched_power_learned_sweep(
+                    cfg, f'RM (rate-only, matched to EE power, {aod_key})',
+                    lambda c, um, sm: get_precoding_learned_no_norm(c, um, sm, rm_norm_factors, rm_network),
+                    results[f'sac_{aod_key}']['mean_power'],
+                )
+                rm_m['label'] = f'RM (equal power to EE, {aod_key})'
+                rm_m['training_name'] = RM_TRAINING_NAME
+                rm_m['checkpoint'] = str(rm_model_path)
+                results[f'rm_matched_{aod_key}'] = rm_m
+
+            # 'rm_35w' is the Δε=0.0-matched curve under the name the 5-curve
+            # error_sweep_sumrate figure expects (alias, not a recompute).
+            results['rm_35w'] = results['rm_matched_aod0.0']
         except FileNotFoundError:
             print(f'[warn] RM checkpoint {RM_TRAINING_NAME!r} not found under '
                   f'{cfg.trained_models_path} -- error_sweep_sumrate will fall back '
@@ -380,18 +389,6 @@ if __name__ == '__main__':
          'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
     ]
 
-    # ---- secondary right axis: the EE policy's CHOSEN transmit power --------
-    # Shows EE continuously backing off well below the 75 W budget (~35 W at
-    # Δε=0) and saving MORE as CSIT error grows (down to ~28 W at Δε=0.10),
-    # while RM/MMSE always spend the full budget (flat reference line). This is
-    # the "EE chooses to save power" story on the same axes as the rate curves.
-    power_curves = [
-        {'flat_value': trained_watt, 'label': f'Budget ({trained_watt} W)',
-         'color': plot_cfg.cp2['black'], 'linestyle': ':'},
-        {'result_key': 'sac_aod0.0', 'label': 'EE power',
-         'color': plot_cfg.cp2['green'], 'marker': 'v', 'linestyle': '--'},
-    ]
-
     plot_rate_error_sweep(
         error_sweep_range=data['error_sweep_range'],
         results=data['results'],
@@ -404,7 +401,4 @@ if __name__ == '__main__':
         legend_loc='lower center',
         legend_bbox_to_anchor=(0.5, 1.02),
         legend_fontsize=9,
-        power_curves=power_curves,
-        power_ylabel='Transmit power [W]',
-        power_ylim=(0, 80),
     )
