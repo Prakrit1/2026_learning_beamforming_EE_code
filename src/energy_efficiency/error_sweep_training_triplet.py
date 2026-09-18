@@ -17,11 +17,11 @@ if __name__ == '__main__':
     plot_width = 0.99 * plot_cfg.textwidth
     plot_height = plot_width * 0.6
 
-    # Both EE and RM curves are evaluated at their OWN energy-efficient
-    # (clip-only) power -- there is no fixed 75 W operating point here. The
-    # superscript is just the training error bound Delta-eps; the post-comma
-    # value is each curve's own measured energy-efficient power (three
-    # different powers for EE, three for RM), pulled from the measured samples.
+    # Notation matches plotting_scenario.py's error-sweep figure: superscript
+    # is the fixed training-time power budget (same for every checkpoint
+    # here), the post-comma value is each curve's own measured operating
+    # power -- watts pulled from the actual measured samples, not hardcoded.
+    trained_watt = round(data['results']['sac_aod0.0']['power_budget'])
     aod0_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
     aod0025_watt = round(data['results']['sac_aod0.025']['mean_power'][0])
     aod05_watt = round(data['results']['sac_aod0.05']['mean_power'][0])
@@ -31,17 +31,17 @@ if __name__ == '__main__':
     rm05_watt = round(data['results']['rm_matched_aod0.05']['mean_power'][0])
 
     curves = [
-        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{\\mathrm{{Δε=0.00}}}}$, $P={aod0_watt}$ W',
+        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={aod0_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.0', 'label': f'RM$^{{\\mathrm{{Δε=0.00}}}}$, $P={rm0_watt}$ W',
+        {'result_key': 'rm_matched_aod0.0', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={rm0_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.025', 'label': f'EE$^{{\\mathrm{{Δε=0.025}}}}$, $P={aod0025_watt}$ W',
+        {'result_key': 'sac_aod0.025', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.025}}}}$, $P={aod0025_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.025', 'label': f'RM$^{{\\mathrm{{Δε=0.025}}}}$, $P={rm0025_watt}$ W',
+        {'result_key': 'rm_matched_aod0.025', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.025}}}}$, $P={rm0025_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.05', 'label': f'EE$^{{\\mathrm{{Δε=0.05}}}}$, $P={aod05_watt}$ W',
+        {'result_key': 'sac_aod0.05', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.05}}}}$, $P={aod05_watt}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.05', 'label': f'RM$^{{\\mathrm{{Δε=0.05}}}}$, $P={rm05_watt}$ W',
+        {'result_key': 'rm_matched_aod0.05', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.05}}}}$, $P={rm05_watt}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
     ]
 

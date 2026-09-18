@@ -8,7 +8,6 @@ os.environ.pop('EE_TARGET_ELEVATION_DEG', None)
 
 import gzip
 import pickle
-import re
 from pathlib import Path
 
 import numpy as np
@@ -45,13 +44,6 @@ RM_CHECKPOINTS = {
     'aod0.025': 'SAC_rateonly_aod0.025_N16K3_satg30_p75_eta0.6_rawpow',
     'aod0.05': 'SAC_rateonly_aod0.05_N16K3_satg30_p75_eta0.6_rawpow',
 }
-
-
-def rm_train_watt(training_name):
-    """Training-time power budget encoded in an RM checkpoint name (e.g.
-    '..._p35_...' -> 35), used for the RM legend superscript."""
-    match = re.search(r'_p(\d+)_', training_name)
-    return int(match.group(1)) if match else None
 
 
 def get_best_model_path(trained_models_path, training_name):
@@ -364,7 +356,6 @@ if __name__ == '__main__':
                 rm_m['label'] = f'RM (energy-efficient power, {aod_key})'
                 rm_m['training_name'] = rm_training_name
                 rm_m['checkpoint'] = str(rm_model_path)
-                rm_m['train_power_budget'] = rm_train_watt(rm_training_name)
                 results[f'rm_matched_{aod_key}'] = rm_m
             except FileNotFoundError:
                 print(f'[warn] per-error RM checkpoint {rm_training_name!r} not found '
