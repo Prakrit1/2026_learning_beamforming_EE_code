@@ -17,41 +17,31 @@ if __name__ == '__main__':
     plot_width = 0.99 * plot_cfg.textwidth
     plot_height = plot_width * 0.6
 
-    # Notation matches plotting_scenario.py's error-sweep figure: the
-    # superscript is the training-time power budget, the post-comma value is
-    # each curve's own measured operating power -- watts pulled from the actual
-    # measured samples, not hardcoded. The EE checkpoints all share the 75 W
-    # budget; each per-error RM checkpoint carries its own training budget in
-    # 'train_power_budget' (p35 at Delta-eps=0, p75 at 0.025/0.05).
-    ee_watt = round(data['results']['sac_aod0.0']['power_budget'])
+    # Both EE and RM curves are evaluated at their OWN energy-efficient
+    # (clip-only) power -- there is no fixed 75 W operating point here. The
+    # superscript is just the training error bound Delta-eps; the post-comma
+    # value is each curve's own measured energy-efficient power (three
+    # different powers for EE, three for RM), pulled from the measured samples.
     aod0_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
     aod0025_watt = round(data['results']['sac_aod0.025']['mean_power'][0])
     aod05_watt = round(data['results']['sac_aod0.05']['mean_power'][0])
 
-    rm0 = data['results']['rm_matched_aod0.0']
-    rm0025 = data['results']['rm_matched_aod0.025']
-    rm05 = data['results']['rm_matched_aod0.05']
-    rm0_watt = round(rm0['mean_power'][0])
-    rm0025_watt = round(rm0025['mean_power'][0])
-    rm05_watt = round(rm05['mean_power'][0])
-    # per-curve training budget for the RM superscript (fall back to EE's if an
-    # older gzip without 'train_power_budget' is being replotted)
-    rm0_train = round(rm0.get('train_power_budget') or ee_watt)
-    rm0025_train = round(rm0025.get('train_power_budget') or ee_watt)
-    rm05_train = round(rm05.get('train_power_budget') or ee_watt)
+    rm0_watt = round(data['results']['rm_matched_aod0.0']['mean_power'][0])
+    rm0025_watt = round(data['results']['rm_matched_aod0.025']['mean_power'][0])
+    rm05_watt = round(data['results']['rm_matched_aod0.05']['mean_power'][0])
 
     curves = [
-        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{ee_watt}, \\mathrm{{Δε=0.00}}}}$, $P={aod0_watt}$ W',
+        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{\\mathrm{{Δε=0.00}}}}$, $P={aod0_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.0', 'label': f'RM$^{{{rm0_train}, \\mathrm{{Δε=0.00}}}}$, $P={rm0_watt}$ W',
+        {'result_key': 'rm_matched_aod0.0', 'label': f'RM$^{{\\mathrm{{Δε=0.00}}}}$, $P={rm0_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.025', 'label': f'EE$^{{{ee_watt}, \\mathrm{{Δε=0.025}}}}$, $P={aod0025_watt}$ W',
+        {'result_key': 'sac_aod0.025', 'label': f'EE$^{{\\mathrm{{Δε=0.025}}}}$, $P={aod0025_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.025', 'label': f'RM$^{{{rm0025_train}, \\mathrm{{Δε=0.025}}}}$, $P={rm0025_watt}$ W',
+        {'result_key': 'rm_matched_aod0.025', 'label': f'RM$^{{\\mathrm{{Δε=0.025}}}}$, $P={rm0025_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.05', 'label': f'EE$^{{{ee_watt}, \\mathrm{{Δε=0.05}}}}$, $P={aod05_watt}$ W',
+        {'result_key': 'sac_aod0.05', 'label': f'EE$^{{\\mathrm{{Δε=0.05}}}}$, $P={aod05_watt}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.05', 'label': f'RM$^{{{rm05_train}, \\mathrm{{Δε=0.05}}}}$, $P={rm05_watt}$ W',
+        {'result_key': 'rm_matched_aod0.05', 'label': f'RM$^{{\\mathrm{{Δε=0.05}}}}$, $P={rm05_watt}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
     ]
 
