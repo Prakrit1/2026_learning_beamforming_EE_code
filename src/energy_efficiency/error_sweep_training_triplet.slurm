@@ -13,10 +13,10 @@
 
 # Plotting-only, no GPU/simulation: reads the gzip plotting_scenario.py
 # already produced and draws the 6-curve (Δε=0.00/0.025/0.05) training-error
-# comparison -- for each Δε an EE^{Δε} curve (solid) and the genuine per-error
-# RM^{Δε} model (dashed), both evaluated at their own energy-efficient
-# (clip-only) power, so RM sits in the same power regime as its EE^{Δε}
-# counterpart. See error_sweep_training_triplet.py.
+# comparison -- for each Δε an EE^{Δε} curve (solid, its own energy-efficient
+# power) and the genuine per-error RM^{Δε} model (dashed) matched to that EE
+# curve's measured power (~35/39/40 W at Δε=0.00/0.025/0.05), so RM lies at the
+# same transmit power as its EE^{Δε} counterpart. See error_sweep_training_triplet.py.
 # REQUIRES outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip to
 # already exist WITH the rm_matched_aod0.0/0.025/0.05 curves in it -- i.e. run
 # plotting_scenario.slurm first with all three per-error RM checkpoints

@@ -336,11 +336,12 @@ if __name__ == '__main__':
 
         # ---- per-error genuine RM curves for error_sweep_training_triplet -----
         # Each RM model is trained at its OWN Delta-eps (RM_CHECKPOINTS) and
-        # evaluated at its OWN energy-efficient power -- clip-only inference, the
-        # identical evaluation the EE checkpoints get above -- so every
-        # RM^{Delta-eps} curve is drawn at the same energy-efficient operating
-        # regime as its EE^{Delta-eps} counterpart (it is NOT rescaled to the EE
-        # policy's measured power; each policy keeps the power it naturally emits).
+        # evaluated matched to the EE policy's measured power at that same
+        # Delta-eps (results['sac_{aod_key}']['mean_power'], ~35/39/40 W at the
+        # Delta-eps=0.00/0.025/0.05 anchor points), so every RM^{Delta-eps}
+        # curve is drawn at the same transmit power as its EE^{Delta-eps}
+        # counterpart -- the equal-power RM-vs-EE comparison. Matched to EE's
+        # per-error measured power (an array over the sweep), never a fixed watt.
         for aod_key, rm_training_name in RM_CHECKPOINTS.items():
             try:
                 cfg.config_learner.training_name = rm_training_name
@@ -349,11 +350,12 @@ if __name__ == '__main__':
                 rm_network, rm_norm_factors = load_model(rm_model_path)
                 cfg.config_learner.get_state_args['norm_state'] = (rm_norm_factors != {})
 
-                rm_m = run_rate_power_sweep(
-                    cfg, f'RM (rate-only, energy-efficient power, {aod_key})',
-                    lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, rm_norm_factors, rm_network),
+                rm_m = run_matched_power_learned_sweep(
+                    cfg, f'RM (rate-only, matched to EE power, {aod_key})',
+                    lambda c, um, sm: get_precoding_learned_no_norm(c, um, sm, rm_norm_factors, rm_network),
+                    results[f'sac_{aod_key}']['mean_power'],
                 )
-                rm_m['label'] = f'RM (energy-efficient power, {aod_key})'
+                rm_m['label'] = f'RM (equal power to EE, {aod_key})'
                 rm_m['training_name'] = rm_training_name
                 rm_m['checkpoint'] = str(rm_model_path)
                 results[f'rm_matched_{aod_key}'] = rm_m
