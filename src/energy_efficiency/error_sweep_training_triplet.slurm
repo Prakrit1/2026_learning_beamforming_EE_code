@@ -12,14 +12,16 @@
 #SBATCH --mail-type=ALL
 
 # Plotting-only, no GPU/simulation: reads the gzip plotting_scenario.py
-# already produced and draws the 6-curve (Δε=0.00/0.025/0.05, each at its
-# own EE power and re-evaluated at full-power inference) training-error
-# comparison with power annotations -- see error_sweep_training_triplet.py.
-# REQUIRES outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip
-# to already exist (run plotting_scenario.slurm first if it doesn't) AND
-# all three 'sac_{aod_key}_fullpower' curves merged in (run
-# add_fullpower_curve.slurm, add_fullpower_curve_aod0.025.slurm, and
-# add_fullpower_curve_aod0.05.slurm first if they aren't there yet).
+# already produced and draws the 6-curve (Δε=0.00/0.025/0.05) training-error
+# comparison -- for each Δε an EE^{Δε} curve (solid) and the genuine per-error
+# RM^{Δε} model (dashed), both evaluated at their own energy-efficient
+# (clip-only) power, so RM sits in the same power regime as its EE^{Δε}
+# counterpart. See error_sweep_training_triplet.py.
+# REQUIRES outputs/metrics/EE_lwin5000_3gpp_triplet/rate_power_triplet.gzip to
+# already exist WITH the rm_matched_aod0.0/0.025/0.05 curves in it -- i.e. run
+# plotting_scenario.slurm first with all three per-error RM checkpoints
+# (RM_CHECKPOINTS in plotting_scenario.py: SAC_rateonly p35 @ Δε=0, and the
+# aod0.025/aod0.05 p75 rate-only models) synced into models/.
 
 source /home/parajuli/miniconda3/etc/profile.d/conda.sh
 conda activate gpu_beamforming

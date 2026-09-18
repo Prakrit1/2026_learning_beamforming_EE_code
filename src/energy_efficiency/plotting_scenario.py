@@ -8,6 +8,7 @@ os.environ.pop('EE_TARGET_ELEVATION_DEG', None)
 
 import gzip
 import pickle
+import re
 from pathlib import Path
 
 import numpy as np
@@ -26,11 +27,31 @@ CHECKPOINTS = {
     'aod0.05': 'EE_dinkelbach_adaptive_aod0.05_lwin5000_N16K3_satg30_p75_eta0.6_rawpow',
 }
 
-# Genuine rate-only (RM) baseline -- EE_REWARD_MODE=sum_rate_only, same 3GPP
-# Set-1 system params (see SAC_rateonly_satg30_p75_nadir.slurm). Evaluated both
-# at its native full 75 W budget and matched to the EE policy's own measured
-# per-error power (equal-power RM-vs-EE comparison, ~35 W at Delta-eps=0).
+# Genuine rate-only (RM) baseline for the error_sweep_sumrate figure --
+# EE_REWARD_MODE=sum_rate_only, same 3GPP Set-1 system params (see
+# SAC_rateonly_satg30_p75_nadir.slurm). Evaluated both at its native full 75 W
+# budget (rm_fullpower) and matched to the EE policy's own measured per-error
+# power (rm_35w, equal-power RM-vs-EE comparison, ~35 W at Delta-eps=0).
 RM_TRAINING_NAME = 'SAC_rateonly_N16K3_satg30_p75_eta0.6_rawpow'
+
+# Per-error genuine RM checkpoints for the error_sweep_training_triplet figure:
+# each RM model is trained at ITS OWN error bound, at the power budget closest
+# to the EE policy's operating power at that bound (p35 at Delta-eps=0 where EE
+# runs ~35 W; p75 at 0.025/0.05), so the triplet compares EE^{Delta-eps} against
+# an RM policy genuinely trained at the same Delta-eps -- not one Delta-eps=0 RM
+# checkpoint re-matched three times. See SAC_rateonly_*_nadir.slurm.
+RM_CHECKPOINTS = {
+    'aod0.0': 'SAC_rateonly_N16K3_satg30_p35_eta0.6_rawpow',
+    'aod0.025': 'SAC_rateonly_aod0.025_N16K3_satg30_p75_eta0.6_rawpow',
+    'aod0.05': 'SAC_rateonly_aod0.05_N16K3_satg30_p75_eta0.6_rawpow',
+}
+
+
+def rm_train_watt(training_name):
+    """Training-time power budget encoded in an RM checkpoint name (e.g.
+    '..._p35_...' -> 35), used for the RM legend superscript."""
+    match = re.search(r'_p(\d+)_', training_name)
+    return int(match.group(1)) if match else None
 
 
 def get_best_model_path(trained_models_path, training_name):
@@ -282,13 +303,14 @@ if __name__ == '__main__':
             matched_mmse_result['label'] = f'MMSE (equal power, Δε = {delta_eps})'
             results[f'mmse_matched_{aod_key}'] = matched_mmse_result
 
-        # ---- genuine rate-only (RM) baseline: real SAC_rateonly checkpoint ----
-        # evaluated at its native full 75 W budget (get_precoding_learned, the
-        # same full-power inference the placeholder used) AND matched to the EE
-        # policy's OWN measured per-error power, so RM and EE are compared at
-        # equal transmit power at every error point. A fixed 35 W would let RM
-        # outspend EE at high error (EE's clip-only power drifts down to ~28 W),
-        # producing a spurious RM-beats-EE crossover that is purely a power gap.
+        # ---- RM baseline for error_sweep_sumrate: single Delta-eps=0 RM ------
+        # checkpoint evaluated at its native full 75 W budget (rm_fullpower) AND
+        # matched to the EE policy's OWN measured per-error power (rm_35w), so RM
+        # and EE are compared at equal transmit power at every error point. A
+        # fixed 35 W would let RM outspend EE at high error (EE's clip-only power
+        # drifts down to ~28 W), a spurious RM-beats-EE crossover that is purely
+        # a power gap. This block only feeds error_sweep_sumrate; the triplet's
+        # per-error RM curves are computed separately below.
         try:
             cfg.config_learner.training_name = RM_TRAINING_NAME
             rm_model_path = get_best_model_path(cfg.trained_models_path, RM_TRAINING_NAME)
@@ -305,23 +327,50 @@ if __name__ == '__main__':
             rm_full['checkpoint'] = str(rm_model_path)
             results['rm_fullpower'] = rm_full
 
-            for aod_key in CHECKPOINTS:
-                rm_m = run_matched_power_learned_sweep(
-                    cfg, f'RM (rate-only, matched to EE power, {aod_key})',
-                    lambda c, um, sm: get_precoding_learned_no_norm(c, um, sm, rm_norm_factors, rm_network),
-                    results[f'sac_{aod_key}']['mean_power'],
-                )
-                rm_m['label'] = f'RM (equal power to EE, {aod_key})'
-                rm_m['training_name'] = RM_TRAINING_NAME
-                rm_m['checkpoint'] = str(rm_model_path)
-                results[f'rm_matched_{aod_key}'] = rm_m
-
-            results['rm_35w'] = results['rm_matched_aod0.0']
+            rm_35w = run_matched_power_learned_sweep(
+                cfg, 'RM (rate-only, matched to EE power, aod0.0)',
+                lambda c, um, sm: get_precoding_learned_no_norm(c, um, sm, rm_norm_factors, rm_network),
+                results['sac_aod0.0']['mean_power'],
+            )
+            rm_35w['label'] = 'RM (equal power to EE, aod0.0)'
+            rm_35w['training_name'] = RM_TRAINING_NAME
+            rm_35w['checkpoint'] = str(rm_model_path)
+            results['rm_35w'] = rm_35w
         except FileNotFoundError:
             print(f'[warn] RM checkpoint {RM_TRAINING_NAME!r} not found under '
                   f'{cfg.trained_models_path} -- error_sweep_sumrate will fall back '
                   f'to the sac_aod0.0_fullpower placeholder for RM. Sync the '
                   f'SAC_rateonly checkpoint into models/ and rerun.')
+
+        # ---- per-error genuine RM curves for error_sweep_training_triplet -----
+        # Each RM model is trained at its OWN Delta-eps (RM_CHECKPOINTS) and
+        # evaluated at its OWN energy-efficient power -- clip-only inference, the
+        # identical evaluation the EE checkpoints get above -- so every
+        # RM^{Delta-eps} curve is drawn at the same energy-efficient operating
+        # regime as its EE^{Delta-eps} counterpart (it is NOT rescaled to the EE
+        # policy's measured power; each policy keeps the power it naturally emits).
+        for aod_key, rm_training_name in RM_CHECKPOINTS.items():
+            try:
+                cfg.config_learner.training_name = rm_training_name
+                rm_model_path = get_best_model_path(cfg.trained_models_path, rm_training_name)
+                print(f'[RM {aod_key}] checkpoint: {rm_model_path}')
+                rm_network, rm_norm_factors = load_model(rm_model_path)
+                cfg.config_learner.get_state_args['norm_state'] = (rm_norm_factors != {})
+
+                rm_m = run_rate_power_sweep(
+                    cfg, f'RM (rate-only, energy-efficient power, {aod_key})',
+                    lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, rm_norm_factors, rm_network),
+                )
+                rm_m['label'] = f'RM (energy-efficient power, {aod_key})'
+                rm_m['training_name'] = rm_training_name
+                rm_m['checkpoint'] = str(rm_model_path)
+                rm_m['train_power_budget'] = rm_train_watt(rm_training_name)
+                results[f'rm_matched_{aod_key}'] = rm_m
+            except FileNotFoundError:
+                print(f'[warn] per-error RM checkpoint {rm_training_name!r} not found '
+                      f'under {cfg.trained_models_path} -- error_sweep_training_triplet '
+                      f'will be missing its rm_matched_{aod_key} curve. Sync it into '
+                      f'models/ and rerun.')
 
         with gzip.open(gzip_path, 'wb') as file:
             pickle.dump({'error_sweep_range': error_sweep_range, 'results': results}, file=file)
