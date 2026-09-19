@@ -34,15 +34,18 @@ CHECKPOINTS = {
 RM_TRAINING_NAME = 'SAC_rateonly_N16K3_satg30_p75_eta0.6_rawpow'
 
 # Per-error genuine RM checkpoints for the error_sweep_training_triplet figure:
-# each RM model is trained at ITS OWN error bound, at the power budget closest
-# to the EE policy's operating power at that bound (p35 at Delta-eps=0 where EE
-# runs ~35 W; p75 at 0.025/0.05), so the triplet compares EE^{Delta-eps} against
-# an RM policy genuinely trained at the same Delta-eps -- not one Delta-eps=0 RM
-# checkpoint re-matched three times. See SAC_rateonly_*_nadir.slurm.
+# each RM model is trained at ITS OWN error bound AND at a power budget matching
+# the EE policy's operating power at that bound, so the matched-power evaluation
+# runs each RM at (near) the same power it was trained at -- identical treatment
+# for all three Delta-eps. This is what makes the Delta-eps=0 RM sit on top of
+# EE: its p35 budget matches EE's ~35 W operating point. The 0.025/0.05 entries
+# now do the same (p38 / p40, matching EE's ~38 W / ~40 W), instead of the old
+# p75 budget that trained the beam for 75 W and left it off-optimum when squeezed
+# down. See SAC_rateonly_*_nadir.slurm (p38/p40 launchers added alongside).
 RM_CHECKPOINTS = {
     'aod0.0': 'SAC_rateonly_N16K3_satg30_p35_eta0.6_rawpow',
-    'aod0.025': 'SAC_rateonly_aod0.025_N16K3_satg30_p75_eta0.6_rawpow',
-    'aod0.05': 'SAC_rateonly_aod0.05_N16K3_satg30_p75_eta0.6_rawpow',
+    'aod0.025': 'SAC_rateonly_aod0.025_N16K3_satg30_p38_eta0.6_rawpow',
+    'aod0.05': 'SAC_rateonly_aod0.05_N16K3_satg30_p40_eta0.6_rawpow',
 }
 
 
@@ -264,8 +267,9 @@ if __name__ == '__main__':
             print(f'[{aod_key}] checkpoint: {model_path}')
 
             precoder_network, norm_factors = load_model(model_path)
-            if norm_factors != {}:
-                cfg.config_learner.get_state_args['norm_state'] = True
+            # set both ways (never leave a stale True from a previous checkpoint):
+            # feeding a model raw state it wasn't trained on silently degrades it.
+            cfg.config_learner.get_state_args['norm_state'] = (norm_factors != {})
 
 
             delta_eps = aod_key.replace('aod', '')
@@ -335,13 +339,23 @@ if __name__ == '__main__':
                   f'SAC_rateonly checkpoint into models/ and rerun.')
 
         # ---- per-error genuine RM curves for error_sweep_training_triplet -----
-        # Each RM model is trained at its OWN Delta-eps (RM_CHECKPOINTS) and
-        # evaluated matched to the EE policy's measured power at that same
-        # Delta-eps (results['sac_{aod_key}']['mean_power'], ~35/39/40 W at the
-        # Delta-eps=0.00/0.025/0.05 anchor points), so every RM^{Delta-eps}
-        # curve is drawn at the same transmit power as its EE^{Delta-eps}
-        # counterpart -- the equal-power RM-vs-EE comparison. Matched to EE's
-        # per-error measured power (an array over the sweep), never a fixed watt.
+        # Each RM (rate-only) model is trained at its OWN Delta-eps (RM_CHECKPOINTS)
+        # and evaluated TWO ways, so we can separate "is this a good rate maximizer
+        # at all?" from "how does it compare to EE at equal power?":
+        #   1. rm_full_{aod_key}  -- full budget, clip-only inference, i.e. the
+        #      IDENTICAL treatment the EE checkpoints get above. This runs the model
+        #      at its OWN natural operating power (a rate-only policy always spends
+        #      the whole budget, ~75 W for a p75 checkpoint). It is the diagnostic:
+        #      a healthy rate maximizer should sit just under the full-budget MMSE
+        #      optimum at low error; if it lands far below MMSE here, the checkpoint
+        #      itself is undertrained/degenerate and no matched-power rescale can
+        #      rescue it.
+        #   2. rm_matched_{aod_key} -- the raw beam direction rescaled per error to
+        #      EE's measured power (results['sac_{aod_key}']['mean_power'], an array
+        #      over the sweep, never a fixed watt), the equal-power RM-vs-EE
+        #      comparison drawn in the triplet figure.
+        # Both use the SAME state normalization the checkpoint was trained with; the
+        # only difference is the output power projection (clip-only vs matched).
         for aod_key, rm_training_name in RM_CHECKPOINTS.items():
             try:
                 cfg.config_learner.training_name = rm_training_name
@@ -350,6 +364,17 @@ if __name__ == '__main__':
                 rm_network, rm_norm_factors = load_model(rm_model_path)
                 cfg.config_learner.get_state_args['norm_state'] = (rm_norm_factors != {})
 
+                # (1) diagnostic: RM at its own full-budget clip-only power (== EE treatment)
+                rm_full = run_rate_power_sweep(
+                    cfg, f'RM (rate-only, full budget clip-only, {aod_key})',
+                    lambda c, um, sm: get_precoding_learned_clip_only(c, um, sm, rm_norm_factors, rm_network),
+                )
+                rm_full['label'] = f'RM (full budget, {aod_key})'
+                rm_full['training_name'] = rm_training_name
+                rm_full['checkpoint'] = str(rm_model_path)
+                results[f'rm_full_{aod_key}'] = rm_full
+
+                # (2) equal-power comparison: RM direction rescaled to EE's per-error power
                 rm_m = run_matched_power_learned_sweep(
                     cfg, f'RM (rate-only, matched to EE power, {aod_key})',
                     lambda c, um, sm: get_precoding_learned_no_norm(c, um, sm, rm_norm_factors, rm_network),
@@ -359,11 +384,24 @@ if __name__ == '__main__':
                 rm_m['training_name'] = rm_training_name
                 rm_m['checkpoint'] = str(rm_model_path)
                 results[f'rm_matched_{aod_key}'] = rm_m
+
+                # per-error diagnostic: is RM reaching the MMSE optimum at its power,
+                # and does the matched-power RM at least reach EE?
+                ee = results[f'sac_{aod_key}']
+                mm = results.get(f'mmse_matched_{aod_key}')
+                print(f'[RM {aod_key}] error : ' + ' '.join(f'{e:6.2f}' for e in error_sweep_range))
+                print(f'[RM {aod_key}] RMfull: ' + ' '.join(f'{v:6.2f}' for v in rm_full['mean_rate'])
+                      + f'  (@ {rm_full["mean_power"][0]:.1f} W)')
+                print(f'[RM {aod_key}] RMmatc: ' + ' '.join(f'{v:6.2f}' for v in rm_m['mean_rate'])
+                      + f'  (@ {rm_m["mean_power"][0]:.1f} W)')
+                print(f'[RM {aod_key}] EE    : ' + ' '.join(f'{v:6.2f}' for v in ee['mean_rate']))
+                if mm is not None:
+                    print(f'[RM {aod_key}] MMSEm : ' + ' '.join(f'{v:6.2f}' for v in mm['mean_rate']))
             except FileNotFoundError:
                 print(f'[warn] per-error RM checkpoint {rm_training_name!r} not found '
                       f'under {cfg.trained_models_path} -- error_sweep_training_triplet '
-                      f'will be missing its rm_matched_{aod_key} curve. Sync it into '
-                      f'models/ and rerun.')
+                      f'will be missing its rm_full_{aod_key}/rm_matched_{aod_key} curves. '
+                      f'Sync it into models/ and rerun.')
 
         with gzip.open(gzip_path, 'wb') as file:
             pickle.dump({'error_sweep_range': error_sweep_range, 'results': results}, file=file)
