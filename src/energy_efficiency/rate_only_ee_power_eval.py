@@ -36,10 +36,14 @@ from src.utils.update_sim import update_sim
 error_sweep_range = np.linspace(0, 0.10, 11)
 monte_carlo_iterations = 10000
 
-# rate-only checkpoints trained AT the energy-efficient power (p38 / p40)
+# rate-only checkpoints trained AT the energy-efficient power, with the budget
+# (W) they were trained at. The clip must be applied at THIS budget, not the
+# default 75 W: a rate-only policy pushes its raw output well above budget (the
+# reward is flat once clipped), so clipping at 75 W would let a p38 model
+# transmit ~75 W instead of the intended 38 W.
 RM_EE_POWER_CHECKPOINTS = {
-    'aod0.025': 'SAC_rateonly_aod0.025_N16K3_satg30_p38_eta0.6_rawpow',
-    'aod0.05': 'SAC_rateonly_aod0.05_N16K3_satg30_p40_eta0.6_rawpow',
+    'aod0.025': ('SAC_rateonly_aod0.025_N16K3_satg30_p38_eta0.6_rawpow', 38.0),
+    'aod0.05': ('SAC_rateonly_aod0.05_N16K3_satg30_p40_eta0.6_rawpow', 40.0),
 }
 
 
@@ -109,10 +113,14 @@ if __name__ == '__main__':
         tri = pickle.load(file)['results']
 
     results = {}
-    for aod_key, training_name in RM_EE_POWER_CHECKPOINTS.items():
+    for aod_key, (training_name, budget_watt) in RM_EE_POWER_CHECKPOINTS.items():
+        # clip at THIS checkpoint's training budget so it transmits at ~38/40 W,
+        # not the default 75 W (see RM_EE_POWER_CHECKPOINTS note above).
+        cfg.power_constraint_watt = budget_watt
+        cfg.learned_precoder_args['power_constraint_watt'] = budget_watt
         cfg.config_learner.training_name = training_name
         model_path = get_best_model_path(cfg.trained_models_path, training_name)
-        print(f'[{aod_key}] RM checkpoint (trained at EE power): {model_path}')
+        print(f'[{aod_key}] RM checkpoint (trained+clipped at {budget_watt:.0f} W): {model_path}')
         network, norm_factors = load_model(model_path)
         cfg.config_learner.get_state_args['norm_state'] = (norm_factors != {})
 
