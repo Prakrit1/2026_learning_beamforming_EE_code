@@ -33,19 +33,19 @@ CHECKPOINTS = {
 # power (rm_35w, equal-power RM-vs-EE comparison, ~35 W at Delta-eps=0).
 RM_TRAINING_NAME = 'SAC_rateonly_N16K3_satg30_p75_eta0.6_rawpow'
 
-# Per-error genuine RM checkpoints for the error_sweep_training_triplet figure:
-# each RM model is trained at ITS OWN error bound AND at a power budget matching
-# the EE policy's operating power at that bound, so the matched-power evaluation
-# runs each RM at (near) the same power it was trained at -- identical treatment
-# for all three Delta-eps. This is what makes the Delta-eps=0 RM sit on top of
-# EE: its p35 budget matches EE's ~35 W operating point. The 0.025/0.05 entries
-# now do the same (p38 / p40, matching EE's ~38 W / ~40 W), instead of the old
-# p75 budget that trained the beam for 75 W and left it off-optimum when squeezed
-# down. See SAC_rateonly_*_nadir.slurm (p38/p40 launchers added alongside).
+# Per-error genuine RM checkpoints for the error_sweep_training_triplet figure.
+# NOTE: 0.025/0.05 use the p75 rate-only checkpoints because those are the ones
+# that exist on the cluster. The budget-matched p38/p40 checkpoints would be the
+# cleaner baseline (matching EE's ~38/40 W operating power, the same rule the
+# Delta-eps=0 entry follows with p35), but they are NOT trained yet -- pointing
+# here at a non-existent checkpoint makes the RM loop skip that curve, so the
+# gzip loses rm_matched_aod0.025/0.05 and the plotter KeyErrors. Once the
+# SAC_rateonly_aod0.025_..._p38 / ..._aod0.05_..._p40 launchers have run and the
+# checkpoints are synced into models/, switch these two lines to p38/p40.
 RM_CHECKPOINTS = {
     'aod0.0': 'SAC_rateonly_N16K3_satg30_p35_eta0.6_rawpow',
-    'aod0.025': 'SAC_rateonly_aod0.025_N16K3_satg30_p38_eta0.6_rawpow',
-    'aod0.05': 'SAC_rateonly_aod0.05_N16K3_satg30_p40_eta0.6_rawpow',
+    'aod0.025': 'SAC_rateonly_aod0.025_N16K3_satg30_p75_eta0.6_rawpow',
+    'aod0.05': 'SAC_rateonly_aod0.05_N16K3_satg30_p75_eta0.6_rawpow',
 }
 
 
