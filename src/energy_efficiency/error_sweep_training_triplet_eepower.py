@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     plot_cfg = PlotConfig()
     plot_width = 0.99 * plot_cfg.textwidth
-    plot_height = plot_width * 0.6
+    plot_height = plot_width * 0.7
 
     # EE superscript is its training budget (75 W, clip-only lets it operate lower);
     # RM superscript is ITS training budget (== its operating power, since RM here is
@@ -58,17 +58,17 @@ if __name__ == '__main__':
     rm05_watt = round(results['rm_aod0.05']['mean_power'][0])
 
     curves = [
-        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{ee_trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={ee0_watt}$ W',
+        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{ee_trained_watt}, \\Delta\\epsilon=0.00}}$, $P_\\mathrm{{eval}}={ee0_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_aod0.0', 'label': f'RM$^{{{rm0_watt}, \\mathrm{{Δε=0.00}}}}$, $P={rm0_watt}$ W',
+        {'result_key': 'rm_aod0.0', 'label': f'RM$^{{{rm0_watt}, \\Delta\\epsilon=0.00}}$, $P_\\mathrm{{eval}}={rm0_watt}$ W',
          'color': plot_cfg.cp2['green'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.025', 'label': f'EE$^{{{ee_trained_watt}, \\mathrm{{Δε=0.025}}}}$, $P={ee0025_watt}$ W',
+        {'result_key': 'sac_aod0.025', 'label': f'EE$^{{{ee_trained_watt}, \\Delta\\epsilon=0.025}}$, $P_\\mathrm{{eval}}={ee0025_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_aod0.025', 'label': f'RM$^{{{rm0025_watt}, \\mathrm{{Δε=0.025}}}}$, $P={rm0025_watt}$ W',
+        {'result_key': 'rm_aod0.025', 'label': f'RM$^{{{rm0025_watt}, \\Delta\\epsilon=0.025}}$, $P_\\mathrm{{eval}}={rm0025_watt}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.05', 'label': f'EE$^{{{ee_trained_watt}, \\mathrm{{Δε=0.05}}}}$, $P={ee05_watt}$ W',
+        {'result_key': 'sac_aod0.05', 'label': f'EE$^{{{ee_trained_watt}, \\Delta\\epsilon=0.05}}$, $P_\\mathrm{{eval}}={ee05_watt}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_aod0.05', 'label': f'RM$^{{{rm05_watt}, \\mathrm{{Δε=0.05}}}}$, $P={rm05_watt}$ W',
+        {'result_key': 'rm_aod0.05', 'label': f'RM$^{{{rm05_watt}, \\Delta\\epsilon=0.05}}$, $P_\\mathrm{{eval}}={rm05_watt}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
     ]
 

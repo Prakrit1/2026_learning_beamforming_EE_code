@@ -163,11 +163,11 @@ if __name__ == '__main__':
     rm38 = round(results['rm_eepower_aod0.025']['mean_power'][0])
     rm40 = round(results['rm_eepower_aod0.05']['mean_power'][0])
     curves = [
-        {'result_key': 'sac_aod0.025', 'label': f'EE, Δε=0.025, $P={rm38}$ W',
+        {'result_key': 'sac_aod0.025', 'label': f'EE, Δε=0.025, $P_\\mathrm{{eval}}={rm38}$ W',
          'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
         {'result_key': 'rm_eepower_aod0.025', 'label': f'RM (train+eval @ {rm38} W), Δε=0.025',
          'color': plot_cfg.cp2['blue'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.05', 'label': f'EE, Δε=0.05, $P={rm40}$ W',
+        {'result_key': 'sac_aod0.05', 'label': f'EE, Δε=0.05, $P_\\mathrm{{eval}}={rm40}$ W',
          'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
         {'result_key': 'rm_eepower_aod0.05', 'label': f'RM (train+eval @ {rm40} W), Δε=0.05',
          'color': plot_cfg.cp2['magenta'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
@@ -176,6 +176,6 @@ if __name__ == '__main__':
         error_sweep_range=error_sweep_range, results=combined, curves=curves,
         width=plot_width, height=plot_height, plots_parent_path=plot_cfg.plots_parent_path,
         name='rate_only_ee_power', annotate_power=False,
-        legend_ncols=2, legend_loc='lower center', legend_bbox_to_anchor=(0.5, 1.02), legend_fontsize=8,
+        legend_ncols=2, legend_loc='lower center', legend_bbox_to_anchor=(0.5, 1.02), legend_fontsize=10,
     )
     print('Done.')

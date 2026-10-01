@@ -55,6 +55,11 @@ if __name__ == '__main__':
     # so re-assert it off or savefig crashes silently under sbatch.
     matplotlib.rcParams['text.usetex'] = False
 
+    # Radiated-power axis label. mathtext (not a custom macro / usetex) so it
+    # renders identically as "Radiated power P_rad [W]" in the pgf and the
+    # pdf/png/jpg with no LaTeX dependency at generation time.
+    power_axis_label = r'Radiated power $P_\mathrm{rad}$ [W]'
+
     triplet_gzip = Path(cfg.output_metrics_path, 'EE_lwin5000_3gpp_triplet', 'rate_power_triplet.gzip')
     if not triplet_gzip.exists():
         raise FileNotFoundError(f'{triplet_gzip} not found -- run plotting_scenario.py first.')
@@ -92,8 +97,6 @@ if __name__ == '__main__':
     # Group by QUANTITY: the two power bars (EE, RM) together on the left axis,
     # the two rate bars (EE, RM) together on the right axis. Within each group
     # EE is solid and RM is hatched, so the same scheme reads across groups.
-    from matplotlib.patches import Patch
-
     bar_w = 0.55
     x_power = np.array([0.0, 1.4])        # EE, RM  -- power group (left axis, blue)
     x_rate = np.array([2.8, 4.2])         # EE, RM  -- rate group (right axis, green)
@@ -125,8 +128,8 @@ if __name__ == '__main__':
     ax_p.set_xticks([x_power[0], x_power[1], x_rate[0], x_rate[1]])
     ax_p.set_xticklabels(['EE', 'RM', 'EE', 'RM'], fontsize=11)
 
-    ax_p.set_ylabel('Transmit power [W]', fontsize=13, color=power_color)
-    ax_r.set_ylabel('Sum rate [bits/s/Hz]', fontsize=13, color=rate_color)
+    ax_p.set_ylabel(power_axis_label, fontsize=13, color=power_color)
+    ax_r.set_ylabel('Rate R [bps/Hz]', fontsize=13, color=rate_color)
     ax_p.tick_params(axis='y', labelcolor=power_color)
     ax_r.tick_params(axis='y', labelcolor=rate_color)
 
@@ -136,18 +139,6 @@ if __name__ == '__main__':
     ax_p.set_axisbelow(True)
     ax_p.grid(True, axis='y', alpha=0.2, linewidth=0.5)
 
-    # legend in the trained^ / evaluated-P style of the triplet figures
-    trained_watt = int(round(cfg.power_constraint_watt))
-    ee_eval_watt = int(round(p_learned))
-    rm_eval_watt = int(round(p_rm))
-    legend_handles = [
-        Patch(facecolor='0.75', edgecolor='black',
-              label=rf'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W'),
-        Patch(facecolor='0.75', edgecolor='black', hatch='//',
-              label=rf'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W'),
-    ]
-    ax_p.legend(handles=legend_handles, loc='upper center', ncol=2, fontsize=10,
-                frameon=False, columnspacing=1.6, handletextpad=0.5)
     fig.tight_layout()
 
     for subdir, dpi, transparent in [('pdf', 300, True), ('jpg', 200, False), ('png', 200, True)]:

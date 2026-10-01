@@ -15,12 +15,12 @@ if __name__ == '__main__':
 
     plot_cfg = PlotConfig()
     plot_width = 0.99 * plot_cfg.textwidth
-    plot_height = plot_width * 0.6
+    plot_height = plot_width * 0.7
 
-    # Notation matches plotting_scenario.py's error-sweep figure: superscript
-    # is the fixed training-time power budget (same for every checkpoint
-    # here), the post-comma value is each curve's own measured operating
-    # power -- watts pulled from the actual measured samples, not hardcoded.
+    # Notation matches plotting_scenario.py's error-sweep figure: superscript is
+    # each curve's measured evaluation power; subscript is the fixed training-time
+    # power budget (same for every checkpoint here) and its training error bound
+    # Delta-epsilon -- watts pulled from the actual measured samples, not hardcoded.
     trained_watt = round(data['results']['sac_aod0.0']['power_budget'])
     aod0_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
     aod0025_watt = round(data['results']['sac_aod0.025']['mean_power'][0])
@@ -30,19 +30,24 @@ if __name__ == '__main__':
     rm0025_watt = round(data['results']['rm_matched_aod0.025']['mean_power'][0])
     rm05_watt = round(data['results']['rm_matched_aod0.05']['mean_power'][0])
 
+    # EE vs RM in each colour-pair is told apart by MARKER, not line style (the
+    # dashed line was illegible in the legend). Each of the 6 curves gets a
+    # distinct marker, and the pair's markevery is staggered (0,2)/(1,2) so the
+    # two markers never land on top of each other. EE dashed / RM solid, matching
+    # plotting_scenario.py.
     curves = [
-        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={aod0_watt}$ W',
-         'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.0', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.00}}}}$, $P={rm0_watt}$ W',
-         'color': plot_cfg.cp2['green'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.025', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.025}}}}$, $P={aod0025_watt}$ W',
-         'color': plot_cfg.cp2['blue'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.025', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.025}}}}$, $P={rm0025_watt}$ W',
-         'color': plot_cfg.cp2['blue'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
-        {'result_key': 'sac_aod0.05', 'label': f'EE$^{{{trained_watt}, \\mathrm{{Δε=0.05}}}}$, $P={aod05_watt}$ W',
-         'color': plot_cfg.cp2['magenta'], 'marker': 'o', 'linestyle': '-', 'markevery': (0, 2)},
-        {'result_key': 'rm_matched_aod0.05', 'label': f'RM$^{{{trained_watt}, \\mathrm{{Δε=0.05}}}}$, $P={rm05_watt}$ W',
-         'color': plot_cfg.cp2['magenta'], 'marker': 's', 'linestyle': '--', 'markevery': (1, 2)},
+        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{aod0_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}},\\,\\Delta\\epsilon=0.00}}$',
+         'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '--', 'markevery': (0, 2)},
+        {'result_key': 'rm_matched_aod0.0', 'label': f'RM$^{{{rm0_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}},\\,\\Delta\\epsilon=0.00}}$',
+         'color': plot_cfg.cp2['green'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 2)},
+        {'result_key': 'sac_aod0.025', 'label': f'EE$^{{{aod0025_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}},\\,\\Delta\\epsilon=0.025}}$',
+         'color': plot_cfg.cp2['blue'], 'marker': '^', 'linestyle': '--', 'markevery': (0, 2)},
+        {'result_key': 'rm_matched_aod0.025', 'label': f'RM$^{{{rm0025_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}},\\,\\Delta\\epsilon=0.025}}$',
+         'color': plot_cfg.cp2['blue'], 'marker': 'v', 'linestyle': '-', 'markevery': (1, 2)},
+        {'result_key': 'sac_aod0.05', 'label': f'EE$^{{{aod05_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}},\\,\\Delta\\epsilon=0.05}}$',
+         'color': plot_cfg.cp2['magenta'], 'marker': 'D', 'linestyle': '--', 'markevery': (0, 2)},
+        {'result_key': 'rm_matched_aod0.05', 'label': f'RM$^{{{rm05_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}},\\,\\Delta\\epsilon=0.05}}$',
+         'color': plot_cfg.cp2['magenta'], 'marker': 'X', 'linestyle': '-', 'markevery': (1, 2)},
     ]
 
     plot_rate_error_sweep(
@@ -57,5 +62,6 @@ if __name__ == '__main__':
         legend_ncols=3,
         legend_loc='lower center',
         legend_bbox_to_anchor=(0.5, 1.02),
-        legend_fontsize=9,
+        legend_fontsize=11,
+        legend_handlelength=3.0,
     )

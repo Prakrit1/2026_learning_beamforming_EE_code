@@ -35,6 +35,8 @@ def plot_rate_error_sweep(
         legend_loc: str = 'upper right',
         legend_bbox_to_anchor=None,
         legend_fontsize: int = 11,
+        legend_labelspacing: float = 0.3,
+        legend_handlelength: float = 1.6,
         power_curves: list = None,
         power_ylabel: str = 'Transmit power [W]',
         power_ylim=None,
@@ -81,12 +83,21 @@ def plot_rate_error_sweep(
     MMSE vs RM, both near full power) -- staggering which x-positions get
     a marker keeps the markers visually distinguishable without altering
     the (intentionally identical) line itself.
+
+    A curve dict of the form {'blank': True} plots nothing but contributes an
+    empty legend cell -- used to leave an intentional gap when arranging a
+    multi-column legend (matplotlib fills columns top-to-bottom, left-to-right).
     """
     matplotlib.rcParams['text.usetex'] = False  # override PlotConfig's reset
 
     fig, ax = plt.subplots(figsize=(width, height))
 
     for curve in curves:
+        if curve.get('blank'):
+            # invisible entry that just occupies one legend cell, for laying
+            # out a multi-column legend with an intentional empty slot.
+            ax.plot([], [], linestyle='none', marker='none', label=' ')
+            continue
         series = results[curve['result_key']]
         marker_dx = curve.get('marker_dx', 0.0)
         common = dict(color=curve['color'], linestyle=curve.get('linestyle', '-'), linewidth=1.5)
@@ -161,8 +172,8 @@ def plot_rate_error_sweep(
         fontsize=legend_fontsize,
         framealpha=0.9,
         frameon=True,
-        handlelength=1.6,
-        labelspacing=0.3,
+        handlelength=legend_handlelength,
+        labelspacing=legend_labelspacing,
         borderpad=0.3,
         handletextpad=0.5,
     )

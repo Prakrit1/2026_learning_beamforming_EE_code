@@ -233,7 +233,16 @@ if __name__ == '__main__':
     out_path.mkdir(parents=True, exist_ok=True)
     gzip_path = Path(out_path, 'rate_power_triplet.gzip')
 
-    if not PLOT_ONLY:
+    # Default: re-plot from the cached gzip if it already exists, so running
+    # this script plainly (no flags) does NOT re-run the ~10k-MC sweep. Pass
+    # --recompute to force the full sweep (e.g. after retraining), which also
+    # happens automatically when the gzip is missing. --plot-only still forces
+    # plot-only regardless.
+    force_recompute = '--recompute' in sys.argv
+    plot_only = PLOT_ONLY or (gzip_path.exists() and not force_recompute)
+    print(f'[mode] {"plot-only (using cached gzip)" if plot_only else "recompute sweep"}: {gzip_path}')
+
+    if not plot_only:
         from src.config.config import Config
         from src.data.calc_sum_rate import calc_sum_rate
         from src.data.calc_tx_power_distribution import calc_tx_power_distribution
@@ -416,9 +425,13 @@ if __name__ == '__main__':
     plot_height = plot_width * 0.6
 
     # Legend text uses measured watts (rounded), not fixed placeholders.
-    # trained_watt is the fixed training-time power budget (cfg.power_constraint_watt) --
-    # the same for every curve here, since the EE reward's subtraction/lambda term shapes
-    # what power the policy converges to *using*, not the budget it was trained under.
+    # Notation: superscript = the curve's measured EVALUATION power (mean_power,
+    # what it actually draws); subscript = the TRAINING-time power budget
+    # (trained_watt = cfg.power_constraint_watt). MMSE shows the eval power only
+    # (no trained subscript) since it is not a learned policy.
+    # trained_watt is the same for every learned curve here, since the EE reward's
+    # subtraction/lambda term shapes what power the policy converges to *using*,
+    # not the budget it was trained under.
     trained_watt = round(data['results']['mmse_nadir']['power_budget'])
     mmse_eval_watt = round(data['results']['mmse_nadir']['mean_power'][0])
     ee_eval_watt = round(data['results']['sac_aod0.0']['mean_power'][0])
@@ -428,38 +441,44 @@ if __name__ == '__main__':
     # otherwise fall back to the sac_aod0.0_fullpower placeholder for RM.
     real_rm = 'rm_fullpower' in data['results'] and 'rm_35w' in data['results']
 
-    curves = [
-        {'result_key': 'mmse_nadir', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_eval_watt}$ W',
-         'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': ':', 'markevery': (0, 3)},
-    ]
+    # Legend is a 3-column box; matplotlib fills it column-major (consecutive
+    # entries go DOWN each column). We want the arrangement
+    #   row 1:  MMSE 75 | RM 75 | (empty)
+    #   row 2:  MMSE 35 | RM 35 | EE 35
+    # which, filling column-by-column with 2 rows, is the entry order
+    #   [MMSE75, MMSE35, RM75, RM35, <blank>, EE35].
+    #
+    # Both MMSE: solid black, distinguished by marker (^ vs x). EE is dashed
+    # green; its 'o' markevery is (2,3) so it never lands on MMSE 35's 'x' at
+    # (1,3) (or MMSE 75's '^' at (0,3)) -- the three round-robin across x.
+    mmse75 = {'result_key': 'mmse_nadir', 'label': f'MMSE$^{{{mmse_eval_watt}\\,\\mathrm{{W}}}}$',
+              'color': plot_cfg.cp2['black'], 'marker': '^', 'linestyle': '-', 'markevery': (0, 3)}
+    mmse35 = {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE$^{{{mmse_matched_watt}\\,\\mathrm{{W}}}}$',
+              'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '-', 'markevery': (1, 3)}
+    ee35 = {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{ee_eval_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}}}}$',
+            'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '--', 'markevery': (2, 3)}
 
     if real_rm:
         # RM (gold) as two curves of the same policy: its native 75 W budget
-        # (solid) and matched to the EE policy's own per-error power (dashed,
-        # ~35 W at Δε=0), so RM-vs-EE is read off at EQUAL transmit power at
-        # every error point.
+        # and matched to the EE policy's own per-error power (~35 W at Δε=0), so
+        # RM-vs-EE is read off at EQUAL transmit power at every error point.
+        # Both RM curves: solid gold, distinguished only by marker (s vs D).
+        # The two lines nearly coincide, so stagger markevery AND nudge the 35 W
+        # markers in x (marker_dx) so the s/D markers never sit on top of each other.
         rm75_eval_watt = round(data['results']['rm_fullpower']['mean_power'][0])
         rm35_eval_watt = round(data['results']['rm_35w']['mean_power'][0])
-        curves += [
-            {'result_key': 'rm_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm75_eval_watt}$ W',
-             'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3)},
-            {'result_key': 'rm_35w', 'label': f'RM$^{{{trained_watt}}}$, $P={rm35_eval_watt}$ W',
-             'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '--', 'markevery': (0, 3), 'marker_dx': 0.0025},
-        ]
+        rm75 = {'result_key': 'rm_fullpower', 'label': f'RM$^{{{rm75_eval_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}}}}$',
+                'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3)}
+        rm35 = {'result_key': 'rm_35w', 'label': f'RM$^{{{rm35_eval_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}}}}$',
+                'color': plot_cfg.cp2['gold'], 'marker': 'D', 'linestyle': '-', 'markevery': (0, 3), 'marker_dx': 0.0025}
+        curves = [mmse75, mmse35, rm75, rm35, {'blank': True}, ee35]
     else:
         # placeholder RM: reuse the EE (Δε=0.0) checkpoint's full-power inference
         # until the real SAC_rateonly checkpoint is synced into models/.
         rm_eval_watt = round(data['results']['sac_aod0.0_fullpower']['mean_power'][0])
-        curves.append(
-            {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{trained_watt}}}$, $P={rm_eval_watt}$ W',
-             'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3)})
-
-    curves += [
-        {'result_key': 'sac_aod0.0', 'label': f'EE$^{{{trained_watt}}}$, $P={ee_eval_watt}$ W',
-         'color': plot_cfg.cp2['green'], 'marker': 'o', 'linestyle': '-'},
-        {'result_key': 'mmse_matched_aod0.0', 'label': f'MMSE$^{{{trained_watt}}}$, $P={mmse_matched_watt}$ W',
-         'color': plot_cfg.cp2['black'], 'marker': 'x', 'linestyle': '--'},
-    ]
+        rm75 = {'result_key': 'sac_aod0.0_fullpower', 'label': f'RM$^{{{rm_eval_watt}\\,\\mathrm{{W}}}}_{{{trained_watt}\\,\\mathrm{{W}}}}$',
+                'color': plot_cfg.cp2['gold'], 'marker': 's', 'linestyle': '-', 'markevery': (1, 3)}
+        curves = [mmse75, mmse35, rm75, ee35]
 
     plot_rate_error_sweep(
         error_sweep_range=data['error_sweep_range'],
@@ -472,5 +491,7 @@ if __name__ == '__main__':
         legend_ncols=3,
         legend_loc='lower center',
         legend_bbox_to_anchor=(0.5, 1.02),
-        legend_fontsize=9,
+        legend_fontsize=11,
+        legend_labelspacing=0.9,
+        legend_handlelength=3.0,
     )
